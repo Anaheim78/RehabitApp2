@@ -1,25 +1,33 @@
 package com.example.rehabilitationapp.data;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
 
-import android.util.Log;
-import com.example.rehabilitationapp.data.dao.TrainingPlanDao;
 import com.example.rehabilitationapp.data.dao.TrainingItemDao;
-import com.example.rehabilitationapp.data.model.TrainingPlan;
-import com.example.rehabilitationapp.data.model.TrainingItem;
+import com.example.rehabilitationapp.data.dao.TrainingPlanDao;
+import com.example.rehabilitationapp.data.model.PlanItemCrossRef;
 import com.example.rehabilitationapp.data.model.Preload;
+import com.example.rehabilitationapp.data.model.TrainingItem;
+import com.example.rehabilitationapp.data.model.TrainingPlan;
 
-@Database(entities = {TrainingPlan.class, TrainingItem.class}, version = 1)
+@Database(
+        entities = {
+                TrainingItem.class,
+                TrainingPlan.class,
+                PlanItemCrossRef.class
+        },
+        version = 1
+)
 public abstract class AppDatabase extends RoomDatabase {
     private static final String DB_DEBUG_TAG = "DB_DEBUG_TAG";
     private static volatile AppDatabase INSTANCE;
 
-    public abstract TrainingPlanDao trainingPlanDao();
     public abstract TrainingItemDao trainingItemDao();
+    public abstract TrainingPlanDao trainingPlanDao();
 
     public static AppDatabase getInstance(Context context) {
         Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
@@ -32,16 +40,31 @@ public abstract class AppDatabase extends RoomDatabase {
                             .fallbackToDestructiveMigration()
                             .build();
 
-                    // 立即檢查並插入預設資料
+                    // 插入預設資料
                     new Thread(() -> {
                         try {
-                            TrainingItemDao dao = INSTANCE.trainingItemDao();
-                            int count = dao.count();
-                            Log.d(DB_DEBUG_TAG, "=== Current count: " + count + " ===");
+                            TrainingItemDao itemDao = INSTANCE.trainingItemDao();
+                            TrainingPlanDao planDao = INSTANCE.trainingPlanDao();
+
+                            int count = itemDao.count();
+                            Log.d(DB_DEBUG_TAG, "=== Current item count: " + count + " ===");
 
                             if (count == 0) {
                                 Log.d(DB_DEBUG_TAG, "=== Inserting default data ===");
-                                dao.insertAll(Preload.getDefaults());
+
+                                // 插入訓練動作
+                                itemDao.insertAll(Preload.getDefaultItems());
+
+                                // 插入訓練計畫
+                                for (TrainingPlan plan : Preload.getDefaultPlans()) {
+                                    planDao.insertPlan(plan);
+                                }
+
+                                // 插入中介表關聯
+                                for (PlanItemCrossRef ref : Preload.getDefaultPlanItemLinks()) {
+                                    planDao.insertCrossRef(ref);
+                                }
+
                                 Log.d(DB_DEBUG_TAG, "=== Default data inserted successfully ===");
                             }
                         } catch (Exception e) {
