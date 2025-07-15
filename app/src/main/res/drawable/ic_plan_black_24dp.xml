@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 外框（更粗，往邊緣擴） -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M3,2h18a1,1 0 0,1 1,1v18a1,1 0 0,1 -1,1H3a1,1 0 0,1 -1,-1V3a1,1 0 0,1 1,-1zM3,4v16h18V4H3z" />
+
+    <!-- 橫線一（粗） -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9,6h10v2H9z" />
+
+    <!-- 橫線二 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9,10h10v2H9z" />
+
+    <!-- 橫線三 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9,14h7v2H9z" />
+
+    <!-- 打勾（位置上提，比例放大） -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M5,6.5l1.8,1.8l3.2,-3.2l1.2,1.2L6.8,11L3.5,7.8z" />
+</vector>

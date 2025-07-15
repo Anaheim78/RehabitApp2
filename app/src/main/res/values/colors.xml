@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <!-- 品牌顏色 (Figma 設計) -->
+    <color name="brand_primary">#5FB4A0</color>
+    <color name="brand_secondary">#C7DAD4</color>
+
+    <!-- 文字顏色 -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_invert">#FFFFFF</color>
+
+    <!-- 圖標顏色 -->
+    <color name="icon_default">#212121</color>
+    <color name="icon_secondary">#494949</color>
+    <color name="icon_invert">#FFFFFF</color>
+
+    <!-- 表面/背景顏色 -->
+    <color name="surface_default">#F4F0EB</color>
+    <color name="surface_dark">#EFE7DC</color>
+    <color name="surface_white">#FFFFFF</color>
+
+    <!-- 衍生顏色 (基於品牌色的變化) -->
+    <color name="brand_primary_dark">#4A9B87</color>
+    <color name="brand_primary_light">#B8D5CE</color>
+
+    <!-- 狀態顏色 -->
+    <color name="success_color">#4CAF50</color>
+    <color name="error_color">#F44336</color>
+    <color name="warning_color">#FF9800</color>
+</resources>
