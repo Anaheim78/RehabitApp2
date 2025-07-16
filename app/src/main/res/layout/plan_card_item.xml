@@ -28,7 +28,7 @@
             android:layout_height="200dp"
             android:scaleType="centerCrop"
             android:layout_marginTop="8dp"
-            android:src="@drawable/cheeks" />
+            android:src="@drawable/plans_picture" />
 
         <TextView
             android:id="@+id/plan_description"

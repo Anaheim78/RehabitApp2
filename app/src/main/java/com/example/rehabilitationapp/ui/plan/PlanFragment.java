@@ -90,4 +90,11 @@ public class PlanFragment extends Fragment {
             executor.shutdown();
         }
     }
+
+    @Override
+    public  void onResume() {
+        super.onResume();
+        loadPlans();
+    }
+
 }

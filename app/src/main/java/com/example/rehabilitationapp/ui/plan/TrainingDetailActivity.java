@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import android.view.Menu;
+import android.view.MenuItem;
 
 public class TrainingDetailActivity extends AppCompatActivity {
 
@@ -31,6 +33,54 @@ public class TrainingDetailActivity extends AppCompatActivity {
     private ExecutorService executor;
     private boolean isCreateMode = false;  // 新增：模式標記
 
+    //頂端 垃圾桶刪除
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (!isCreateMode) {
+            long planId = getIntent().getIntExtra("plan_id", -1);
+
+            if (planId >= 3) {
+                getMenuInflater().inflate(R.menu.plan_detail_menu, menu);
+            } else {
+                Log.d("Menu", "預設計畫，不顯示刪除選單");
+            }
+        }
+        return true;
+    }
+
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_delete) {
+            // 彈出確認視窗
+            new AlertDialog.Builder(this)
+                    .setTitle("刪除訓練計畫")
+                    .setMessage("確定要刪除這個訓練計畫嗎？")
+                    .setPositiveButton("確定", (dialog, which) -> {
+                        long planId = getIntent().getIntExtra("plan_id", -1);
+                        if (planId != -1) {
+                            executor.execute(() -> {
+                                AppDatabase db = AppDatabase.getInstance(this);
+                                TrainingPlan plan = db.trainingPlanDao().getById((int) planId); // ID 是 int
+                                if (plan != null) {
+                                    db.trainingPlanDao().delete(plan);
+                                    runOnUiThread(() -> {
+                                        Toast.makeText(this, "已刪除訓練計畫", Toast.LENGTH_SHORT).show();
+                                        finish();
+                                    });
+                                }
+                            });
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+
+    //中間 動作清單詳細
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

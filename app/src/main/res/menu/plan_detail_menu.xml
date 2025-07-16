@@ -1,0 +1,9 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_delete"
+        android:title="刪除計畫"
+        android:icon="@drawable/ic_delete"
+        app:showAsAction="ifRoom" />
+</menu>
