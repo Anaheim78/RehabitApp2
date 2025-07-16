@@ -14,8 +14,8 @@
     <fragment
         android:id="@+id/navigation_planing"
         android:name="com.example.rehabilitationapp.ui.plan.PlanFragment"
-        android:label="@string/title_home"
-        tools:layout="@layout/fragment_home" />
+        android:label="@string/title_plan"
+        tools:layout="@layout/fragment_plan" />
 
     <fragment
         android:id="@+id/navigation_dashboard"

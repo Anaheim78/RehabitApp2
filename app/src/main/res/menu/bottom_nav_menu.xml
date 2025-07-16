@@ -9,7 +9,7 @@
     <item
         android:id="@+id/navigation_planing"
         android:icon="@drawable/ic_plan_black_24dp"
-        android:title="@string/title_dashboard" />
+        android:title="Plans" />
 
     <item
         android:id="@+id/navigation_dashboard"

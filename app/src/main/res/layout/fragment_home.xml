@@ -5,7 +5,7 @@
     android:orientation="vertical"
     android:background="@color/surface_default"
     android:padding="20dp">
-
+    <!-- 首頁  -->
     <TextView
         android:id="@+id/title_greeting"
         android:layout_width="wrap_content"

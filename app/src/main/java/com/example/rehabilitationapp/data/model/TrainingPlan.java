@@ -18,6 +18,7 @@ public class TrainingPlan {
 
     @ColumnInfo(name = "image_path")
     public String imagePath;  // 可選：封面圖片的路徑
+    public String imageResName;
 
     public TrainingPlan(String title, String description, String imagePath) {
         this.title = title;

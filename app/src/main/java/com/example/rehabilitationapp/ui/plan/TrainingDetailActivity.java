@@ -1,0 +1,109 @@
+package com.example.rehabilitationapp.ui.plan;
+
+import android.os.Bundle;
+import android.util.Log;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.TextView;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import com.example.rehabilitationapp.R;
+import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.model.PlanWithItems;
+import com.example.rehabilitationapp.data.model.TrainingItem;
+import com.example.rehabilitationapp.data.model.TrainingPlan;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class TrainingDetailActivity extends AppCompatActivity {
+
+    private RecyclerView exercisesRecycler;
+    private ExecutorService executor;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_training_detail);
+
+        executor = Executors.newSingleThreadExecutor();
+
+        // 設置標題
+        String planTitle = getIntent().getStringExtra("plan_title");
+        TextView titleText = findViewById(R.id.page_title);
+        titleText.setText(planTitle != null ? planTitle : "自訂訓練計畫");
+
+        // 設置返回按鈕
+        ImageView backBtn = findViewById(R.id.back_btn);
+        backBtn.setOnClickListener(v -> finish());
+
+        // 設置 RecyclerView
+        exercisesRecycler = findViewById(R.id.exercises_recycler);
+        exercisesRecycler.setLayoutManager(new LinearLayoutManager(this));
+
+        // 載入運動項目
+        loadExercises();
+
+        // 設置開始訓練按鈕
+        Button createBtn = findViewById(R.id.start_plan_btn);
+        createBtn.setOnClickListener(v -> {
+            // To Do ..這裡處開始訓練計畫的邏輯
+            finish();
+        });
+    }
+
+    private void loadExercises() {
+        executor.execute(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(this);
+
+                // 獲取傳過來的計劃 ID
+                long planId = getIntent().getIntExtra("plan_id", 0);
+                Log.d("test_PlanDetail ", "=== Received planId: " + planId + " ===");
+
+                // 查詢所有計劃和運動項目
+                List<PlanWithItems> allPlans = db.trainingPlanDao().getAllPlansWithItems();
+                Log.d("test_PlanDetail", "Total plans found: " + allPlans.size());
+
+                // 顯示所有計劃的 ID
+                for (PlanWithItems planWithItems : allPlans) {
+                    Log.d("test_PlanDetail", "Plan ID: " + planWithItems.plan.id +
+                            ", Items count: " + planWithItems.items.size());
+                }
+
+                // 找到指定計劃的運動項目
+                for (PlanWithItems planWithItems : allPlans) {
+                    Log.d("test_PlanDetail", "Checking: " + planWithItems.plan.id + " == " + planId);
+
+                    if (planWithItems.plan.id == planId) {
+                        List<TrainingItem> exercises = planWithItems.items;
+
+                        Log.d("test_PlanDetail", "MATCH FOUND! Exercise count: " + exercises.size());
+
+                        runOnUiThread(() -> {
+                            SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(exercises);
+                            exercisesRecycler.setAdapter(adapter);
+                            Log.d("test_PlanDetail", "Adapter set successfully");
+                        });
+                        return;
+                    }
+                }
+
+                // 如果沒找到計劃
+                Log.d("test_PlanDetail", "NO MATCH FOUND for planId: " + planId);
+                runOnUiThread(() -> {
+                    SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(new ArrayList<>());
+                    exercisesRecycler.setAdapter(adapter);
+                });
+
+            } catch (Exception e) {
+                Log.e("test_PlanDetail", "Error: " + e.getMessage(), e);
+            }
+        });
+    }
+}
