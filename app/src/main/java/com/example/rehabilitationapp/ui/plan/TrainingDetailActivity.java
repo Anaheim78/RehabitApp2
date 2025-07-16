@@ -112,6 +112,12 @@ public class TrainingDetailActivity extends AppCompatActivity {
 
         // 設置按鈕
         Button createBtn = findViewById(R.id.start_plan_btn);
+        //根據模式配置文字
+        if (isCreateMode) {
+            createBtn.setText("建立計畫");
+        } else {
+            createBtn.setText("開始訓練");
+        }
         createBtn.setOnClickListener(v -> {
             Log.d("TrainDetailAct","into the createBtn");
             if (isCreateMode) {
