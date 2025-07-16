@@ -19,8 +19,8 @@ public class Preload {
 
     public static List<TrainingPlan> getDefaultPlans() {
         List<TrainingPlan> list = new ArrayList<>();
-        list.add(new TrainingPlan("初階臉部訓練", "包含鼓頰、縮頰與嘟嘴", null)); // id 1
-        list.add(new TrainingPlan("舌頭活動", "左右伸舌", null)); // id 2
+        list.add(new TrainingPlan("基礎復健訓練", "包含鼓頰、縮頰與嘟嘴", null)); // id 1
+        list.add(new TrainingPlan("進階復健訓練", "左右伸舌", null)); // id 2
         return list;
     }
 
@@ -29,6 +29,11 @@ public class Preload {
         list.add(new PlanItemCrossRef(1, 1)); // 計畫1 ← 動作1 (鼓頰)
         list.add(new PlanItemCrossRef(1, 2)); // 計畫1 ← 動作2 (縮頰)
         list.add(new PlanItemCrossRef(1, 3)); // 計畫1 ← 動作3 (嘟嘴)
+        list.add(new PlanItemCrossRef(1, 4)); // 計畫1 ← 動作3 (嘟嘴)
+        list.add(new PlanItemCrossRef(2, 1)); // 計畫1 ← 動作1 (鼓頰)
+        list.add(new PlanItemCrossRef(2, 2)); // 計畫1 ← 動作2 (縮頰)
+        list.add(new PlanItemCrossRef(2, 3)); // 計畫1 ← 動作3 (嘟嘴)
+        list.add(new PlanItemCrossRef(2, 4)); // 計畫1 ← 動作3 (嘟嘴)
         list.add(new PlanItemCrossRef(2, 5)); // 計畫2 ← 動作5 (左舌)
         list.add(new PlanItemCrossRef(2, 6)); // 計畫2 ← 動作6 (右舌)
         return list;

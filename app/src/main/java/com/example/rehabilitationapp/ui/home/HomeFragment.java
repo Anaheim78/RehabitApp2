@@ -9,6 +9,7 @@ import android.widget.TextView;
 import android.widget.LinearLayout;
 import com.example.rehabilitationapp.R;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import com.example.rehabilitationapp.databinding.FragmentHomeBinding;
 import android.view.View.OnClickListener;
@@ -20,6 +21,14 @@ public class HomeFragment extends Fragment {
     private FragmentHomeBinding binding;
     private View selectedCard = null;
     private int selectedTrainingType = -1;
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        // 在這裡設定標題
+        requireActivity().setTitle("首頁");  // 或 "訓練計畫"
+    }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,

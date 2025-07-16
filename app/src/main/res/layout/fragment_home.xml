@@ -30,7 +30,7 @@
         android:layout_height="wrap_content"
         android:text="選擇一項復健動作，即可開始訓練"
         android:textSize="14sp"
-        android:textColor="@color/text_secondary"
+        android:textColor="@color/text_primary"
         android:layout_marginBottom="20dp" />
 
     <HorizontalScrollView
@@ -45,7 +45,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:rowCount="2"
-            android:columnCount="6"
+            android:columnCount="3"
             android:orientation="horizontal"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
