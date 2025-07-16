@@ -1,6 +1,7 @@
 package com.example.rehabilitationapp.ui.plan;
 
 import android.util.Log;
+import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,14 +12,32 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.model.TrainingItem;
+import java.util.ArrayList;
 import java.util.List;
 
 public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableExerciseAdapter.ExerciseViewHolder> {
 
     private List<TrainingItem> exerciseList;
+    private boolean isReadOnlyMode = false;
+    private SparseBooleanArray selectionMap = new SparseBooleanArray();  // ✅ 勾選狀態記錄器
 
+    // 建構子 - 創建模式
     public SelectableExerciseAdapter(List<TrainingItem> exerciseList) {
         this.exerciseList = exerciseList;
+        this.isReadOnlyMode = false;
+    }
+
+    // 建構子 - 檢視模式
+    public SelectableExerciseAdapter(List<TrainingItem> exerciseList, boolean isReadOnlyMode) {
+        this.exerciseList = exerciseList;
+        this.isReadOnlyMode = isReadOnlyMode;
+
+        if (isReadOnlyMode) {
+            // ✅ 若為只讀模式，預設全部都勾選
+            for (int i = 0; i < exerciseList.size(); i++) {
+                selectionMap.put(i, true);
+            }
+        }
     }
 
     @NonNull
@@ -26,21 +45,35 @@ public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableEx
     public ExerciseViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.selectable_exercise_item, parent, false);
-
-        Log.d("SelectableExcerciseAdaoater  ","input to bind");
-
         return new ExerciseViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ExerciseViewHolder holder, int position) {
         TrainingItem exercise = exerciseList.get(position);
-        holder.bind(exercise);
+        boolean isChecked = selectionMap.get(position, false);
+        holder.bind(exercise, isReadOnlyMode, isChecked, v -> {
+            // ✅ 點擊時更新 selectionMap
+            boolean newState = !selectionMap.get(position, false);
+            selectionMap.put(position, newState);
+            notifyItemChanged(position);  // 更新畫面
+        });
     }
 
     @Override
     public int getItemCount() {
         return exerciseList.size();
+    }
+
+    // ✅ 回傳所有有勾選的項目
+    public List<TrainingItem> getSelectedItems() {
+        List<TrainingItem> selected = new ArrayList<>();
+        for (int i = 0; i < exerciseList.size(); i++) {
+            if (selectionMap.get(i, false)) {
+                selected.add(exerciseList.get(i));
+            }
+        }
+        return selected;
     }
 
     static class ExerciseViewHolder extends RecyclerView.ViewHolder {
@@ -57,29 +90,35 @@ public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableEx
             checkbox = itemView.findViewById(R.id.exercise_checkbox);
         }
 
-        public void bind(TrainingItem exercise) {
-            Log.d("SelectableExcerciseAdaoater  ","input to bind");
+        public void bind(TrainingItem exercise, boolean isReadOnly, boolean isChecked, View.OnClickListener toggleListener) {
             titleText.setText(exercise.title);
             descText.setText(exercise.description);
 
-            // 載入圖片
+            // 圖片
             if (exercise.imageResName != null) {
-                int imageResId = itemView.getContext().getResources()
-                        .getIdentifier(exercise.imageResName, "drawable", itemView.getContext().getPackageName());
-                Log.d("SelectableExcerciseAdaoater "," prepare to set Image:，iconID=="+imageResId);
-                if (imageResId != 0) {
-                    exerciseImage.setImageResource(imageResId);
+                int resId = itemView.getContext().getResources().getIdentifier(
+                        exercise.imageResName, "drawable", itemView.getContext().getPackageName());
+                if (resId != 0) {
+                    exerciseImage.setImageResource(resId);
                 } else {
-                    exerciseImage.setImageResource(R.drawable.cheeks); // 預設圖片
+                    exerciseImage.setImageResource(R.drawable.cheeks);
                 }
             } else {
-                exerciseImage.setImageResource(R.drawable.cheeks); // 預設圖片
+                exerciseImage.setImageResource(R.drawable.cheeks);
             }
 
-            // 點擊整行切換勾選狀態
-            itemView.setOnClickListener(v -> {
-                checkbox.setChecked(!checkbox.isChecked());
-            });
+            checkbox.setChecked(isChecked);
+
+            if (isReadOnly) {
+                checkbox.setEnabled(false);
+                checkbox.setAlpha(0.6f);
+                itemView.setOnClickListener(null);
+            } else {
+                checkbox.setEnabled(true);
+                checkbox.setAlpha(1f);
+                itemView.setOnClickListener(toggleListener);
+                checkbox.setOnClickListener(toggleListener);  // 讓點 Checkbox 也有反應
+            }
         }
     }
 }

@@ -17,7 +17,7 @@ public interface TrainingPlanDao {
 
     // 單純插入一個計畫
     @Insert
-    void insertPlan(TrainingPlan plan);
+    long insertPlan(TrainingPlan plan);
 
     // 批次插入（給 preload 用）
     @Insert
@@ -26,6 +26,12 @@ public interface TrainingPlanDao {
     // 插入 plan-item 關聯
     @Insert
     void insertCrossRef(PlanItemCrossRef ref);
+
+    // 或加便利用：
+    @Transaction
+    default void insertCrossRef(long planId, int itemId) {
+        insertCrossRef(new PlanItemCrossRef(planId, itemId));
+    }
 
     // 全部查詢（含 item）
     @Transaction

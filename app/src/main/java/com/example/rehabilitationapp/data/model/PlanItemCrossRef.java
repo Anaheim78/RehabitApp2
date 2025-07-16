@@ -4,10 +4,10 @@ import androidx.room.Entity;
 
 @Entity(primaryKeys = {"planId", "itemId"})
 public class PlanItemCrossRef {
-    public int planId;
-    public int itemId;
+    public long planId;
+    public long itemId;
 
-    public PlanItemCrossRef(int planId, int itemId) {
+    public PlanItemCrossRef(long planId, long itemId) {
         this.planId = planId;
         this.itemId = itemId;
     }

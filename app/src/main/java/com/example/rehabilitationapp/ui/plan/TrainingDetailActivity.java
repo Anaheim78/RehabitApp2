@@ -3,8 +3,12 @@ package com.example.rehabilitationapp.ui.plan;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -25,6 +29,7 @@ public class TrainingDetailActivity extends AppCompatActivity {
 
     private RecyclerView exercisesRecycler;
     private ExecutorService executor;
+    private boolean isCreateMode = false;  // 新增：模式標記
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +37,12 @@ public class TrainingDetailActivity extends AppCompatActivity {
         setContentView(R.layout.activity_training_detail);
 
         executor = Executors.newSingleThreadExecutor();
+
+        // 檢查是否為創建模式
+        String mode = getIntent().getStringExtra("mode");
+        isCreateMode = "create_new".equals(mode);
+
+        Log.d("test_PlanDetail", "=== Mode Check: " + mode + ", isCreateMode: " + isCreateMode + " ===");
 
         // 設置標題
         String planTitle = getIntent().getStringExtra("plan_title");
@@ -49,11 +60,63 @@ public class TrainingDetailActivity extends AppCompatActivity {
         // 載入運動項目
         loadExercises();
 
-        // 設置開始訓練按鈕
+        // 設置按鈕
         Button createBtn = findViewById(R.id.start_plan_btn);
         createBtn.setOnClickListener(v -> {
-            // To Do ..這裡處開始訓練計畫的邏輯
-            finish();
+            Log.d("TrainDetailAct","into the createBtn");
+            if (isCreateMode) {
+                Log.d("TrainDetailAct","into the createBtn__isCreateMode");
+                // 準備 AlertDialog 讓使用者輸入名稱
+                EditText input = new EditText(this);
+                input.setHint("請輸入計劃名稱");
+
+                new AlertDialog.Builder(this)
+                        .setTitle("建立新訓練計劃")
+                        .setView(input)
+                        .setPositiveButton("確認", (dialog, which) -> {
+                            String enteredTitle = input.getText().toString().trim();
+
+                            if (enteredTitle.isEmpty()) {
+                                Toast.makeText(this, "請輸入計劃名稱", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+
+                            // 拿勾選的項目
+                            SelectableExerciseAdapter adapter = (SelectableExerciseAdapter) exercisesRecycler.getAdapter();
+                            List<TrainingItem> selectedItems = adapter.getSelectedItems();
+
+                            if (selectedItems.isEmpty()) {
+                                Toast.makeText(this, "請至少選擇一項運動項目", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+
+                            // 寫入資料庫
+                            executor.execute(() -> {
+                                AppDatabase db = AppDatabase.getInstance(this);
+
+                                TrainingPlan newPlan = new TrainingPlan(enteredTitle,"","");
+
+                                long newPlanId = db.trainingPlanDao().insertPlan(newPlan);
+
+                                for (TrainingItem item : selectedItems) {
+                                    db.trainingPlanDao().insertCrossRef(newPlanId, item.id);
+                                }
+
+                                runOnUiThread(() -> {
+                                    Toast.makeText(this, "已建立新計劃", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                });
+                            });
+
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+
+            } else {
+                Log.d("TrainDetailAct","into the createBtn__is not CreateMode");
+                Toast.makeText(this, "開始訓練", Toast.LENGTH_SHORT).show();
+                finish();
+            }
         });
     }
 
@@ -62,44 +125,61 @@ public class TrainingDetailActivity extends AppCompatActivity {
             try {
                 AppDatabase db = AppDatabase.getInstance(this);
 
-                // 獲取傳過來的計劃 ID
-                long planId = getIntent().getIntExtra("plan_id", 0);
-                Log.d("test_PlanDetail ", "=== Received planId: " + planId + " ===");
+                if (isCreateMode) {
+                    // 創建模式：載入所有運動項目
+                    Log.d("test_PlanDetail", "=== 創建模式：載入所有運動項目 ===");
+                    List<TrainingItem> allExercises = db.trainingItemDao().getAll();
+                    Log.d("test_PlanDetail", "找到 " + allExercises.size() + " 個運動項目");
 
-                // 查詢所有計劃和運動項目
-                List<PlanWithItems> allPlans = db.trainingPlanDao().getAllPlansWithItems();
-                Log.d("test_PlanDetail", "Total plans found: " + allPlans.size());
+                    runOnUiThread(() -> {
+                        SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(allExercises,false);
+                        exercisesRecycler.setAdapter(adapter);
+                        Log.d("test_PlanDetail", "創建模式 Adapter 設置完成");
+                    });
 
-                // 顯示所有計劃的 ID
-                for (PlanWithItems planWithItems : allPlans) {
-                    Log.d("test_PlanDetail", "Plan ID: " + planWithItems.plan.id +
-                            ", Items count: " + planWithItems.items.size());
-                }
+                } else {
+                    // 原有模式：載入特定計劃的運動項目
+                    Log.d("test_PlanDetail", "=== 查看模式：載入特定計劃 ===");
 
-                // 找到指定計劃的運動項目
-                for (PlanWithItems planWithItems : allPlans) {
-                    Log.d("test_PlanDetail", "Checking: " + planWithItems.plan.id + " == " + planId);
+                    // 獲取傳過來的計劃 ID
+                    long planId = getIntent().getIntExtra("plan_id", 0);
+                    Log.d("test_PlanDetail ", "=== Received planId: " + planId + " ===");
 
-                    if (planWithItems.plan.id == planId) {
-                        List<TrainingItem> exercises = planWithItems.items;
+                    // 查詢所有計劃和運動項目
+                    List<PlanWithItems> allPlans = db.trainingPlanDao().getAllPlansWithItems();
+                    Log.d("test_PlanDetail", "Total plans found: " + allPlans.size());
 
-                        Log.d("test_PlanDetail", "MATCH FOUND! Exercise count: " + exercises.size());
-
-                        runOnUiThread(() -> {
-                            SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(exercises);
-                            exercisesRecycler.setAdapter(adapter);
-                            Log.d("test_PlanDetail", "Adapter set successfully");
-                        });
-                        return;
+                    // 顯示所有計劃的 ID
+                    for (PlanWithItems planWithItems : allPlans) {
+                        Log.d("test_PlanDetail", "Plan ID: " + planWithItems.plan.id +
+                                ", Items count: " + planWithItems.items.size());
                     }
-                }
 
-                // 如果沒找到計劃
-                Log.d("test_PlanDetail", "NO MATCH FOUND for planId: " + planId);
-                runOnUiThread(() -> {
-                    SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(new ArrayList<>());
-                    exercisesRecycler.setAdapter(adapter);
-                });
+                    // 找到指定計劃的運動項目
+                    for (PlanWithItems planWithItems : allPlans) {
+                        Log.d("test_PlanDetail", "Checking: " + planWithItems.plan.id + " == " + planId);
+
+                        if (planWithItems.plan.id == planId) {
+                            List<TrainingItem> exercises = planWithItems.items;
+
+                            Log.d("test_PlanDetail", "MATCH FOUND! Exercise count: " + exercises.size());
+
+                            runOnUiThread(() -> {
+                                SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(exercises,true);
+                                exercisesRecycler.setAdapter(adapter);
+                                Log.d("test_PlanDetail", "Adapter set successfully");
+                            });
+                            return;
+                        }
+                    }
+
+                    // 如果沒找到計劃
+                    Log.d("test_PlanDetail", "NO MATCH FOUND for planId: " + planId);
+                    runOnUiThread(() -> {
+                        SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(new ArrayList<>());
+                        exercisesRecycler.setAdapter(adapter);
+                    });
+                }
 
             } catch (Exception e) {
                 Log.e("test_PlanDetail", "Error: " + e.getMessage(), e);
