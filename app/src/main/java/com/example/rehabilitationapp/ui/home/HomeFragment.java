@@ -15,6 +15,8 @@ import com.example.rehabilitationapp.databinding.FragmentHomeBinding;
 import android.view.View.OnClickListener;
 import android.widget.Toast;
 import android.widget.GridLayout;
+import android.content.Intent;
+import com.example.rehabilitationapp.ui.facecheck.FaceCircleCheckerActivity;
 
 public class HomeFragment extends Fragment {
 
@@ -114,6 +116,12 @@ public class HomeFragment extends Fragment {
             public void onClick(View v) {
                 if (selectedTrainingType != -1) {
                     Toast.makeText(getContext(), "開始 " + labels[selectedTrainingType] + " 訓練！", Toast.LENGTH_SHORT).show();
+                    // 啟動 FaceCircleCheckerActivity
+                    Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
+                    // 可以傳遞選擇的訓練類型
+                    intent.putExtra("training_type", selectedTrainingType);
+                    intent.putExtra("training_label", labels[selectedTrainingType]);
+                    startActivity(intent);
                 } else {
                     Toast.makeText(getContext(), "請先選擇一個訓練項目", Toast.LENGTH_SHORT).show();
                 }

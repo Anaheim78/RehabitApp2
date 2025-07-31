@@ -12,22 +12,47 @@
         android:layout_gravity="center" />
 
     <!-- 圓圈覆蓋層 -->
-    <SurfaceView
+    <com.example.rehabilitationapp.ui.facecheck.CircleOverlayView
         android:id="@+id/overlay_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center" />
+        android:layout_height="match_parent" />
 
-    <!-- 狀態文字（可選） -->
+    <!-- 状态文本 -->
     <TextView
         android:id="@+id/status_text"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="32dp"
-        android:text="請將臉部對準圓圈"
+        android:background="#80000000"
+        android:padding="16dp"
+        android:text="校正中..."
         android:textColor="@android:color/white"
-        android:textSize="16sp"
+        android:textSize="18sp"
+        android:gravity="center" />
+
+    <!-- 进度条 -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="200dp"
+        android:layout_height="8dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="150dp"
+        android:progressTint="@android:color/holo_blue_bright"
+        android:progressBackgroundTint="#40FFFFFF" />
+
+    <!-- 计时器文本 -->
+    <TextView
+        android:id="@+id/timer_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="170dp"
+        android:text="⏱ 5秒"
+        android:textColor="@android:color/white"
+        android:textSize="24sp"
+        android:textStyle="bold"
         android:background="#80000000"
         android:padding="8dp" />
 

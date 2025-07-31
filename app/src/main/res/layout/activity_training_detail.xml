@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#5FB4A0">
+    android:background="#3A3A3A">
 
     <!-- 訓練詳細頁面 標題欄 -->
     <LinearLayout

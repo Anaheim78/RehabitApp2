@@ -1,16 +1,23 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+
+    <!-- Base application theme (夜間模式). -->
     <style name="Theme.RehabilitationApp" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_200</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/black</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_200</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+
+        <!-- ✅ Primary brand color -->
+        <item name="colorPrimary">@color/brand_primary_dark</item>             <!-- 深湖綠作為主色 -->
+        <item name="colorPrimaryVariant">@color/brand_primary</item>           <!-- 稍亮湖綠作為變體 -->
+        <item name="colorOnPrimary">@color/text_invert</item>                  <!-- 主色上的文字 -->
+
+        <!-- ✅ Secondary brand color -->
+        <item name="colorSecondary">@color/brand_primary</item>                <!-- 一樣使用主湖綠 -->
+        <item name="colorSecondaryVariant">@color/brand_primary_light</item>   <!-- 較淺作為次變體 -->
+        <item name="colorOnSecondary">@color/text_invert</item>
+
+        <!-- ✅ Status bar color -->
+        <item name="android:statusBarColor">@color/brand_primary_dark</item>
+
+        <!-- ✅ Background color (夜間主背景為深底) -->
+        <item name="android:windowBackground">@color/surface_dark</item>
+
     </style>
 </resources>
