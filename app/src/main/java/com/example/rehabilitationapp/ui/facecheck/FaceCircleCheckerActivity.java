@@ -229,20 +229,20 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         try {
             // 🔥 關鍵：獲取圖像旋轉角度
             int rotationDegrees = imageProxy.getImageInfo().getRotationDegrees();
-            Log.d(TAG, "圖像旋轉角度: " + rotationDegrees + "度");
-            Log.d(TAG, "ImageProxy尺寸: " + imageProxy.getWidth() + "x" + imageProxy.getHeight());
+            //Log.d(TAG, "圖像旋轉角度: " + rotationDegrees + "度");
+            //Log.d(TAG, "ImageProxy尺寸: " + imageProxy.getWidth() + "x" + imageProxy.getHeight());
 
             Bitmap rawBitmap = imageProxyToBitmap(imageProxy);
             if (rawBitmap != null) {
-                Log.d(TAG, "Raw Bitmap尺寸: " + rawBitmap.getWidth() + "x" + rawBitmap.getHeight());
+                //Log.d(TAG, "Raw Bitmap尺寸: " + rawBitmap.getWidth() + "x" + rawBitmap.getHeight());
 
                 // 🔥 步驟1：先旋轉
                 Bitmap rotatedBitmap = rotateBitmap(rawBitmap, rotationDegrees);
-                Log.d(TAG, "Rotated Bitmap尺寸: " + rotatedBitmap.getWidth() + "x" + rotatedBitmap.getHeight());
+                //Log.d(TAG, "Rotated Bitmap尺寸: " + rotatedBitmap.getWidth() + "x" + rotatedBitmap.getHeight());
 
                 // 🔥 步驟2：再鏡像翻轉
                 Bitmap mirroredBitmap = mirrorBitmap(rotatedBitmap);
-                Log.d(TAG, "Final Bitmap尺寸: " + mirroredBitmap.getWidth() + "x" + mirroredBitmap.getHeight());
+                //Log.d(TAG, "Final Bitmap尺寸: " + mirroredBitmap.getWidth() + "x" + mirroredBitmap.getHeight());
 
                 MPImage mpImage = new BitmapImageBuilder(mirroredBitmap).build();
                 FaceLandmarkerResult result = faceLandmarker.detect(mpImage);
@@ -334,8 +334,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     int overlayWidth = overlayView.getWidth();
                     int overlayHeight = overlayView.getHeight();
 
-                    Log.d(TAG, "OverlayView尺寸: " + overlayWidth + "x" + overlayHeight);
-                    Log.d(TAG, "檢測到人臉，關鍵點數量: " + result.faceLandmarks().get(0).size());
+                    //Log.d(TAG, "OverlayView尺寸: " + overlayWidth + "x" + overlayHeight);
+                    //Log.d(TAG, "檢測到人臉，關鍵點數量: " + result.faceLandmarks().get(0).size());
 
                     if (overlayWidth > 0 && overlayHeight > 0) {
                         // 🔥 加上比例補償，修復臉部變窄問題
@@ -343,9 +343,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         float viewAspect = overlayWidth / (float) overlayHeight; // Overlay 寬高比
                         float scaleX = inputAspect / viewAspect;
 
-                        Log.d(TAG, "輸入圖像比例: " + inputAspect);
-                        Log.d(TAG, "顯示視圖比例: " + viewAspect);
-                        Log.d(TAG, "X軸補償係數: " + scaleX);
+                        //Log.d(TAG, "輸入圖像比例: " + inputAspect);
+                        //Log.d(TAG, "顯示視圖比例: " + viewAspect);
+                        //Log.d(TAG, "X軸補償係數: " + scaleX);
 
                         int landmarkCount = result.faceLandmarks().get(0).size();
                         float[][] allPoints = new float[landmarkCount][2];
@@ -381,8 +381,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         float noseScreenX = noseCorrectedX * overlayWidth;
                         float noseScreenY = noseRelativeY * overlayHeight;
 
-                        Log.d(TAG, "鼻尖原始X: " + noseRelativeX + " → 補償後X: " + noseCorrectedX);
-                        Log.d(TAG, "鼻尖屏幕坐標: (" + noseScreenX + ", " + noseScreenY + ")");
+                        //Log.d(TAG, "鼻尖原始X: " + noseRelativeX + " → 補償後X: " + noseCorrectedX);
+                        //Log.d(TAG, "鼻尖屏幕坐標: (" + noseScreenX + ", " + noseScreenY + ")");
 
                         // 🔥 計算圓圈的中心和半徑
                         float centerX = overlayWidth / 2f;
@@ -394,13 +394,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         float dy = noseScreenY - centerY;
                         float distance = (float) Math.sqrt(dx * dx + dy * dy);
 
-                        Log.d(TAG, "圓心: (" + centerX + ", " + centerY + ")");
-                        Log.d(TAG, "半徑: " + radius);
-                        Log.d(TAG, "鼻尖到圓心距離: " + distance);
+                        //Log.d(TAG, "圓心: (" + centerX + ", " + centerY + ")");
+                        //Log.d(TAG, "半徑: " + radius);
+                        //Log.d(TAG, "鼻尖到圓心距離: " + distance);
 
                         // 🔥 判斷鼻尖是否在圓圈內
                         boolean noseInside = distance <= radius;
-                        Log.d(TAG, "鼻尖在圓內: " + noseInside);
+                        //Log.d(TAG, "鼻尖在圓內: " + noseInside);
 
                         // 調用處理邏輯
                         handleFacePosition(noseInside);
@@ -620,13 +620,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             }
         }).start();
 
-        Toast.makeText(this, "🎉 訓練完成！檔案正在儲存到下載資料夾...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "🎉 訓練完成！\n正在儲存檔案並進行峰值分析...", Toast.LENGTH_LONG).show();
 
-        // 🔥 3秒後自動關閉 Activity
+// 🔥 5秒後自動關閉 Activity
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             Log.d(TAG, "🔚 自動關閉 Activity");
             finish();
-        }, 3000);
+        }, 5000);
     }
 
     private void updateStatusDisplay() {
@@ -634,7 +634,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         String text = "";
         if (isTrainingCompleted) {
-            text = "✅ 訓練完成！\n檔案正在儲存到下載資料夾...";
+            text = "✅ 訓練完成！\n正在進行峰值分析...";
         } else {
             switch (currentState) {
                 case CALIBRATING:

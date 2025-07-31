@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+
 //根據特定動作類型
 public class FaceDataRecorder {
     private static final String TAG = "FaceDataRecorder";
@@ -255,6 +256,7 @@ public class FaceDataRecorder {
         }
     }
 
+    // 🔥 新增：峰值分析方法
     public void saveToFile() {
         try {
             // 儲存到 Downloads 資料夾，使用者容易找到
@@ -270,13 +272,12 @@ public class FaceDataRecorder {
             Log.d(TAG, "✅ 檔案儲存成功: " + file.getAbsolutePath());
             Log.d(TAG, "📊 總共記錄了 " + (dataLines.size() - 1) + " 筆數據");
 
-            // 🔥 修復：在主線程中顯示 Toast
-            String message = String.format("檔案已儲存至下載資料夾",
-                    fileName, dataLines.size() - 1);
+            // 🔥 新增：檔案儲存完成後進行峰值分析
+            performPeakAnalysis();
 
             // 使用 Handler 切換到主線程顯示 Toast
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "檔案已儲存至下載資料夾", Toast.LENGTH_LONG).show()
             );
 
         } catch (IOException e) {
@@ -289,6 +290,55 @@ public class FaceDataRecorder {
         }
     }
 
+    // 🔥 新增：峰值分析方法
+    private void performPeakAnalysis() {
+        Log.d(TAG, "🎯 開始進行峰值分析...");
+
+        // 在背景線程執行峰值分析
+        new Thread(() -> {
+            try {
+                // 調用 CSV 峰值分析器
+                CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
+
+                if (result.success) {
+                    Log.d(TAG, "✅ 峰值分析完成!");
+                    Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",
+                            result.calibratingPeaks, result.maintainingPeaks, result.totalPeaks));
+
+                    // 格式化結果並在主線程顯示
+                    String displayText = CSVPeakAnalyzer.formatResultForDisplay(result);
+
+                    // 切換到主線程顯示結果
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                        // 顯示詳細的峰值分析結果
+                        Toast.makeText(context, displayText, Toast.LENGTH_LONG).show();
+
+                        // 如果需要，也可以簡化版本的 Toast
+                        // String simpleMessage = String.format("🎯 峰值分析完成!\n總峰值數: %d 個", result.totalPeaks);
+                        // Toast.makeText(context, simpleMessage, Toast.LENGTH_SHORT).show();
+                    });
+
+                } else {
+                    Log.e(TAG, "❌ 峰值分析失敗: " + result.errorMessage);
+
+                    // 在主線程顯示錯誤訊息
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                            Toast.makeText(context, "峰值分析失敗: " + result.errorMessage, Toast.LENGTH_SHORT).show()
+                    );
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "峰值分析過程發生錯誤", e);
+
+                // 在主線程顯示錯誤訊息
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        Toast.makeText(context, "峰值分析錯誤: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                );
+            }
+
+        }).start();
+    }
+
     public void clearData() {
         dataLines.clear();
         initializeCSV();
@@ -297,5 +347,10 @@ public class FaceDataRecorder {
 
     public int getDataCount() {
         return Math.max(0, dataLines.size() - 1); // 扣除標題行
+    }
+
+    // 🔥 新增：獲取檔案名稱（供外部使用）
+    public String getFileName() {
+        return fileName;
     }
 }

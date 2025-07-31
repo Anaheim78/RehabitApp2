@@ -11,8 +11,8 @@ public class PeakRedistributionProcessor {
     private static final String TAG = "PeakProcessor";
 
     // 峰值檢測參數
-    private static final int MIN_DISTANCE = 30;        // 峰值間最小距離
-    private static final int CLUSTERING_DISTANCE = 80; // 聚類距離
+    private static final int MIN_DISTANCE = 20;        // 峰值間最小距離
+    private static final int CLUSTERING_DISTANCE = 40; // 聚類距離
     private static final double THRESHOLD_MULTIPLIER = 0.5; // 閾值倍數
 
     /**
