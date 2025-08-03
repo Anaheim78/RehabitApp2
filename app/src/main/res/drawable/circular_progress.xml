@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 背景圓圈 -->
+    <item>
+        <shape
+            android:innerRadiusRatio="2.5"
+            android:shape="ring"
+            android:thicknessRatio="25"
+            android:useLevel="false">
+            <solid android:color="#4DFFFFFF" />
+        </shape>
+    </item>
+
+    <!-- 進度圓圈 -->
+    <item>
+        <rotate
+            android:fromDegrees="-90"
+            android:toDegrees="270">
+            <shape
+                android:innerRadiusRatio="2.5"
+                android:shape="ring"
+                android:thicknessRatio="25"
+                android:useLevel="true">
+                <gradient
+                    android:startColor="#FF00E5FF"
+                    android:endColor="#FF40C4FF"
+                    android:type="sweep" />
+            </shape>
+        </rotate>
+    </item>
+
+</layer-list>

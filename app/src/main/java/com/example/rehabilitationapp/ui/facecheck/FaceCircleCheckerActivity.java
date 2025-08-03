@@ -1,6 +1,7 @@
 package com.example.rehabilitationapp.ui.facecheck;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -29,6 +30,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
+import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
@@ -50,7 +52,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 計時相關常量
     private static final int CALIBRATION_TIME = 5000; // 5秒校正時間
-    private static final int MAINTAIN_TIME_TOTAL = 30000; // 總共30秒維持時間
+    private static final int MAINTAIN_TIME_TOTAL = 5000; // 總共30秒維持時間
     private static final int PROGRESS_UPDATE_INTERVAL = 50; // 進度條更新間隔 (毫秒)
 
     private PreviewView cameraView;
@@ -612,6 +614,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             try {
                 dataRecorder.saveToFile();
                 Log.d(TAG, "📊 === 資料儲存完成 ===");
+
+
+
             } catch (Exception e) {
                 Log.e(TAG, "❌ 儲存資料時發生錯誤: " + e.getMessage(), e);
                 runOnUiThread(() ->

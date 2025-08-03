@@ -1,4 +1,4 @@
-package com.example.rehabilitationapp.ui.facecheck;
+package com.example.rehabilitationapp.ui.analysis;
 
 import android.util.Log;
 import java.util.*;
