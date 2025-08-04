@@ -38,12 +38,17 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
     private Button debugRefreshButton;
     private Button debugExportButton;
 
-    // 🎛️ 新增：滑桿控制元件
+    // 🎛️ 原本的滑桿控制元件 (保留)
     private SeekBar thresholdMultiplierSlider;
     private SeekBar mergeDistanceSlider;
     private TextView thresholdMultiplierValue;
     private TextView mergeDistanceValue;
     private Switch autoReanalyzeSwitch;
+
+    // 🎛️ 新增：五檔敏感度控制元件
+    private TextView sensitivityLevelText;
+    private Button[] sensitivityButtons = new Button[5];
+    private int currentSensitivityLevel = 2; // 預設中等敏感度
 
     // 數據變數
     private String csvFileName;
@@ -68,7 +73,7 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.debug_peak_visualization_activity);
 
-        Log.d(TAG, "🔧 DEBUG: 峰值視覺化頁面啟動（帶滑桿功能）");
+        Log.d(TAG, "🔧 DEBUG: 峰值視覺化頁面啟動（帶滑桿功能+五檔敏感度）");
 
         // 初始化 UI
         initViews();
@@ -76,8 +81,11 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         // 取得傳入數據
         getIntentData();
 
-        // 設置滑桿監聽器
+        // 設置滑桿監聽器 (保留原功能)
         setupSliders();
+
+        // 🎛️ 設置敏感度按鈕監聽器 (新增)
+        setupSensitivityButtons();
 
         // 設置按鈕事件
         setupButtons();
@@ -93,12 +101,20 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         debugRefreshButton = findViewById(R.id.debug_refresh_button);
         debugExportButton = findViewById(R.id.debug_export_button);
 
-        // 🎛️ 滑桿元件
+        // 🎛️ 原本的滑桿元件 (保留)
         thresholdMultiplierSlider = findViewById(R.id.threshold_multiplier_slider);
         mergeDistanceSlider = findViewById(R.id.merge_distance_slider);
         thresholdMultiplierValue = findViewById(R.id.threshold_multiplier_value);
         mergeDistanceValue = findViewById(R.id.merge_distance_value);
         autoReanalyzeSwitch = findViewById(R.id.auto_reanalyze_switch);
+
+        // 🎛️ 五檔敏感度元件 (新增)
+        sensitivityLevelText = findViewById(R.id.sensitivity_level_text);
+        sensitivityButtons[0] = findViewById(R.id.sensitivity_level_0);
+        sensitivityButtons[1] = findViewById(R.id.sensitivity_level_1);
+        sensitivityButtons[2] = findViewById(R.id.sensitivity_level_2);
+        sensitivityButtons[3] = findViewById(R.id.sensitivity_level_3);
+        sensitivityButtons[4] = findViewById(R.id.sensitivity_level_4);
 
         // 設置圖表基本樣式
         setupChart();
@@ -116,6 +132,7 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
                 csvFileName, trainingLabel, actualCount, targetCount));
     }
 
+    // 🎛️ 保留原本的滑桿功能
     private void setupSliders() {
         // 🎛️ 閾值係數滑桿 (0.5 - 3.0)
         thresholdMultiplierSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -163,6 +180,75 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
 
         // 設置初始值
         updateSliderValues();
+    }
+
+    // 🎛️ 新增：五檔敏感度按鈕設置
+    private void setupSensitivityButtons() {
+        String[] levelNames = {"極低", "低", "中", "高", "極高"};
+
+        for (int i = 0; i < 5; i++) {
+            final int level = i;
+            sensitivityButtons[i].setOnClickListener(v -> {
+                currentSensitivityLevel = level;
+                updateSensitivityUI();
+                updateParametersFromSensitivity(level);
+
+                Log.d(TAG, String.format("🎛️ 敏感度調整為: %s (等級 %d)", levelNames[level], level));
+
+                if (autoReanalyzeSwitch.isChecked()) {
+                    reanalyzeWithCurrentParams();
+                }
+            });
+        }
+
+        // 設置初始狀態
+        updateSensitivityUI();
+    }
+
+    // 🎛️ 新增：敏感度轉換函數
+    private void updateParametersFromSensitivity(int level) {
+        switch (level) {
+            case 0: // 極低敏感度 - 只抓很明顯的動作
+                thresholdMultiplier = 3.0;
+                mergeDistance = 0.5;
+                break;
+            case 1: // 低敏感度 - 抓明顯動作
+                thresholdMultiplier = 2.5;
+                mergeDistance = 1.0;
+                break;
+            case 2: // 中敏感度 - 平衡 (預設)
+                thresholdMultiplier = 1.5;
+                mergeDistance = 2.0;
+                break;
+            case 3: // 高敏感度 - 抓小動作
+                thresholdMultiplier = 1.0;
+                mergeDistance = 3.0;
+                break;
+            case 4: // 極高敏感度 - 連微小動作都抓
+                thresholdMultiplier = 0.8;
+                mergeDistance = 4.0;
+                break;
+        }
+
+        // 🎛️ 同步更新滑桿顯示
+        updateSliderValues();
+    }
+
+    // 🎛️ 新增：更新敏感度UI顯示
+    private void updateSensitivityUI() {
+        String[] levelNames = {"極低", "低", "中", "高", "極高"};
+        sensitivityLevelText.setText(levelNames[currentSensitivityLevel]);
+
+        // 更新按鈕顏色
+        for (int i = 0; i < 5; i++) {
+            if (i == currentSensitivityLevel) {
+                sensitivityButtons[i].setBackgroundColor(Color.parseColor("#FF1976d2"));
+                sensitivityButtons[i].setTextColor(Color.WHITE);
+            } else {
+                sensitivityButtons[i].setBackgroundColor(Color.parseColor("#FFe0e0e0"));
+                sensitivityButtons[i].setTextColor(Color.BLACK);
+            }
+        }
     }
 
     private void updateSliderValues() {
@@ -250,6 +336,7 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
 
                     runOnUiThread(() -> {
                         updateSliderValues();
+                        updateSensitivityUI(); // 🎛️ 新增
                         reanalyzeWithCurrentParams();
                     });
                 } else {
@@ -365,6 +452,11 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         info.append(String.format("📈 平均值: %.3f\n", averageValue));
         info.append(String.format("📊 標準差: %.3f\n", standardDeviation));
         info.append("━━━━━━━━━━━━━━━━━━━━\n");
+
+        // 🎛️ 顯示當前敏感度設定
+        String[] levelNames = {"極低", "低", "中", "高", "極高"};
+        info.append(String.format("🎛️ 敏感度: %s (等級 %d)\n", levelNames[currentSensitivityLevel], currentSensitivityLevel));
+
         info.append(String.format("🎛️ 閾值係數: %.1f 倍標準差\n", thresholdMultiplier));
         info.append(String.format("🎯 計算閾值: %.3f\n", threshold));
         info.append(String.format("🔄 合併距離: %.1f 秒\n", mergeDistance));
@@ -446,6 +538,11 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
     private void exportAnalysisData() {
         StringBuilder exportData = new StringBuilder();
         exportData.append("=== DEBUG 峰值分析報告 (當前參數) ===\n");
+
+        // 🎛️ 包含敏感度資訊
+        String[] levelNames = {"極低", "低", "中", "高", "極高"};
+        exportData.append(String.format("敏感度等級: %s (%d)\n", levelNames[currentSensitivityLevel], currentSensitivityLevel));
+
         exportData.append(String.format("閾值係數: %.1f 倍標準差\n", thresholdMultiplier));
         exportData.append(String.format("合併距離: %.1f 秒\n", mergeDistance));
         exportData.append("━━━━━━━━━━━━━━━━━━━━\n");

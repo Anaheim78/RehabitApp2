@@ -64,7 +64,7 @@ public class FaceDataRecorder {
         String header = "";
 
         if ("抿嘴".equals(trainingLabel)) {
-            header = "time_seconds,state,upper_lip_area,lower_lip_area,area_ratio";
+            header = "time_seconds,state,total_lip_area"; // 改成總面積
         } else if ("嘟嘴".equals(trainingLabel)) {
             header = "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
         } else {
@@ -87,13 +87,14 @@ public class FaceDataRecorder {
                 // 🔥 改用掃描線方法計算上下嘴唇面積
                 float upperLipArea = calculateLipAreaByScanline(landmarks, UPPER_LIP_INDICES);
                 float lowerLipArea = calculateLipAreaByScanline(landmarks, LOWER_LIP_INDICES);
-                float areaRatio = lowerLipArea > 0 ? upperLipArea / lowerLipArea : 0;
+                // ✨ 總嘴唇面積 = 上唇 + 下唇
+                float totalLipArea = upperLipArea + lowerLipArea;
 
                 dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
-                        relativeTimeSeconds, state, upperLipArea, lowerLipArea, areaRatio);
+                        relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea);
 
                 Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
-                        relativeTimeSeconds, upperLipArea, lowerLipArea, areaRatio));
+                        relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
 
             } else if ("嘟嘴".equals(trainingLabel)) {
                 // 🔥 改用外緣點計算嘴巴高度和寬度

@@ -74,4 +74,6 @@ dependencies {
     implementation 'org.apache.commons:commons-collections4:4.4'
     // 圖表分析工具，DEBUG訊號
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    implementation 'androidx.cardview:cardview:1.0.0'
 }

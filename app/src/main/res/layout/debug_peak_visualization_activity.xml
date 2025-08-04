@@ -11,8 +11,6 @@
         android:background="#FFf5f5f5"
         android:padding="16dp">
 
-        <!-- 以下是你原本的內容，完全照搬 -->
-
         <!-- 🔧 DEBUG: 標題區域 -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -49,7 +47,7 @@
                 android:minWidth="40dp" />
         </LinearLayout>
 
-        <!-- 🔧 DEBUG: 資訊卡片 -->
+        <!-- 🔧 DEBUG: 圖表區域 (最上面) -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -61,20 +59,26 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="8dp">
 
                 <TextView
-                    android:id="@+id/debug_info_text"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="載入中..."
-                    android:textSize="14sp"
-                    android:textColor="#FF666666"
-                    android:fontFamily="monospace" />
+                    android:text="📈 峰值檢測結果 (即時更新)"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FF333333"
+                    android:padding="8dp" />
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/debug_peak_chart"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:layout_margin="8dp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 🎛️ NEW: 參數調整區域 -->
+        <!-- 🎛️ 敏感度調整區域 (第二個) -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -92,10 +96,143 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🎛️ 峰值檢測參數調整"
+                    android:text="🎛️ 檢測敏感度調整"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="#FF1976d2"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 敏感度五檔選擇 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="敏感度等級"
+                        android:textSize="14sp"
+                        android:textColor="#FF333333" />
+
+                    <TextView
+                        android:id="@+id/sensitivity_level_text"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:text="中"
+                        android:textSize="14sp"
+                        android:textColor="#FF1976d2"
+                        android:textStyle="bold"
+                        android:gravity="center" />
+                </LinearLayout>
+
+                <!-- 五檔選擇按鈕 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <Button
+                        android:id="@+id/sensitivity_level_0"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="極低"
+                        android:textSize="12sp"
+                        android:layout_marginEnd="4dp"
+                        android:background="#FFe0e0e0" />
+
+                    <Button
+                        android:id="@+id/sensitivity_level_1"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="低"
+                        android:textSize="12sp"
+                        android:layout_marginEnd="4dp"
+                        android:background="#FFe0e0e0" />
+
+                    <Button
+                        android:id="@+id/sensitivity_level_2"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="中"
+                        android:textSize="12sp"
+                        android:layout_marginEnd="4dp"
+                        android:background="#FF1976d2"
+                        android:textColor="@android:color/white" />
+
+                    <Button
+                        android:id="@+id/sensitivity_level_3"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="高"
+                        android:textSize="12sp"
+                        android:layout_marginEnd="4dp"
+                        android:background="#FFe0e0e0" />
+
+                    <Button
+                        android:id="@+id/sensitivity_level_4"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="極高"
+                        android:textSize="12sp"
+                        android:background="#FFe0e0e0" />
+                </LinearLayout>
+
+                <!-- 自動重新分析開關 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="自動重新分析"
+                        android:textSize="14sp"
+                        android:textColor="#FF333333" />
+
+                    <Switch
+                        android:id="@+id/auto_reanalyze_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 🎛️ 精細滑桿調整區域 (第三個) -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:background="#FFfff3e0">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎛️ 精細參數調整"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFf57c00"
                     android:layout_marginBottom="16dp" />
 
                 <!-- 閾值係數滑桿 -->
@@ -120,7 +257,7 @@
                         android:layout_height="wrap_content"
                         android:text="1.5"
                         android:textSize="14sp"
-                        android:textColor="#FF1976d2"
+                        android:textColor="#FFf57c00"
                         android:textStyle="bold"
                         android:gravity="end" />
                 </LinearLayout>
@@ -155,7 +292,7 @@
                         android:layout_height="wrap_content"
                         android:text="2.0"
                         android:textSize="14sp"
-                        android:textColor="#FF1976d2"
+                        android:textColor="#FFf57c00"
                         android:textStyle="bold"
                         android:gravity="end" />
                 </LinearLayout>
@@ -167,67 +304,15 @@
                     android:max="450"
                     android:progress="150"
                     android:layout_marginBottom="8dp" />
-
-                <!-- 自動重新分析開關 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="自動重新分析"
-                        android:textSize="14sp"
-                        android:textColor="#FF333333" />
-
-                    <Switch
-                        android:id="@+id/auto_reanalyze_switch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="true" />
-                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 🔧 DEBUG: 圖表區域 -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="4dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="8dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="📈 峰值檢測結果 (即時更新)"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="#FF333333"
-                    android:padding="8dp" />
-
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/debug_peak_chart"
-                    android:layout_width="match_parent"
-                    android:layout_height="200dp"
-                    android:layout_margin="8dp" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 🔧 DEBUG: 控制按鈕 -->
+        <!-- 🔧 DEBUG: 控制按鈕 (第四個) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginTop="16dp">
+            android:layout_marginBottom="16dp">
 
             <Button
                 android:id="@+id/debug_refresh_button"
@@ -252,6 +337,31 @@
                 android:layout_marginStart="8dp" />
         </LinearLayout>
 
+        <!-- 🔧 DEBUG: 資訊卡片 (最下面) -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/debug_info_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="載入中..."
+                    android:textSize="14sp"
+                    android:textColor="#FF666666"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- 🔧 DEBUG: 警告文字 -->
         <TextView
             android:layout_width="match_parent"
@@ -260,7 +370,6 @@
             android:textSize="12sp"
             android:textColor="#FFff5722"
             android:gravity="center"
-            android:layout_marginTop="8dp"
             android:alpha="0.7" />
 
     </LinearLayout>
