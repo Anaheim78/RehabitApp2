@@ -31,6 +31,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
+import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
@@ -592,7 +593,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
-    // 🔥 修復：訓練完成方法
+    // 🔥 修改：使用 callback 的訓練完成方法
     private void completedTraining() {
         Log.d(TAG, "🎉🎉🎉 === 訓練完成！開始儲存資料 === 🎉🎉🎉");
 
@@ -607,31 +608,36 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateStatusDisplay();
         updateTimerDisplay();
 
-        // 🔥 儲存資料到檔案
-        Log.d(TAG, "📊 準備儲存檔案...");
-
-        new Thread(() -> {
-            try {
-                dataRecorder.saveToFile();
-                Log.d(TAG, "📊 === 資料儲存完成 ===");
-
-
-
-            } catch (Exception e) {
-                Log.e(TAG, "❌ 儲存資料時發生錯誤: " + e.getMessage(), e);
-                runOnUiThread(() ->
-                        Toast.makeText(this, "儲存失敗: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                );
-            }
-        }).start();
-
         Toast.makeText(this, "🎉 訓練完成！\n正在儲存檔案並進行峰值分析...", Toast.LENGTH_LONG).show();
 
-// 🔥 5秒後自動關閉 Activity
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Log.d(TAG, "🔚 自動關閉 Activity");
-            finish();
-        }, 5000);
+        // 🔥 使用 callback 版本的儲存方法
+        dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
+            @Override
+            public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
+                Log.d(TAG, "✅ 儲存與分析完成，準備跳轉結果頁面");
+                Log.d(TAG, String.format("📊 分析結果 - 總峰值: %d", result.totalPeaks));
+
+                // 🔥 跳轉到結果頁面
+                Intent intent = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
+                intent.putExtra("training_label", trainingLabel);
+                intent.putExtra("actual_count", result.totalPeaks);  // 🔥 真正的峰值數量
+                intent.putExtra("target_count", 4);  // 目標次數
+                intent.putExtra("training_duration", MAINTAIN_TIME_TOTAL / 1000);  // 訓練時間（秒）
+                intent.putExtra("csv_file_name", dataRecorder.getFileName());
+
+                startActivity(intent);
+                finish();  // 關閉當前頁面
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "❌ 儲存或分析失敗: " + error);
+                Toast.makeText(FaceCircleCheckerActivity.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
+
+                // 🔥 發生錯誤時延遲關閉
+                new Handler(Looper.getMainLooper()).postDelayed(() -> finish(), 3000);
+            }
+        });
     }
 
     private void updateStatusDisplay() {

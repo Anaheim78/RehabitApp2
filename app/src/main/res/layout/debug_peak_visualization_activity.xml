@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#FFf5f5f5"
+        android:padding="16dp">
+
+        <!-- 以下是你原本的內容，完全照搬 -->
+
+        <!-- 🔧 DEBUG: 標題區域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp"
+            android:padding="12dp"
+            android:background="#FFff9800">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔧"
+                android:textSize="24sp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="DEBUG: 峰值分析視覺化"
+                android:textSize="18sp"
+                android:textColor="@android:color/white"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/debug_close_button"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="✕"
+                android:textColor="@android:color/white"
+                android:background="@android:color/transparent"
+                android:minWidth="40dp" />
+        </LinearLayout>
+
+        <!-- 🔧 DEBUG: 資訊卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/debug_info_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="載入中..."
+                    android:textSize="14sp"
+                    android:textColor="#FF666666"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 🎛️ NEW: 參數調整區域 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:background="#FFe3f2fd">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎛️ 峰值檢測參數調整"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FF1976d2"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 閾值係數滑桿 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="閾值係數"
+                        android:textSize="14sp"
+                        android:textColor="#FF333333" />
+
+                    <TextView
+                        android:id="@+id/threshold_multiplier_value"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="1.5"
+                        android:textSize="14sp"
+                        android:textColor="#FF1976d2"
+                        android:textStyle="bold"
+                        android:gravity="end" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/threshold_multiplier_slider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="250"
+                    android:progress="100"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 合併距離滑桿 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="合併距離 (秒)"
+                        android:textSize="14sp"
+                        android:textColor="#FF333333" />
+
+                    <TextView
+                        android:id="@+id/merge_distance_value"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="2.0"
+                        android:textSize="14sp"
+                        android:textColor="#FF1976d2"
+                        android:textStyle="bold"
+                        android:gravity="end" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/merge_distance_slider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="450"
+                    android:progress="150"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- 自動重新分析開關 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="自動重新分析"
+                        android:textSize="14sp"
+                        android:textColor="#FF333333" />
+
+                    <Switch
+                        android:id="@+id/auto_reanalyze_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 🔧 DEBUG: 圖表區域 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📈 峰值檢測結果 (即時更新)"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FF333333"
+                    android:padding="8dp" />
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/debug_peak_chart"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:layout_margin="8dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 🔧 DEBUG: 控制按鈕 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp">
+
+            <Button
+                android:id="@+id/debug_refresh_button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="🔄 重新分析"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:background="#FF2196F3"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/debug_export_button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="📤 匯出資料"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:background="#FF4CAF50"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- 🔧 DEBUG: 警告文字 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠️ 此為開發調試工具，正式版本可移除"
+            android:textSize="12sp"
+            android:textColor="#FFff5722"
+            android:gravity="center"
+            android:layout_marginTop="8dp"
+            android:alpha="0.7" />
+
+    </LinearLayout>
+</ScrollView>

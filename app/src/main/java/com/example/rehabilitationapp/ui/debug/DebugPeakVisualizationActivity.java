@@ -1,0 +1,484 @@
+package com.example.rehabilitationapp.ui.debug;
+
+import android.graphics.Color;
+import android.os.Bundle;
+import android.util.Log;
+import android.widget.Button;
+import android.widget.SeekBar;
+import android.widget.Switch;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.rehabilitationapp.R;
+import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
+import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.components.YAxis;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * 🔧 DEBUG: 峰值視覺化頁面（帶參數調整）
+ * 此檔案僅供開發階段調試使用，正式版可考慮移除
+ */
+public class DebugPeakVisualizationActivity extends AppCompatActivity {
+    private static final String TAG = "DebugPeakViz";
+
+    // UI 元件
+    private LineChart debugPeakChart;
+    private TextView debugInfoText;
+    private Button debugCloseButton;
+    private Button debugRefreshButton;
+    private Button debugExportButton;
+
+    // 🎛️ 新增：滑桿控制元件
+    private SeekBar thresholdMultiplierSlider;
+    private SeekBar mergeDistanceSlider;
+    private TextView thresholdMultiplierValue;
+    private TextView mergeDistanceValue;
+    private Switch autoReanalyzeSwitch;
+
+    // 數據變數
+    private String csvFileName;
+    private String trainingLabel;
+    private int actualCount;
+    private int targetCount;
+
+    // 🎛️ 可調整的峰值檢測參數
+    private double thresholdMultiplier = 1.5;  // 閾值係數（預設 1.5 倍標準差）
+    private double mergeDistance = 2.0;        // 合併距離（預設 2.0 秒）
+
+    // 原始數據（不會改變）
+    private List<Double> allDataValues = new ArrayList<>();
+    private List<Double> allTimePoints = new ArrayList<>();
+    private List<String> allPhases = new ArrayList<>();
+    private String targetColumn;
+    private double averageValue;
+    private double standardDeviation;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.debug_peak_visualization_activity);
+
+        Log.d(TAG, "🔧 DEBUG: 峰值視覺化頁面啟動（帶滑桿功能）");
+
+        // 初始化 UI
+        initViews();
+
+        // 取得傳入數據
+        getIntentData();
+
+        // 設置滑桿監聽器
+        setupSliders();
+
+        // 設置按鈕事件
+        setupButtons();
+
+        // 載入原始數據
+        loadOriginalData();
+    }
+
+    private void initViews() {
+        debugPeakChart = findViewById(R.id.debug_peak_chart);
+        debugInfoText = findViewById(R.id.debug_info_text);
+        debugCloseButton = findViewById(R.id.debug_close_button);
+        debugRefreshButton = findViewById(R.id.debug_refresh_button);
+        debugExportButton = findViewById(R.id.debug_export_button);
+
+        // 🎛️ 滑桿元件
+        thresholdMultiplierSlider = findViewById(R.id.threshold_multiplier_slider);
+        mergeDistanceSlider = findViewById(R.id.merge_distance_slider);
+        thresholdMultiplierValue = findViewById(R.id.threshold_multiplier_value);
+        mergeDistanceValue = findViewById(R.id.merge_distance_value);
+        autoReanalyzeSwitch = findViewById(R.id.auto_reanalyze_switch);
+
+        // 設置圖表基本樣式
+        setupChart();
+
+        Log.d(TAG, "🔧 DEBUG: UI 元件初始化完成");
+    }
+
+    private void getIntentData() {
+        csvFileName = getIntent().getStringExtra("csv_file_name");
+        trainingLabel = getIntent().getStringExtra("training_label");
+        actualCount = getIntent().getIntExtra("actual_count", 0);
+        targetCount = getIntent().getIntExtra("target_count", 4);
+
+        Log.d(TAG, String.format("🔧 DEBUG: 接收數據 - CSV: %s, 標籤: %s, 實際: %d, 目標: %d",
+                csvFileName, trainingLabel, actualCount, targetCount));
+    }
+
+    private void setupSliders() {
+        // 🎛️ 閾值係數滑桿 (0.5 - 3.0)
+        thresholdMultiplierSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    thresholdMultiplier = 0.5 + (progress / 100.0) * 2.5; // 0.5 to 3.0
+                    thresholdMultiplierValue.setText(String.format("%.1f", thresholdMultiplier));
+                    Log.d(TAG, "🎛️ 閾值係數調整為: " + thresholdMultiplier);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                if (autoReanalyzeSwitch.isChecked()) {
+                    reanalyzeWithCurrentParams();
+                }
+            }
+        });
+
+        // 🎛️ 合併距離滑桿 (0.5 - 5.0 秒)
+        mergeDistanceSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    mergeDistance = 0.5 + (progress / 100.0) * 4.5; // 0.5 to 5.0
+                    mergeDistanceValue.setText(String.format("%.1f", mergeDistance));
+                    Log.d(TAG, "🎛️ 合併距離調整為: " + mergeDistance);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                if (autoReanalyzeSwitch.isChecked()) {
+                    reanalyzeWithCurrentParams();
+                }
+            }
+        });
+
+        // 設置初始值
+        updateSliderValues();
+    }
+
+    private void updateSliderValues() {
+        int thresholdProgress = (int) ((thresholdMultiplier - 0.5) / 2.5 * 100);
+        int mergeProgress = (int) ((mergeDistance - 0.5) / 4.5 * 100);
+
+        thresholdMultiplierSlider.setProgress(thresholdProgress);
+        mergeDistanceSlider.setProgress(mergeProgress);
+
+        thresholdMultiplierValue.setText(String.format("%.1f", thresholdMultiplier));
+        mergeDistanceValue.setText(String.format("%.1f", mergeDistance));
+    }
+
+    private void setupButtons() {
+        // 關閉按鈕
+        debugCloseButton.setOnClickListener(v -> {
+            Log.d(TAG, "🔧 DEBUG: 關閉視覺化頁面");
+            finish();
+        });
+
+        // 重新分析按鈕
+        debugRefreshButton.setOnClickListener(v -> {
+            Log.d(TAG, "🔧 DEBUG: 手動重新分析數據");
+            reanalyzeWithCurrentParams();
+        });
+
+        // 匯出按鈕
+        debugExportButton.setOnClickListener(v -> {
+            Log.d(TAG, "🔧 DEBUG: 匯出數據");
+            exportAnalysisData();
+        });
+    }
+
+    private void setupChart() {
+        // 基本設置
+        debugPeakChart.getDescription().setEnabled(false);
+        debugPeakChart.setTouchEnabled(true);
+        debugPeakChart.setDragEnabled(true);
+        debugPeakChart.setScaleEnabled(true);
+        debugPeakChart.setPinchZoom(true);
+
+        // X軸設置
+        XAxis xAxis = debugPeakChart.getXAxis();
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setGranularity(1f);
+        xAxis.setTextColor(Color.GRAY);
+
+        // Y軸設置
+        YAxis leftAxis = debugPeakChart.getAxisLeft();
+        leftAxis.setGranularity(1f);
+        leftAxis.setTextColor(Color.GRAY);
+
+        YAxis rightAxis = debugPeakChart.getAxisRight();
+        rightAxis.setEnabled(false);
+
+        Log.d(TAG, "🔧 DEBUG: 圖表設置完成");
+    }
+
+    private void loadOriginalData() {
+        if (csvFileName == null || csvFileName.isEmpty()) {
+            showError("CSV 檔案名稱為空");
+            return;
+        }
+
+        debugInfoText.setText("🔄 正在載入原始數據...");
+
+        new Thread(() -> {
+            try {
+                // 🔥 讀取原始數據
+                CSVPeakAnalyzer.DEBUGEnhancedAnalysisResult result =
+                        CSVPeakAnalyzer.DEBUGPeakAnalyzeWithDetailedInfo(this, csvFileName);
+
+                if (result.success) {
+                    // 保存原始數據
+                    allDataValues = new ArrayList<>(result.allDataValues);
+                    allTimePoints = new ArrayList<>(result.allTimePoints);
+                    allPhases = new ArrayList<>(result.allPhases);
+                    targetColumn = result.targetColumn;
+                    averageValue = result.averageValue;
+
+                    // 計算標準差
+                    calculateStandardDeviation();
+
+                    Log.d(TAG, "🔧 DEBUG: 原始數據載入成功，數據點: " + allDataValues.size());
+
+                    runOnUiThread(() -> {
+                        updateSliderValues();
+                        reanalyzeWithCurrentParams();
+                    });
+                } else {
+                    Log.e(TAG, "🔧 DEBUG: 載入失敗 - " + result.errorMessage);
+                    runOnUiThread(() -> showError("載入失敗: " + result.errorMessage));
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "🔧 DEBUG: 載入原始數據時發生錯誤", e);
+                runOnUiThread(() -> showError("載入錯誤: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    private void calculateStandardDeviation() {
+        double variance = allDataValues.stream()
+                .mapToDouble(v -> Math.pow(v - averageValue, 2))
+                .average().orElse(0.0);
+        standardDeviation = Math.sqrt(variance);
+    }
+
+    private void reanalyzeWithCurrentParams() {
+        if (allDataValues.isEmpty()) {
+            showError("沒有原始數據");
+            return;
+        }
+
+        debugInfoText.setText("🔄 正在重新分析 (參數已更新)...");
+
+        new Thread(() -> {
+            try {
+                // 🎛️ 使用當前參數重新分析峰值
+                double currentThreshold = averageValue + thresholdMultiplier * standardDeviation;
+
+                // 檢測原始峰值
+                List<PeakPoint> originalPeaks = detectOriginalPeaks(currentThreshold);
+
+                // 重分布峰值
+                List<PeakPoint> redistributedPeaks = redistributePeaks(originalPeaks, mergeDistance);
+
+                Log.d(TAG, String.format("🎛️ 重新分析完成 - 閾值: %.3f, 原始峰值: %d, 重分布峰值: %d",
+                        currentThreshold, originalPeaks.size(), redistributedPeaks.size()));
+
+                runOnUiThread(() -> {
+                    updateInfoDisplay(currentThreshold, originalPeaks, redistributedPeaks);
+                    updateChart(originalPeaks, redistributedPeaks);
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "🔧 DEBUG: 重新分析時發生錯誤", e);
+                runOnUiThread(() -> showError("重新分析錯誤: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    private List<PeakPoint> detectOriginalPeaks(double threshold) {
+        List<PeakPoint> peaks = new ArrayList<>();
+
+        for (int i = 1; i < allDataValues.size() - 1; i++) {
+            double prev = allDataValues.get(i - 1);
+            double current = allDataValues.get(i);
+            double next = allDataValues.get(i + 1);
+
+            // 檢查是否為局部最大值且超過閾值
+            if (current > prev && current > next && current > threshold) {
+                PeakPoint peak = new PeakPoint(
+                        allTimePoints.get(i),
+                        current,
+                        allPhases.get(i),
+                        i
+                );
+                peaks.add(peak);
+            }
+        }
+
+        return peaks;
+    }
+
+    private List<PeakPoint> redistributePeaks(List<PeakPoint> originalPeaks, double mergeDistance) {
+        List<PeakPoint> result = new ArrayList<>();
+        List<PeakPoint> remaining = new ArrayList<>(originalPeaks);
+
+        while (!remaining.isEmpty()) {
+            PeakPoint currentPeak = remaining.remove(0);
+            List<PeakPoint> closePeaks = new ArrayList<>();
+            closePeaks.add(currentPeak);
+
+            // 找出時間相近的峰值
+            remaining.removeIf(peak -> {
+                if (Math.abs(peak.time - currentPeak.time) <= mergeDistance) {
+                    closePeaks.add(peak);
+                    return true;
+                }
+                return false;
+            });
+
+            // 選擇數值最高的作為代表
+            PeakPoint representativePeak = closePeaks.stream()
+                    .max((p1, p2) -> Double.compare(p1.value, p2.value))
+                    .orElse(currentPeak);
+
+            result.add(representativePeak);
+        }
+
+        return result;
+    }
+
+    private void updateInfoDisplay(double threshold, List<PeakPoint> originalPeaks, List<PeakPoint> redistributedPeaks) {
+        StringBuilder info = new StringBuilder();
+        info.append(String.format("📁 檔案: %s\n", csvFileName));
+        info.append(String.format("🏷️ 訓練: %s\n", trainingLabel));
+        info.append(String.format("📊 數據點: %d 個\n", allDataValues.size()));
+        info.append(String.format("📈 平均值: %.3f\n", averageValue));
+        info.append(String.format("📊 標準差: %.3f\n", standardDeviation));
+        info.append("━━━━━━━━━━━━━━━━━━━━\n");
+        info.append(String.format("🎛️ 閾值係數: %.1f 倍標準差\n", thresholdMultiplier));
+        info.append(String.format("🎯 計算閾值: %.3f\n", threshold));
+        info.append(String.format("🔄 合併距離: %.1f 秒\n", mergeDistance));
+        info.append("━━━━━━━━━━━━━━━━━━━━\n");
+        info.append(String.format("🔍 原始峰值: %d 個\n", originalPeaks.size()));
+        info.append(String.format("🎯 重分布峰值: %d 個\n", redistributedPeaks.size()));
+
+        // 統計各階段峰值
+        long calibratingPeaks = redistributedPeaks.stream().filter(p -> "CALIBRATING".equals(p.phase)).count();
+        long maintainingPeaks = redistributedPeaks.stream().filter(p -> "MAINTAINING".equals(p.phase)).count();
+
+        info.append(String.format("🟡 校正階段: %d 個\n", calibratingPeaks));
+        info.append(String.format("🟢 維持階段: %d 個\n", maintainingPeaks));
+
+        debugInfoText.setText(info.toString());
+    }
+
+    private void updateChart(List<PeakPoint> originalPeaks, List<PeakPoint> redistributedPeaks) {
+        // 準備數據集
+        List<Entry> dataEntries = new ArrayList<>();
+        List<Entry> originalPeakEntries = new ArrayList<>();
+        List<Entry> redistributedPeakEntries = new ArrayList<>();
+
+        // 原始數據
+        for (int i = 0; i < allDataValues.size(); i++) {
+            dataEntries.add(new Entry(allTimePoints.get(i).floatValue(), allDataValues.get(i).floatValue()));
+        }
+
+        // 峰值點
+        for (PeakPoint peak : originalPeaks) {
+            originalPeakEntries.add(new Entry((float)peak.time, (float)peak.value));
+        }
+        for (PeakPoint peak : redistributedPeaks) {
+            redistributedPeakEntries.add(new Entry((float)peak.time, (float)peak.value));
+        }
+
+        // 創建數據集
+        LineDataSet dataSet = new LineDataSet(dataEntries, "原始數據");
+        dataSet.setColor(Color.BLUE);
+        dataSet.setLineWidth(1.5f);
+        dataSet.setDrawCircles(false);
+        dataSet.setDrawValues(false);
+
+        LineDataSet originalPeakSet = new LineDataSet(originalPeakEntries, "原始峰值");
+        originalPeakSet.setColor(Color.TRANSPARENT);
+        originalPeakSet.setCircleColor(Color.rgb(255, 165, 0));
+        originalPeakSet.setCircleRadius(6f);
+        originalPeakSet.setDrawCircles(true);
+        originalPeakSet.setDrawValues(true);
+        originalPeakSet.setValueTextColor(Color.rgb(255, 165, 0));
+        originalPeakSet.setValueTextSize(8f);
+
+        LineDataSet redistributedPeakSet = new LineDataSet(redistributedPeakEntries, "重分布峰值");
+        redistributedPeakSet.setColor(Color.TRANSPARENT);
+        redistributedPeakSet.setCircleColor(Color.RED);
+        redistributedPeakSet.setCircleRadius(8f);
+        redistributedPeakSet.setDrawCircles(true);
+        redistributedPeakSet.setDrawValues(true);
+        redistributedPeakSet.setValueTextColor(Color.RED);
+        redistributedPeakSet.setValueTextSize(10f);
+
+        // 組合數據
+        LineData lineData = new LineData();
+        lineData.addDataSet(dataSet);
+        if (!originalPeakEntries.isEmpty()) {
+            lineData.addDataSet(originalPeakSet);
+        }
+        if (!redistributedPeakEntries.isEmpty()) {
+            lineData.addDataSet(redistributedPeakSet);
+        }
+
+        // 更新圖表
+        debugPeakChart.setData(lineData);
+        debugPeakChart.invalidate();
+
+        Toast.makeText(this, "📈 圖表已更新！", Toast.LENGTH_SHORT).show();
+    }
+
+    private void exportAnalysisData() {
+        StringBuilder exportData = new StringBuilder();
+        exportData.append("=== DEBUG 峰值分析報告 (當前參數) ===\n");
+        exportData.append(String.format("閾值係數: %.1f 倍標準差\n", thresholdMultiplier));
+        exportData.append(String.format("合併距離: %.1f 秒\n", mergeDistance));
+        exportData.append("━━━━━━━━━━━━━━━━━━━━\n");
+        exportData.append(debugInfoText.getText());
+
+        Log.d(TAG, "🔧 DEBUG: 匯出數據:\n" + exportData.toString());
+        Toast.makeText(this, "📤 詳細數據已輸出到 Logcat", Toast.LENGTH_LONG).show();
+    }
+
+    private void showError(String message) {
+        debugInfoText.setText("❌ 錯誤: " + message);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        Log.e(TAG, "🔧 DEBUG: " + message);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "🔧 DEBUG: 峰值視覺化頁面銷毀");
+    }
+
+    // 🎯 簡化的峰值點類別
+    private static class PeakPoint {
+        public double time;
+        public double value;
+        public String phase;
+        public int originalIndex;
+
+        public PeakPoint(double time, double value, String phase, int originalIndex) {
+            this.time = time;
+            this.value = value;
+            this.phase = phase;
+            this.originalIndex = originalIndex;
+        }
+    }
+}

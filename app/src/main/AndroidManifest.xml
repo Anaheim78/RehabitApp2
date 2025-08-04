@@ -38,7 +38,14 @@
 
         <activity android:name=".ui.facecheck.FaceCircleCheckerActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.results.AnalysisResultActivity"
+            android:exported="false" />
 
+        <!-- 🔧 DEBUG: 加入這個 -->
+        <activity
+            android:name=".ui.debug.DebugPeakVisualizationActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

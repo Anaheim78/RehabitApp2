@@ -6,6 +6,7 @@ import android.util.Log;
 import android.widget.TextView;
 import android.widget.Button;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -25,6 +26,7 @@ public class AnalysisResultActivity extends AppCompatActivity {
     private Button saveResultButton;
     private Button retryButton;
     private Button shareLineButton;
+    private Button debugPeakButton; // 🔧 DEBUG: 峰值分析按鈕
 
     // 數據變數
     private String trainingLabel;
@@ -64,6 +66,9 @@ public class AnalysisResultActivity extends AppCompatActivity {
         saveResultButton = findViewById(R.id.save_result_button);
         retryButton = findViewById(R.id.retry_button);
         shareLineButton = findViewById(R.id.share_line_button);
+
+        // 🔧 DEBUG: 初始化峰值分析按鈕
+        debugPeakButton = findViewById(R.id.debug_peak_button);
 
         Log.d(TAG, "✅ UI 元件初始化完成");
     }
@@ -163,6 +168,50 @@ public class AnalysisResultActivity extends AppCompatActivity {
                 Log.d(TAG, "📤 分享至 LINE");
                 shareToLine();
             });
+        }
+
+        // 🔧 DEBUG: 峰值分析按鈕
+        setupDEBUGPeakButtons();
+    }
+
+    /**
+     * 🔧 DEBUG: 設置峰值分析按鈕
+     */
+    private void setupDEBUGPeakButtons() {
+        if (debugPeakButton != null) {
+            debugPeakButton.setOnClickListener(v -> {
+                Log.d(TAG, "🔧 DEBUG: 點擊峰值分析按鈕");
+                openDEBUGPeakVisualization();
+            });
+        }
+    }
+
+    /**
+     * 🔧 DEBUG: 開啟峰值視覺化頁面
+     */
+    private void openDEBUGPeakVisualization() {
+        if (csvFileName == null || csvFileName.isEmpty()) {
+            Toast.makeText(this, "❌ 無法找到 CSV 檔案", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "🔧 DEBUG: CSV 檔案名稱為空");
+            return;
+        }
+
+        try {
+            Intent intent = new Intent(this, com.example.rehabilitationapp.ui.debug.DebugPeakVisualizationActivity.class);
+            intent.putExtra("csv_file_name", csvFileName);
+            intent.putExtra("training_label", trainingLabel);
+            intent.putExtra("actual_count", actualCount);
+            intent.putExtra("target_count", targetCount);
+
+            Log.d(TAG, "🔧 DEBUG: 準備跳轉峰值視覺化頁面");
+            Log.d(TAG, "🔧 DEBUG: CSV檔案 = " + csvFileName);
+            Log.d(TAG, "🔧 DEBUG: 訓練標籤 = " + trainingLabel);
+
+            startActivity(intent);
+
+        } catch (Exception e) {
+            Log.e(TAG, "🔧 DEBUG: 開啟峰值視覺化失敗", e);
+            Toast.makeText(this, "❌ 開啟分析頁面失敗: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 

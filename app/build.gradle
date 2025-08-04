@@ -72,4 +72,6 @@ dependencies {
 
     // 🔥 新增：集合工具 (POI 依賴)
     implementation 'org.apache.commons:commons-collections4:4.4'
+    // 圖表分析工具，DEBUG訊號
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 }

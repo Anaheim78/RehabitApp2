@@ -291,4 +291,229 @@ public class CSVPeakAnalyzer {
 
         return sb.toString();
     }
+
+    // 🔧 在 CSVPeakAnalyzer.java 中加入以下代碼
+// 請加在現有類別的最後面，但在最後的 } 之前
+
+    /**
+     * 🔧 DEBUG: 峰值點資訊
+     */
+    public static class DEBUGPeakPoint {
+        public double time;        // 時間點
+        public double value;       // 數值
+        public String phase;       // 階段 (CALIBRATING/MAINTAINING)
+        public int originalIndex;  // 在原始數據中的索引
+
+        public DEBUGPeakPoint(double time, double value, String phase, int originalIndex) {
+            this.time = time;
+            this.value = value;
+            this.phase = phase;
+            this.originalIndex = originalIndex;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Peak(t=%.2f, v=%.2f, %s)", time, value, phase);
+        }
+    }
+
+    /**
+     * 🔧 DEBUG: 增強版分析結果類
+     */
+    public static class DEBUGEnhancedAnalysisResult extends AnalysisResult {
+        public List<DEBUGPeakPoint> originalPeaks = new ArrayList<>();      // 原始檢測到的峰值
+        public List<DEBUGPeakPoint> redistributedPeaks = new ArrayList<>(); // 重分布後的峰值
+        public List<Double> allDataValues = new ArrayList<>();              // 所有數據值
+        public List<Double> allTimePoints = new ArrayList<>();              // 所有時間點
+        public List<String> allPhases = new ArrayList<>();                  // 所有階段標記
+        public double detectionThreshold = 0.0;                            // 檢測閾值
+    }
+
+    /**
+     * 🔧 DEBUG: 增強版峰值分析方法 - 提供詳細的峰值資訊
+     */
+    public static DEBUGEnhancedAnalysisResult DEBUGPeakAnalyzeWithDetailedInfo(Context context, String fileName) {
+        Log.d(TAG, "🔧 DEBUG: 開始詳細峰值分析: " + fileName);
+
+        DEBUGEnhancedAnalysisResult result = new DEBUGEnhancedAnalysisResult();
+        result.fileName = fileName;
+
+        try {
+            // 1. 讀取CSV檔案
+            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File csvFile = new File(downloadsDir, fileName);
+
+            if (!csvFile.exists()) {
+                result.errorMessage = "檔案不存在: " + fileName;
+                Log.e(TAG, result.errorMessage);
+                return result;
+            }
+
+            // 2. 解析CSV內容
+            List<String[]> csvData = readCSV(csvFile);
+            if (csvData.isEmpty()) {
+                result.errorMessage = "CSV檔案為空或讀取失敗";
+                Log.e(TAG, result.errorMessage);
+                return result;
+            }
+
+            // 3. 確定目標欄位
+            String[] headers = csvData.get(0);
+            int targetColumnIndex = determineTargetColumn(headers, fileName);
+            int timeColumnIndex = 0;   // time_seconds 欄位
+            int stateColumnIndex = 1;  // state 欄位
+
+            if (targetColumnIndex == -1) {
+                result.errorMessage = "無法找到適合的分析欄位";
+                Log.e(TAG, result.errorMessage);
+                return result;
+            }
+
+            result.targetColumn = headers[targetColumnIndex];
+            result.trainingLabel = extractTrainingLabel(fileName);
+
+            Log.d(TAG, "🔧 DEBUG: 目標欄位 = " + result.targetColumn);
+            Log.d(TAG, "🔧 DEBUG: 訓練標籤 = " + result.trainingLabel);
+
+            // 4. 提取所有數據
+            for (int i = 1; i < csvData.size(); i++) {
+                String[] row = csvData.get(i);
+
+                if (row.length <= Math.max(targetColumnIndex, Math.max(timeColumnIndex, stateColumnIndex))) {
+                    continue;
+                }
+
+                try {
+                    double time = Double.parseDouble(row[timeColumnIndex].trim());
+                    double value = Double.parseDouble(row[targetColumnIndex].trim());
+                    String phase = row[stateColumnIndex].trim().toUpperCase();
+
+                    result.allTimePoints.add(time);
+                    result.allDataValues.add(value);
+                    result.allPhases.add(phase);
+
+                } catch (NumberFormatException e) {
+                    Log.w(TAG, "🔧 DEBUG: 數據解析錯誤: " + String.join(",", row));
+                }
+            }
+
+            if (result.allDataValues.isEmpty()) {
+                result.errorMessage = "未找到有效數據";
+                Log.e(TAG, result.errorMessage);
+                return result;
+            }
+
+            Log.d(TAG, "🔧 DEBUG: 成功讀取 " + result.allDataValues.size() + " 個數據點");
+
+            // 5. 🔥 進行峰值檢測
+            DEBUGDetectOriginalPeaks(result);
+            DEBUGDetectRedistributedPeaks(result);
+
+            // 6. 統計結果
+            result.totalDataPoints = result.allDataValues.size();
+            result.averageValue = result.allDataValues.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            result.calibratingPeaks = (int) result.redistributedPeaks.stream().filter(p -> "CALIBRATING".equals(p.phase)).count();
+            result.maintainingPeaks = (int) result.redistributedPeaks.stream().filter(p -> "MAINTAINING".equals(p.phase)).count();
+            result.totalPeaks = result.redistributedPeaks.size();
+            result.success = true;
+
+            Log.d(TAG, "🔧 DEBUG: 詳細分析完成!");
+            Log.d(TAG, "🔧 DEBUG: 原始峰值 = " + result.originalPeaks.size() + " 個");
+            Log.d(TAG, "🔧 DEBUG: 重分布峰值 = " + result.redistributedPeaks.size() + " 個");
+            Log.d(TAG, "🔧 DEBUG: 檢測閾值 = " + result.detectionThreshold);
+
+        } catch (Exception e) {
+            result.errorMessage = "分析過程發生錯誤: " + e.getMessage();
+            Log.e(TAG, "🔧 DEBUG: " + result.errorMessage, e);
+        }
+
+        return result;
+    }
+
+    /**
+     * 🔧 DEBUG: 檢測原始峰值
+     */
+    private static void DEBUGDetectOriginalPeaks(DEBUGEnhancedAnalysisResult result) {
+        List<Double> values = result.allDataValues;
+        result.detectionThreshold = DEBUGCalculateDynamicThreshold(values);
+
+        Log.d(TAG, "🔧 DEBUG: 原始峰值檢測閾值 = " + result.detectionThreshold);
+
+        // 簡單的峰值檢測邏輯
+        for (int i = 1; i < values.size() - 1; i++) {
+            double prev = values.get(i - 1);
+            double current = values.get(i);
+            double next = values.get(i + 1);
+
+            // 檢查是否為局部最大值且超過閾值
+            if (current > prev && current > next && current > result.detectionThreshold) {
+                DEBUGPeakPoint peak = new DEBUGPeakPoint(
+                        result.allTimePoints.get(i),
+                        current,
+                        result.allPhases.get(i),
+                        i
+                );
+                result.originalPeaks.add(peak);
+                Log.d(TAG, "🔧 DEBUG: 找到原始峰值 = " + peak.toString());
+            }
+        }
+
+        Log.d(TAG, "🔧 DEBUG: 檢測到原始峰值總數 = " + result.originalPeaks.size());
+    }
+
+    /**
+     * 🔧 DEBUG: 檢測重分布峰值（合併相近的峰值）
+     */
+    private static void DEBUGDetectRedistributedPeaks(DEBUGEnhancedAnalysisResult result) {
+        List<DEBUGPeakPoint> originalPeaks = new ArrayList<>(result.originalPeaks);
+        double mergeDistance = 2.0; // 2秒內的峰值會被合併
+
+        Log.d(TAG, "🔧 DEBUG: 開始峰值重分布，合併距離 = " + mergeDistance + " 秒");
+
+        while (!originalPeaks.isEmpty()) {
+            DEBUGPeakPoint currentPeak = originalPeaks.remove(0);
+            List<DEBUGPeakPoint> closePeaks = new ArrayList<>();
+            closePeaks.add(currentPeak);
+
+            // 找出時間相近的峰值
+            originalPeaks.removeIf(peak -> {
+                if (Math.abs(peak.time - currentPeak.time) <= mergeDistance) {
+                    closePeaks.add(peak);
+                    Log.d(TAG, "🔧 DEBUG: 合併峰值 " + peak.toString() + " 到 " + currentPeak.toString());
+                    return true;
+                }
+                return false;
+            });
+
+            // 如果有多個相近峰值，選擇數值最高的作為代表
+            DEBUGPeakPoint representativePeak = closePeaks.stream()
+                    .max((p1, p2) -> Double.compare(p1.value, p2.value))
+                    .orElse(currentPeak);
+
+            result.redistributedPeaks.add(representativePeak);
+            Log.d(TAG, "🔧 DEBUG: 重分布峰值 = " + representativePeak.toString());
+        }
+
+        Log.d(TAG, "🔧 DEBUG: 重分布後峰值總數 = " + result.redistributedPeaks.size());
+    }
+
+    /**
+     * 🔧 DEBUG: 計算動態閾值
+     */
+    private static double DEBUGCalculateDynamicThreshold(List<Double> values) {
+        double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        double variance = values.stream()
+                .mapToDouble(v -> Math.pow(v - mean, 2))
+                .average().orElse(0.0);
+        double stdDev = Math.sqrt(variance);
+
+        // 閾值 = 平均值 + 1.5 * 標準差
+        double threshold = mean + 1.5 * stdDev;
+
+        Log.d(TAG, String.format("🔧 DEBUG: 閾值計算 - 平均值=%.3f, 標準差=%.3f, 閾值=%.3f",
+                mean, stdDev, threshold));
+
+        return threshold;
+    }
 }
+

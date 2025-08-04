@@ -34,6 +34,12 @@ public class FaceDataRecorder {
     private static final int[] UPPER_LIP_INDICES = {61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318};
     private static final int[] LOWER_LIP_INDICES = {78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415};
 
+    // 🔥 新增：Callback 介面
+    public interface DataSaveCallback {
+        void onComplete(CSVPeakAnalyzer.AnalysisResult result);
+        void onError(String error);
+    }
+
     public FaceDataRecorder(Context context, String trainingLabel, int trainingType) {
         this.context = context;
         this.trainingLabel = trainingLabel;
@@ -258,7 +264,41 @@ public class FaceDataRecorder {
         }
     }
 
-    // 🔥 新增：峰值分析方法
+    // 🔥 新增：帶 callback 的儲存方法
+    public void saveToFileWithCallback(DataSaveCallback callback) {
+        try {
+            // 儲存到 Downloads 資料夾，使用者容易找到
+            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File file = new File(downloadsDir, fileName);
+
+            FileWriter writer = new FileWriter(file);
+            for (String line : dataLines) {
+                writer.write(line + "\n");
+            }
+            writer.close();
+
+            Log.d(TAG, "✅ 檔案儲存成功: " + file.getAbsolutePath());
+            Log.d(TAG, "📊 總共記錄了 " + (dataLines.size() - 1) + " 筆數據");
+
+            // 🔥 檔案儲存完成後進行峰值分析，並通過 callback 回傳結果
+            performPeakAnalysisWithCallback(callback);
+
+            // 使用 Handler 切換到主線程顯示 Toast
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    Toast.makeText(context, "檔案已儲存至下載資料夾", Toast.LENGTH_SHORT).show()
+            );
+
+        } catch (IOException e) {
+            Log.e(TAG, "❌ 儲存檔案失敗", e);
+
+            // 🔥 錯誤回調
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    callback.onError("儲存失敗: " + e.getMessage())
+            );
+        }
+    }
+
+    // 🔥 原有的 saveToFile 方法（保留給其他地方使用）
     public void saveToFile() {
         try {
             // 儲存到 Downloads 資料夾，使用者容易找到
@@ -292,7 +332,48 @@ public class FaceDataRecorder {
         }
     }
 
-    // 🔥 新增：峰值分析方法
+    // 🔥 新增：帶 callback 的峰值分析方法
+    private void performPeakAnalysisWithCallback(DataSaveCallback callback) {
+        Log.d(TAG, "🎯 開始進行峰值分析...");
+
+        // 在背景線程執行峰值分析
+        new Thread(() -> {
+            try {
+                // 調用 CSV 峰值分析器
+                CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
+
+                if (result.success) {
+                    Log.d(TAG, "✅ 峰值分析完成!");
+                    Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",
+                            result.calibratingPeaks, result.maintainingPeaks, result.totalPeaks));
+
+                    // 🔥 成功回調
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                            callback.onComplete(result)
+                    );
+
+                } else {
+                    Log.e(TAG, "❌ 峰值分析失敗: " + result.errorMessage);
+
+                    // 🔥 失敗回調
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                            callback.onError("峰值分析失敗: " + result.errorMessage)
+                    );
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "峰值分析過程發生錯誤", e);
+
+                // 🔥 異常回調
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        callback.onError("峰值分析錯誤: " + e.getMessage())
+                );
+            }
+
+        }).start();
+    }
+
+    // 🔥 原有的峰值分析方法（保留）
     private void performPeakAnalysis() {
         Log.d(TAG, "🎯 開始進行峰值分析...");
 
@@ -314,10 +395,6 @@ public class FaceDataRecorder {
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                         // 顯示詳細的峰值分析結果
                         Toast.makeText(context, displayText, Toast.LENGTH_LONG).show();
-
-                        // 如果需要，也可以簡化版本的 Toast
-                        // String simpleMessage = String.format("🎯 峰值分析完成!\n總峰值數: %d 個", result.totalPeaks);
-                        // Toast.makeText(context, simpleMessage, Toast.LENGTH_SHORT).show();
                     });
 
                 } else {
