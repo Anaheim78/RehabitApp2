@@ -76,4 +76,11 @@ dependencies {
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 
     implementation 'androidx.cardview:cardview:1.0.0'
+
+    // 🔥 新增 TensorFlow Lite 相關依賴
+    implementation 'org.tensorflow:tensorflow-lite:2.13.0'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
+
+    // 🔥 (可選) 如果需要 GPU 加速，可以加這個
+    // implementation 'org.tensorflow:tensorflow-lite-gpu:2.13.0'
 }

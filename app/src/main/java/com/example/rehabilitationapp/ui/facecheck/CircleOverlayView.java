@@ -6,6 +6,8 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
+import android.graphics.DashPathEffect;
+import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
@@ -19,16 +21,34 @@ public class CircleOverlayView extends View {
         CALIBRATING      // 黄色
     }
 
+    // 🔥 新增：顯示模式
+    public enum DisplayMode {
+        LANDMARKS,      // 顯示 MediaPipe 關鍵點（原模式）
+        YOLO_DETECTION  // 顯示 YOLO 檢測結果（舌頭模式）
+    }
+
     private Status status = Status.CALIBRATING;
+    private DisplayMode currentDisplayMode = DisplayMode.LANDMARKS; // 🔥 新增
 
     private Paint circlePaint;
     private Paint maskPaint;
     private Paint landmarkPaint; // 绘制所有关键点的画笔
     private Paint specialPointPaint; // 绘制特殊关键点的画笔
 
+    // 🔥 新增：YOLO 相關畫筆
+    private Paint tongueBoxPaint;           // 舌頭邊界框畫筆
+    private Paint roiBoxPaint;              // ROI 框畫筆
+    private Paint confidenceTextPaint;      // 信心度文字畫筆
+
     // 存储所有468个关键点坐标
     private float[][] allLandmarks;
     private boolean hasLandmarks = false;
+
+    // 🔥 新增：YOLO 檢測結果相關變數
+    private boolean tongueDetected = false;
+    private Rect tongueBox = null;          // 舌頭邊界框
+    private Rect mouthROI = null;           // 嘴部 ROI 框
+    private float tongueConfidence = 0.0f;   // 檢測信心度
 
     // 特殊关键点的索引（用不同颜色标出）
     private int[] specialPoints = {10, 21, 251, 234, 454, 18}; // 额头、太阳穴、脸颊、下巴
@@ -67,6 +87,37 @@ public class CircleOverlayView extends View {
         specialPointPaint.setColor(Color.GREEN);
         specialPointPaint.setStyle(Paint.Style.FILL);
         specialPointPaint.setAntiAlias(true);
+
+        // 🔥 初始化 YOLO 相關畫筆
+        initializeYoloPaints();
+    }
+
+    /**
+     * 🎨 初始化 YOLO 相關畫筆
+     */
+    private void initializeYoloPaints() {
+        // 舌頭邊界框畫筆（綠色實線）
+        tongueBoxPaint = new Paint();
+        tongueBoxPaint.setColor(Color.GREEN);
+        tongueBoxPaint.setStyle(Paint.Style.STROKE);
+        tongueBoxPaint.setStrokeWidth(6.0f);
+        tongueBoxPaint.setAntiAlias(true);
+
+        // ROI 框畫筆（藍色虛線）
+        roiBoxPaint = new Paint();
+        roiBoxPaint.setColor(Color.BLUE);
+        roiBoxPaint.setStyle(Paint.Style.STROKE);
+        roiBoxPaint.setStrokeWidth(4.0f);
+        roiBoxPaint.setPathEffect(new DashPathEffect(new float[]{15, 10}, 0)); // 虛線效果
+        roiBoxPaint.setAntiAlias(true);
+
+        // 信心度文字畫筆
+        confidenceTextPaint = new Paint();
+        confidenceTextPaint.setColor(Color.WHITE);
+        confidenceTextPaint.setTextSize(42);
+        confidenceTextPaint.setAntiAlias(true);
+        confidenceTextPaint.setShadowLayer(4, 2, 2, Color.BLACK); // 文字陰影
+        confidenceTextPaint.setStyle(Paint.Style.FILL);
     }
 
     public void setStatus(Status status) {
@@ -86,6 +137,60 @@ public class CircleOverlayView extends View {
     public void clearAllLandmarks() {
         this.hasLandmarks = false;
         invalidate();
+    }
+
+    // ==================== 🔥 新增 YOLO 相關方法 ====================
+
+    /**
+     * 🔄 設置顯示模式
+     */
+    public void setDisplayMode(DisplayMode mode) {
+        if (currentDisplayMode != mode) {
+            currentDisplayMode = mode;
+            Log.d("CircleOverlay", "切換顯示模式: " + mode);
+            invalidate(); // 重新繪製
+        }
+    }
+
+    /**
+     * 🎯 設置 YOLO 檢測結果
+     *
+     * @param detected 是否檢測到舌頭
+     * @param confidence 檢測信心度 (0.0-1.0)
+     * @param tongueBox 舌頭邊界框（可選）
+     * @param roiBox 嘴部 ROI 框
+     */
+    public void setYoloDetectionResult(boolean detected, float confidence, Rect tongueBox, Rect roiBox) {
+        this.tongueDetected = detected;
+        this.tongueConfidence = confidence;
+        this.tongueBox = tongueBox;
+        this.mouthROI = roiBox;
+
+        // 只有在 YOLO 模式下才重新繪製
+        if (currentDisplayMode == DisplayMode.YOLO_DETECTION) {
+            invalidate();
+        }
+    }
+
+    /**
+     * 🧹 清除 YOLO 檢測結果
+     */
+    public void clearYoloResults() {
+        this.tongueDetected = false;
+        this.tongueConfidence = 0.0f;
+        this.tongueBox = null;
+        this.mouthROI = null;
+
+        if (currentDisplayMode == DisplayMode.YOLO_DETECTION) {
+            invalidate();
+        }
+    }
+
+    /**
+     * 📋 取得當前顯示模式
+     */
+    public DisplayMode getCurrentDisplayMode() {
+        return currentDisplayMode;
     }
 
     @Override
@@ -124,7 +229,22 @@ public class CircleOverlayView extends View {
         // 4. 繪製圓形邊框
         canvas.drawCircle(centerX, centerY, radius, circlePaint);
 
-        // 5. 绘制所有468个关键点
+        // 🔥 5. 根據顯示模式決定顯示內容
+        switch (currentDisplayMode) {
+            case LANDMARKS:
+                drawAllFaceLandmarks(canvas); // 把現有的 landmark 繪製邏輯移到這裡
+                break;
+            case YOLO_DETECTION:
+                drawYoloDetectionResults(canvas); // 新的 YOLO 顯示
+                break;
+        }
+    }
+
+    /**
+     * 📍 繪製 MediaPipe 關鍵點（移動後的原有邏輯）
+     */
+    private void drawAllFaceLandmarks(Canvas canvas) {
+        // 🔥 原本 onDraw 中的第 5 和第 6 段代碼移到這裡
         if (hasLandmarks && allLandmarks != null) {
             for (int i = 0; i < allLandmarks.length; i++) {
                 float x = allLandmarks[i][0];
@@ -148,7 +268,7 @@ public class CircleOverlayView extends View {
                 }
             }
 
-            // 6. 在特殊关键点旁边标注编号（可选）
+            // 在特殊关键点旁边标注编号
             Paint textPaint = new Paint();
             textPaint.setColor(Color.CYAN);
             textPaint.setTextSize(24f);
@@ -164,7 +284,36 @@ public class CircleOverlayView extends View {
         }
     }
 
-    // 兼容性方法（保持原有接口）
+    /**
+     * 🎯 繪製 YOLO 檢測結果
+     */
+    private void drawYoloDetectionResults(Canvas canvas) {
+        // 🟦 繪製 ROI 框（一律顯示，讓用戶知道檢測區域）
+        if (mouthROI != null) {
+            canvas.drawRect(mouthROI, roiBoxPaint);
+
+            // ROI 標籤
+            canvas.drawText("檢測區域",
+                    mouthROI.left + 10,
+                    mouthROI.top - 15,
+                    confidenceTextPaint);
+        }
+
+        // 🟩 繪製舌頭邊界框（只有檢測到才顯示）
+        if (tongueDetected && tongueBox != null) {
+            canvas.drawRect(tongueBox, tongueBoxPaint);
+
+            // 顯示信心度
+            String confidenceText = String.format("舌頭 %.0f%%", tongueConfidence * 100);
+            canvas.drawText(confidenceText,
+                    tongueBox.left + 10,
+                    tongueBox.top - 20,
+                    confidenceTextPaint);
+        }
+    }
+
+    // ==================== 兼容性方法（保持原有接口）====================
+
     public void setFaceKeyPoints(float[] forehead, float[] leftTemple, float[] rightTemple,
                                  float[] leftCheek, float[] rightCheek, float[] chin) {
         // 空方法，保持兼容性
