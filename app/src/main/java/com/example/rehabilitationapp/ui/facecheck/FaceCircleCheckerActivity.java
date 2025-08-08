@@ -48,29 +48,36 @@ import java.util.concurrent.Executors;
 
 public class FaceCircleCheckerActivity extends AppCompatActivity {
 
+    //相機權限用
     private static final int PERMISSION_REQUEST_CODE = 123;
+    //LOG的Tag
     private static final String TAG = "FaceCircleChecker";
 
-    // 計時相關常量
+    // 計時用的目標常數(多久到點)，所以不會改
     private static final int CALIBRATION_TIME = 5000; // 5秒校正時間
-    private static final int MAINTAIN_TIME_TOTAL = 5000; // 總共30秒維持時間
+    private static final int MAINTAIN_TIME_TOTAL = 15000; // 總共30秒維持時間
     private static final int PROGRESS_UPDATE_INTERVAL = 50; // 進度條更新間隔 (毫秒)
 
+    //android.camera.core等開源套件裡面的東西
     private PreviewView cameraView;
-    private CircleOverlayView overlayView;
     private FaceLandmarker faceLandmarker;
+    private ProcessCameraProvider cameraProvider;
+
+    // ExecutorService 執行緒管理工具
+    private ExecutorService cameraExecutor;
+
+    //UI用變數
+    private CircleOverlayView overlayView;
     private TextView statusText;
     private TextView timerText; // 倒數計時顯示
     private ProgressBar progressBar; // 進度條
 
-    private ProcessCameraProvider cameraProvider;
-    private ExecutorService cameraExecutor;
 
-    // 🔥 訓練相關變數
+    // 變數 : 接收 訓練的動作類型
     private String trainingLabel = "訓練"; // 預設值
     private int trainingType = -1;
 
-    // 🔥 資料記錄器
+    // 🔥 資料記錄器，方法會紀錄landmark到dataLines，算動作指標到dataLines，dataLines存csv
     private FaceDataRecorder dataRecorder;
 
     // 狀態管理
@@ -81,11 +88,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     private AppState currentState = AppState.CALIBRATING;
+
+    //mainHandler.Looper.getMaininLoop()，說是主執行緒才可改畫面，其他分支Thread做好了要回傳給Handler要他改
     private Handler mainHandler;
+    //runable 是用來開新執行緒，裡面可以裝lamda，lamda就是把一套可跑程式當變數存起來，丟給mainHandler執行
     private Runnable calibrationTimer;
     private Runnable maintainTimer;
     private Runnable progressUpdater;
 
+    //紀錄時間
     private long calibrationStartTime = 0;
     private long maintainStartTime = 0;
     private long maintainTotalTime = 0; // 累計維持時間
@@ -94,9 +105,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        //綁定layout
         setContentView(R.layout.activity_face_circle_checker);
 
-        // 🔥 獲取從前一個頁面傳過來的資料
+        //獲取從前一個頁面傳過來的資料
         trainingType = getIntent().getIntExtra("training_type", -1);
         trainingLabel = getIntent().getStringExtra("training_label");
         if (trainingLabel == null) {
@@ -108,18 +120,19 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         // 🔥 初始化資料記錄器
         dataRecorder = new FaceDataRecorder(this, trainingLabel, trainingType);
         Log.d(TAG, "資料記錄器初始化完成");
-
+        //把LAYOUT控件 物件化
         cameraView = findViewById(R.id.camera_view);
         overlayView = findViewById(R.id.overlay_view);
         statusText = findViewById(R.id.status_text);
         timerText = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
-
+        // 一個新的可反覆利用的子執行緒
         cameraExecutor = Executors.newSingleThreadExecutor();
+        // 主執行緒 : 改UI用的
         mainHandler = new Handler(Looper.getMainLooper());
 
         Log.d("FaceCircleAct","into onCreate");
-
+        //第三方套件的前置作業
         testCameraPermission();
         setupFaceLandmarker();
 
@@ -141,11 +154,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         progressBar.setProgress(0);
 
         // 初始化狀態
+        //更新和狀態有關的"提示文字"
         updateStatusDisplay();
+        //更新和狀態有關的"時間"
         updateTimerDisplay();
+        //更新進度條，它直接給主執行緒定期跑
         startProgressUpdater();
     }
-
+    /*
+    * 初始化Landmark模型，還沒有推論座標
+    * */
     private void setupFaceLandmarker() {
         try {
             Log.d(TAG, "try to FaceLandmarker 初始化");
@@ -254,7 +272,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 if (result != null && !result.faceLandmarks().isEmpty()) {
                     Log.d(TAG, "檢測到人臉，關鍵點數量: " + result.faceLandmarks().get(0).size());
                 }
-
+                //**判斷臉部位置
                 checkFacePosition(result, mirroredBitmap.getWidth(), mirroredBitmap.getHeight());
 
                 // 清理記憶體
@@ -475,7 +493,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateStatusDisplay();
         updateTimerDisplay();
     }
-
+    /*
+    * 開始校正的方法
+    * 看起來他只有跑通知完成的CODE，沒做別的
+    * */
     private void startCalibrationTimer() {
         cancelTimers();
         Log.d(TAG, "🟡 開始校正階段計時器");
@@ -489,7 +510,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             updateStatusDisplay();
             updateTimerDisplay();
         };
-        mainHandler.postDelayed(calibrationTimer, CALIBRATION_TIME);
+        mainHandler.postDelayed(calibrationTimer, CALIBRATION_TIME);//隔CALIBRATION_TIME秒後執行。
     }
 
     private void startMaintainTimer() {
@@ -521,7 +542,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         };
         mainHandler.postDelayed(maintainTimer, 100);
     }
-
+    /*
+    * 丟給主執行緒定期跑更新進度條
+    * */
     private void startProgressUpdater() {
         progressUpdater = () -> {
             updateProgressBar();
@@ -529,7 +552,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         };
         mainHandler.post(progressUpdater);
     }
-
+    /**
+     *中間進度條，各狀態顯示更新
+     */
     private void updateProgressBar() {
         if (isTrainingCompleted) {
             progressBar.setProgress(100);
@@ -605,7 +630,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         // 更新 UI
         overlayView.setStatus(CircleOverlayView.Status.OK);
+        //用來更新會跟狀態變化呼應的【提示字】
         updateStatusDisplay();
+        //用來更新跟狀態變化呼應的【時間】
         updateTimerDisplay();
 
         Toast.makeText(this, "🎉 訓練完成！\n正在儲存檔案並進行峰值分析...", Toast.LENGTH_LONG).show();
@@ -639,7 +666,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             }
         });
     }
-
+/*
+* 用來更新會跟狀態變化呼應的提示文字
+* */
     private void updateStatusDisplay() {
         if (statusText == null) return;
 
@@ -661,7 +690,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
         statusText.setText(text);
     }
-
+/*
+* 用來更新跟狀態變化呼應的時間顯示
+* */
     private void updateTimerDisplay() {
         if (timerText == null) return;
 

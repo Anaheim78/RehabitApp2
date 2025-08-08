@@ -189,7 +189,7 @@ public class CSVPeakAnalyzer {
     }
 
     /**
-     * 確定目標分析欄位
+     * 找對應動作的指標欄位名稱
      */
     private static int determineTargetColumn(String[] headers, String fileName) {
         // 根據檔案名稱中的訓練標籤決定分析哪個欄位

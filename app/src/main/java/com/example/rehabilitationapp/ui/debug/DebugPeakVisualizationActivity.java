@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.LimitLine;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
@@ -21,34 +22,29 @@ import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
- * 🔧 DEBUG: 峰值視覺化頁面（帶參數調整）
- * 此檔案僅供開發階段調試使用，正式版可考慮移除
+ * 🆕 NEW: 基於 BASELINE 的峰值視覺化頁面
+ * 每個 CALIBRATING 段落建立獨立 BASELINE，對應的 MAINTAINING 段落使用該 BASELINE 計算峰值
+ * ✨ 閔嘴唇時數據自動乘以 -1，視覺化呈現正數峰值
  */
 public class DebugPeakVisualizationActivity extends AppCompatActivity {
-    private static final String TAG = "DebugPeakViz";
+    private static final String TAG = "NEWPeakViz";
 
     // UI 元件
-    private LineChart debugPeakChart;
-    private TextView debugInfoText;
-    private Button debugCloseButton;
-    private Button debugRefreshButton;
-    private Button debugExportButton;
+    private LineChart newPeakChart;
+    private TextView newInfoText;
+    private Button newCloseButton;
+    private Button newRefreshButton;
+    private Button newExportButton;
 
-    // 🎛️ 原本的滑桿控制元件 (保留)
-    private SeekBar thresholdMultiplierSlider;
+    // 🎛️ 參數控制元件
+    private SeekBar baselineMultiplierSlider;
     private SeekBar mergeDistanceSlider;
-    private TextView thresholdMultiplierValue;
+    private TextView baselineMultiplierValue;
     private TextView mergeDistanceValue;
     private Switch autoReanalyzeSwitch;
-
-    // 🎛️ 新增：五檔敏感度控制元件
-    private TextView sensitivityLevelText;
-    private Button[] sensitivityButtons = new Button[5];
-    private int currentSensitivityLevel = 2; // 預設中等敏感度
 
     // 數據變數
     private String csvFileName;
@@ -57,23 +53,27 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
     private int targetCount;
 
     // 🎛️ 可調整的峰值檢測參數
-    private double thresholdMultiplier = 1.5;  // 閾值係數（預設 1.5 倍標準差）
-    private double mergeDistance = 2.0;        // 合併距離（預設 2.0 秒）
+    private double baselineMultiplier = 3.0;  // BASELINE 倍數係數（預設 3.0 倍標準差）
+    private double mergeDistance = 2.0;       // 合併距離（預設 2.0 秒）
 
     // 原始數據（不會改變）
     private List<Double> allDataValues = new ArrayList<>();
     private List<Double> allTimePoints = new ArrayList<>();
     private List<String> allPhases = new ArrayList<>();
     private String targetColumn;
-    private double averageValue;
-    private double standardDeviation;
+
+    // ✨ 數據轉換標記
+    private boolean isLipClosingData = false;  // 是否為閔嘴唇數據
+
+    // 🎯 BASELINE 相關數據
+    private List<BaselineSegment> baselineSegments = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.debug_peak_visualization_activity);
 
-        Log.d(TAG, "🔧 DEBUG: 峰值視覺化頁面啟動（帶滑桿功能+五檔敏感度）");
+        Log.d(TAG, "🆕 NEW: 基於 BASELINE 的峰值視覺化頁面啟動");
 
         // 初始化 UI
         initViews();
@@ -81,11 +81,8 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         // 取得傳入數據
         getIntentData();
 
-        // 設置滑桿監聽器 (保留原功能)
+        // 設置滑桿監聽器
         setupSliders();
-
-        // 🎛️ 設置敏感度按鈕監聽器 (新增)
-        setupSensitivityButtons();
 
         // 設置按鈕事件
         setupButtons();
@@ -95,31 +92,23 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        debugPeakChart = findViewById(R.id.debug_peak_chart);
-        debugInfoText = findViewById(R.id.debug_info_text);
-        debugCloseButton = findViewById(R.id.debug_close_button);
-        debugRefreshButton = findViewById(R.id.debug_refresh_button);
-        debugExportButton = findViewById(R.id.debug_export_button);
+        newPeakChart = findViewById(R.id.new_peak_chart);
+        newInfoText = findViewById(R.id.new_info_text);
+        newCloseButton = findViewById(R.id.new_close_button);
+        newRefreshButton = findViewById(R.id.new_refresh_button);
+        newExportButton = findViewById(R.id.new_export_button);
 
-        // 🎛️ 原本的滑桿元件 (保留)
-        thresholdMultiplierSlider = findViewById(R.id.threshold_multiplier_slider);
+        // 🎛️ 參數控制元件
+        baselineMultiplierSlider = findViewById(R.id.baseline_multiplier_slider);
         mergeDistanceSlider = findViewById(R.id.merge_distance_slider);
-        thresholdMultiplierValue = findViewById(R.id.threshold_multiplier_value);
+        baselineMultiplierValue = findViewById(R.id.baseline_multiplier_value);
         mergeDistanceValue = findViewById(R.id.merge_distance_value);
         autoReanalyzeSwitch = findViewById(R.id.auto_reanalyze_switch);
-
-        // 🎛️ 五檔敏感度元件 (新增)
-        sensitivityLevelText = findViewById(R.id.sensitivity_level_text);
-        sensitivityButtons[0] = findViewById(R.id.sensitivity_level_0);
-        sensitivityButtons[1] = findViewById(R.id.sensitivity_level_1);
-        sensitivityButtons[2] = findViewById(R.id.sensitivity_level_2);
-        sensitivityButtons[3] = findViewById(R.id.sensitivity_level_3);
-        sensitivityButtons[4] = findViewById(R.id.sensitivity_level_4);
 
         // 設置圖表基本樣式
         setupChart();
 
-        Log.d(TAG, "🔧 DEBUG: UI 元件初始化完成");
+        Log.d(TAG, "🆕 NEW: UI 元件初始化完成");
     }
 
     private void getIntentData() {
@@ -128,20 +117,25 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         actualCount = getIntent().getIntExtra("actual_count", 0);
         targetCount = getIntent().getIntExtra("target_count", 4);
 
-        Log.d(TAG, String.format("🔧 DEBUG: 接收數據 - CSV: %s, 標籤: %s, 實際: %d, 目標: %d",
-                csvFileName, trainingLabel, actualCount, targetCount));
+        // ✨ 判斷是否為閔嘴唇訓練
+        if (trainingLabel != null && trainingLabel.contains("抿嘴")) {
+            isLipClosingData = true;
+            Log.d(TAG, "✨ 檢測到閔嘴唇訓練，將自動轉換數據為正數");
+        }
+
+        Log.d(TAG, String.format("🆕 NEW: 接收數據 - CSV: %s, 標籤: %s, 實際: %d, 目標: %d, 閔嘴唇: %b",
+                csvFileName, trainingLabel, actualCount, targetCount, isLipClosingData));
     }
 
-    // 🎛️ 保留原本的滑桿功能
     private void setupSliders() {
-        // 🎛️ 閾值係數滑桿 (0.5 - 3.0)
-        thresholdMultiplierSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        // 🎛️ BASELINE 倍數滑桿 (1.0 - 5.0)
+        baselineMultiplierSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
-                    thresholdMultiplier = 0.5 + (progress / 100.0) * 2.5; // 0.5 to 3.0
-                    thresholdMultiplierValue.setText(String.format("%.1f", thresholdMultiplier));
-                    Log.d(TAG, "🎛️ 閾值係數調整為: " + thresholdMultiplier);
+                    baselineMultiplier = 1.0 + (progress / 100.0) * 4.0; // 1.0 to 5.0
+                    baselineMultiplierValue.setText(String.format("%.1f", baselineMultiplier));
+                    Log.d(TAG, "🎛️ BASELINE 倍數調整為: " + baselineMultiplier);
                 }
             }
 
@@ -182,129 +176,60 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         updateSliderValues();
     }
 
-    // 🎛️ 新增：五檔敏感度按鈕設置
-    private void setupSensitivityButtons() {
-        String[] levelNames = {"極低", "低", "中", "高", "極高"};
-
-        for (int i = 0; i < 5; i++) {
-            final int level = i;
-            sensitivityButtons[i].setOnClickListener(v -> {
-                currentSensitivityLevel = level;
-                updateSensitivityUI();
-                updateParametersFromSensitivity(level);
-
-                Log.d(TAG, String.format("🎛️ 敏感度調整為: %s (等級 %d)", levelNames[level], level));
-
-                if (autoReanalyzeSwitch.isChecked()) {
-                    reanalyzeWithCurrentParams();
-                }
-            });
-        }
-
-        // 設置初始狀態
-        updateSensitivityUI();
-    }
-
-    // 🎛️ 新增：敏感度轉換函數
-    private void updateParametersFromSensitivity(int level) {
-        switch (level) {
-            case 0: // 極低敏感度 - 只抓很明顯的動作
-                thresholdMultiplier = 3.0;
-                mergeDistance = 0.5;
-                break;
-            case 1: // 低敏感度 - 抓明顯動作
-                thresholdMultiplier = 2.5;
-                mergeDistance = 1.0;
-                break;
-            case 2: // 中敏感度 - 平衡 (預設)
-                thresholdMultiplier = 1.5;
-                mergeDistance = 2.0;
-                break;
-            case 3: // 高敏感度 - 抓小動作
-                thresholdMultiplier = 1.0;
-                mergeDistance = 3.0;
-                break;
-            case 4: // 極高敏感度 - 連微小動作都抓
-                thresholdMultiplier = 0.8;
-                mergeDistance = 4.0;
-                break;
-        }
-
-        // 🎛️ 同步更新滑桿顯示
-        updateSliderValues();
-    }
-
-    // 🎛️ 新增：更新敏感度UI顯示
-    private void updateSensitivityUI() {
-        String[] levelNames = {"極低", "低", "中", "高", "極高"};
-        sensitivityLevelText.setText(levelNames[currentSensitivityLevel]);
-
-        // 更新按鈕顏色
-        for (int i = 0; i < 5; i++) {
-            if (i == currentSensitivityLevel) {
-                sensitivityButtons[i].setBackgroundColor(Color.parseColor("#FF1976d2"));
-                sensitivityButtons[i].setTextColor(Color.WHITE);
-            } else {
-                sensitivityButtons[i].setBackgroundColor(Color.parseColor("#FFe0e0e0"));
-                sensitivityButtons[i].setTextColor(Color.BLACK);
-            }
-        }
-    }
-
     private void updateSliderValues() {
-        int thresholdProgress = (int) ((thresholdMultiplier - 0.5) / 2.5 * 100);
+        int baselineProgress = (int) ((baselineMultiplier - 1.0) / 4.0 * 100);
         int mergeProgress = (int) ((mergeDistance - 0.5) / 4.5 * 100);
 
-        thresholdMultiplierSlider.setProgress(thresholdProgress);
+        baselineMultiplierSlider.setProgress(baselineProgress);
         mergeDistanceSlider.setProgress(mergeProgress);
 
-        thresholdMultiplierValue.setText(String.format("%.1f", thresholdMultiplier));
+        baselineMultiplierValue.setText(String.format("%.1f", baselineMultiplier));
         mergeDistanceValue.setText(String.format("%.1f", mergeDistance));
     }
 
     private void setupButtons() {
         // 關閉按鈕
-        debugCloseButton.setOnClickListener(v -> {
-            Log.d(TAG, "🔧 DEBUG: 關閉視覺化頁面");
+        newCloseButton.setOnClickListener(v -> {
+            Log.d(TAG, "🆕 NEW: 關閉視覺化頁面");
             finish();
         });
 
         // 重新分析按鈕
-        debugRefreshButton.setOnClickListener(v -> {
-            Log.d(TAG, "🔧 DEBUG: 手動重新分析數據");
+        newRefreshButton.setOnClickListener(v -> {
+            Log.d(TAG, "🆕 NEW: 手動重新分析數據");
             reanalyzeWithCurrentParams();
         });
 
         // 匯出按鈕
-        debugExportButton.setOnClickListener(v -> {
-            Log.d(TAG, "🔧 DEBUG: 匯出數據");
+        newExportButton.setOnClickListener(v -> {
+            Log.d(TAG, "🆕 NEW: 匯出數據");
             exportAnalysisData();
         });
     }
 
     private void setupChart() {
         // 基本設置
-        debugPeakChart.getDescription().setEnabled(false);
-        debugPeakChart.setTouchEnabled(true);
-        debugPeakChart.setDragEnabled(true);
-        debugPeakChart.setScaleEnabled(true);
-        debugPeakChart.setPinchZoom(true);
+        newPeakChart.getDescription().setEnabled(false);
+        newPeakChart.setTouchEnabled(true);
+        newPeakChart.setDragEnabled(true);
+        newPeakChart.setScaleEnabled(true);
+        newPeakChart.setPinchZoom(true);
 
         // X軸設置
-        XAxis xAxis = debugPeakChart.getXAxis();
+        XAxis xAxis = newPeakChart.getXAxis();
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setGranularity(1f);
         xAxis.setTextColor(Color.GRAY);
 
         // Y軸設置
-        YAxis leftAxis = debugPeakChart.getAxisLeft();
+        YAxis leftAxis = newPeakChart.getAxisLeft();
         leftAxis.setGranularity(1f);
         leftAxis.setTextColor(Color.GRAY);
 
-        YAxis rightAxis = debugPeakChart.getAxisRight();
+        YAxis rightAxis = newPeakChart.getAxisRight();
         rightAxis.setEnabled(false);
 
-        Log.d(TAG, "🔧 DEBUG: 圖表設置完成");
+        Log.d(TAG, "🆕 NEW: 圖表設置完成");
     }
 
     private void loadOriginalData() {
@@ -313,7 +238,7 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
             return;
         }
 
-        debugInfoText.setText("🔄 正在載入原始數據...");
+        newInfoText.setText("🔄 正在載入原始數據...");
 
         new Thread(() -> {
             try {
@@ -322,80 +247,163 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
                         CSVPeakAnalyzer.DEBUGPeakAnalyzeWithDetailedInfo(this, csvFileName);
 
                 if (result.success) {
-                    // 保存原始數據
-                    allDataValues = new ArrayList<>(result.allDataValues);
+                    // ✨ 轉換數據（如果是閔嘴唇訓練）
+                    allDataValues = new ArrayList<>();
+                    for (Double value : result.allDataValues) {
+                        if (isLipClosingData) {
+                            allDataValues.add(value * -1.0);  // 閔嘴唇數據乘以 -1
+                        } else {
+                            allDataValues.add(value);
+                        }
+                    }
+
                     allTimePoints = new ArrayList<>(result.allTimePoints);
                     allPhases = new ArrayList<>(result.allPhases);
                     targetColumn = result.targetColumn;
-                    averageValue = result.averageValue;
 
-                    // 計算標準差
-                    calculateStandardDeviation();
+                    Log.d(TAG, String.format("🆕 NEW: 原始數據載入成功，數據點: %d, 閔嘴唇轉換: %b",
+                            allDataValues.size(), isLipClosingData));
 
-                    Log.d(TAG, "🔧 DEBUG: 原始數據載入成功，數據點: " + allDataValues.size());
+                    // 🎯 分析 BASELINE 段落
+                    analyzeBaselineSegments();
 
                     runOnUiThread(() -> {
                         updateSliderValues();
-                        updateSensitivityUI(); // 🎛️ 新增
                         reanalyzeWithCurrentParams();
                     });
                 } else {
-                    Log.e(TAG, "🔧 DEBUG: 載入失敗 - " + result.errorMessage);
+                    Log.e(TAG, "🆕 NEW: 載入失敗 - " + result.errorMessage);
                     runOnUiThread(() -> showError("載入失敗: " + result.errorMessage));
                 }
 
             } catch (Exception e) {
-                Log.e(TAG, "🔧 DEBUG: 載入原始數據時發生錯誤", e);
+                Log.e(TAG, "🆕 NEW: 載入原始數據時發生錯誤", e);
                 runOnUiThread(() -> showError("載入錯誤: " + e.getMessage()));
             }
         }).start();
     }
 
-    private void calculateStandardDeviation() {
-        double variance = allDataValues.stream()
-                .mapToDouble(v -> Math.pow(v - averageValue, 2))
-                .average().orElse(0.0);
-        standardDeviation = Math.sqrt(variance);
+    // 🎯 分析 BASELINE 段落
+    private void analyzeBaselineSegments() {
+        baselineSegments.clear();
+
+        int currentCalibStart = -1;
+        int currentMaintainStart = -1;
+        BaselineSegment currentSegment = null;
+
+        for (int i = 0; i < allPhases.size(); i++) {
+            String phase = allPhases.get(i);
+
+            if ("CALIBRATING".equals(phase)) {
+                // 進入校正階段
+                if (currentCalibStart == -1) {
+                    currentCalibStart = i;
+                    if (currentSegment != null && currentMaintainStart != -1) {
+                        // 結束前一個 maintain 段落
+                        currentSegment.maintainEndIndex = i - 1;
+                        baselineSegments.add(currentSegment);
+                        currentSegment = null;
+                        currentMaintainStart = -1;
+                    }
+                }
+            } else if ("MAINTAINING".equals(phase)) {
+                // 進入維持階段
+                if (currentCalibStart != -1) {
+                    // 結束校正階段，開始新的段落
+                    currentSegment = new BaselineSegment();
+                    currentSegment.calibStartIndex = currentCalibStart;
+                    currentSegment.calibEndIndex = i - 1;
+                    currentSegment.maintainStartIndex = i;
+                    currentMaintainStart = i;
+                    currentCalibStart = -1;
+
+                    // 計算 BASELINE 統計
+                    calculateBaselineStats(currentSegment);
+                }
+            }
+        }
+
+        // 處理最後一個段落
+        if (currentSegment != null && currentMaintainStart != -1) {
+            currentSegment.maintainEndIndex = allPhases.size() - 1;
+            baselineSegments.add(currentSegment);
+        }
+
+        Log.d(TAG, "🎯 找到 " + baselineSegments.size() + " 個 BASELINE 段落");
+    }
+
+    // 🎯 計算 BASELINE 統計數據（已經是轉換後的數據）
+    private void calculateBaselineStats(BaselineSegment segment) {
+        List<Double> calibData = new ArrayList<>();
+        for (int i = segment.calibStartIndex; i <= segment.calibEndIndex; i++) {
+            calibData.add(allDataValues.get(i));  // 這裡已經是轉換後的數據
+        }
+
+        if (!calibData.isEmpty()) {
+            // 計算平均值
+            segment.average = calibData.stream().mapToDouble(d -> d).average().orElse(0.0);
+
+            // 計算標準差
+            double variance = calibData.stream()
+                    .mapToDouble(v -> Math.pow(v - segment.average, 2))
+                    .average().orElse(0.0);
+            segment.standardDeviation = Math.sqrt(variance);
+
+            Log.d(TAG, String.format("🎯 BASELINE: 平均=%.3f, 標準差=%.3f (閔嘴唇轉換: %b)",
+                    segment.average, segment.standardDeviation, isLipClosingData));
+        }
     }
 
     private void reanalyzeWithCurrentParams() {
-        if (allDataValues.isEmpty()) {
-            showError("沒有原始數據");
+        if (allDataValues.isEmpty() || baselineSegments.isEmpty()) {
+            showError("沒有數據或 BASELINE 段落");
             return;
         }
 
-        debugInfoText.setText("🔄 正在重新分析 (參數已更新)...");
+        newInfoText.setText("🔄 正在重新分析 (基於 BASELINE)...");
 
         new Thread(() -> {
             try {
-                // 🎛️ 使用當前參數重新分析峰值
-                double currentThreshold = averageValue + thresholdMultiplier * standardDeviation;
+                List<PeakPoint> allPeaks = new ArrayList<>();
 
-                // 檢測原始峰值
-                List<PeakPoint> originalPeaks = detectOriginalPeaks(currentThreshold);
+                // 🎯 對每個 BASELINE 段落進行獨立分析
+                for (BaselineSegment segment : baselineSegments) {
+                    if (segment.maintainStartIndex <= segment.maintainEndIndex) {
+                        double threshold = segment.average + baselineMultiplier * segment.standardDeviation;
 
-                // 重分布峰值
-                List<PeakPoint> redistributedPeaks = redistributePeaks(originalPeaks, mergeDistance);
+                        List<PeakPoint> segmentPeaks = detectPeaksInSegment(segment, threshold);
+                        allPeaks.addAll(segmentPeaks);
 
-                Log.d(TAG, String.format("🎛️ 重新分析完成 - 閾值: %.3f, 原始峰值: %d, 重分布峰值: %d",
-                        currentThreshold, originalPeaks.size(), redistributedPeaks.size()));
+                        Log.d(TAG, String.format("🎯 段落峰值: 閾值=%.3f, 峰值數=%d",
+                                threshold, segmentPeaks.size()));
+                    }
+                }
+
+                // 重分布峰值（在各自段落內）
+                List<PeakPoint> redistributedPeaks = redistributePeaks(allPeaks);
+
+                Log.d(TAG, String.format("🆕 重新分析完成 - 總峰值: %d, 重分布峰值: %d",
+                        allPeaks.size(), redistributedPeaks.size()));
 
                 runOnUiThread(() -> {
-                    updateInfoDisplay(currentThreshold, originalPeaks, redistributedPeaks);
-                    updateChart(originalPeaks, redistributedPeaks);
+                    updateInfoDisplay(allPeaks, redistributedPeaks);
+                    updateChart(allPeaks, redistributedPeaks);
                 });
 
             } catch (Exception e) {
-                Log.e(TAG, "🔧 DEBUG: 重新分析時發生錯誤", e);
+                Log.e(TAG, "🆕 NEW: 重新分析時發生錯誤", e);
                 runOnUiThread(() -> showError("重新分析錯誤: " + e.getMessage()));
             }
         }).start();
     }
 
-    private List<PeakPoint> detectOriginalPeaks(double threshold) {
+    // 🎯 在單一段落內檢測峰值（數據已經轉換）
+    private List<PeakPoint> detectPeaksInSegment(BaselineSegment segment, double threshold) {
         List<PeakPoint> peaks = new ArrayList<>();
 
-        for (int i = 1; i < allDataValues.size() - 1; i++) {
+        for (int i = segment.maintainStartIndex + 1; i < segment.maintainEndIndex; i++) {
+            if (i - 1 < 0 || i + 1 >= allDataValues.size()) continue;
+
             double prev = allDataValues.get(i - 1);
             double current = allDataValues.get(i);
             double next = allDataValues.get(i + 1);
@@ -406,7 +414,8 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
                         allTimePoints.get(i),
                         current,
                         allPhases.get(i),
-                        i
+                        i,
+                        segment
                 );
                 peaks.add(peak);
             }
@@ -415,7 +424,7 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         return peaks;
     }
 
-    private List<PeakPoint> redistributePeaks(List<PeakPoint> originalPeaks, double mergeDistance) {
+    private List<PeakPoint> redistributePeaks(List<PeakPoint> originalPeaks) {
         List<PeakPoint> result = new ArrayList<>();
         List<PeakPoint> remaining = new ArrayList<>(originalPeaks);
 
@@ -424,9 +433,10 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
             List<PeakPoint> closePeaks = new ArrayList<>();
             closePeaks.add(currentPeak);
 
-            // 找出時間相近的峰值
+            // 找出時間相近且在同一段落的峰值
             remaining.removeIf(peak -> {
-                if (Math.abs(peak.time - currentPeak.time) <= mergeDistance) {
+                if (peak.baselineSegment == currentPeak.baselineSegment &&
+                        Math.abs(peak.time - currentPeak.time) <= mergeDistance) {
                     closePeaks.add(peak);
                     return true;
                 }
@@ -444,34 +454,48 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         return result;
     }
 
-    private void updateInfoDisplay(double threshold, List<PeakPoint> originalPeaks, List<PeakPoint> redistributedPeaks) {
+    private void updateInfoDisplay(List<PeakPoint> originalPeaks, List<PeakPoint> redistributedPeaks) {
         StringBuilder info = new StringBuilder();
         info.append(String.format("📁 檔案: %s\n", csvFileName));
-        info.append(String.format("🏷️ 訓練: %s\n", trainingLabel));
+        info.append(String.format("🏷️ 訓練: %s%s\n", trainingLabel, isLipClosingData ? " (正數轉換)" : ""));
         info.append(String.format("📊 數據點: %d 個\n", allDataValues.size()));
-        info.append(String.format("📈 平均值: %.3f\n", averageValue));
-        info.append(String.format("📊 標準差: %.3f\n", standardDeviation));
         info.append("━━━━━━━━━━━━━━━━━━━━\n");
 
-        // 🎛️ 顯示當前敏感度設定
-        String[] levelNames = {"極低", "低", "中", "高", "極高"};
-        info.append(String.format("🎛️ 敏感度: %s (等級 %d)\n", levelNames[currentSensitivityLevel], currentSensitivityLevel));
-
-        info.append(String.format("🎛️ 閾值係數: %.1f 倍標準差\n", thresholdMultiplier));
-        info.append(String.format("🎯 計算閾值: %.3f\n", threshold));
+        info.append(String.format("🎯 BASELINE 段落: %d 個\n", baselineSegments.size()));
+        info.append(String.format("🎛️ BASELINE 倍數: %.1f 倍標準差\n", baselineMultiplier));
         info.append(String.format("🔄 合併距離: %.1f 秒\n", mergeDistance));
+        if (isLipClosingData) {
+            info.append("✨ 閔嘴唇數據已轉換為正數顯示\n");
+        }
         info.append("━━━━━━━━━━━━━━━━━━━━\n");
-        info.append(String.format("🔍 原始峰值: %d 個\n", originalPeaks.size()));
+
+        // 詳細段落資訊
+        for (int i = 0; i < baselineSegments.size(); i++) {
+            BaselineSegment segment = baselineSegments.get(i);
+            double threshold = segment.average + baselineMultiplier * segment.standardDeviation;
+
+            long segmentPeaks = redistributedPeaks.stream()
+                    .filter(p -> p.baselineSegment == segment)
+                    .count();
+
+            info.append(String.format("📊 段落 %d:\n", i + 1));
+            info.append(String.format("  🟡 校正: %.1f~%.1f 秒\n",
+                    allTimePoints.get(segment.calibStartIndex),
+                    allTimePoints.get(segment.calibEndIndex)));
+            info.append(String.format("  🟢 維持: %.1f~%.1f 秒\n",
+                    allTimePoints.get(segment.maintainStartIndex),
+                    allTimePoints.get(segment.maintainEndIndex)));
+            info.append(String.format("  📈 平均: %.3f, 標準差: %.3f\n",
+                    segment.average, segment.standardDeviation));
+            info.append(String.format("  🎯 閾值: %.3f, 峰值: %d 個\n", threshold, segmentPeaks));
+            info.append("\n");
+        }
+
+        info.append("━━━━━━━━━━━━━━━━━━━━\n");
+        info.append(String.format("🔍 總峰值: %d 個\n", originalPeaks.size()));
         info.append(String.format("🎯 重分布峰值: %d 個\n", redistributedPeaks.size()));
 
-        // 統計各階段峰值
-        long calibratingPeaks = redistributedPeaks.stream().filter(p -> "CALIBRATING".equals(p.phase)).count();
-        long maintainingPeaks = redistributedPeaks.stream().filter(p -> "MAINTAINING".equals(p.phase)).count();
-
-        info.append(String.format("🟡 校正階段: %d 個\n", calibratingPeaks));
-        info.append(String.format("🟢 維持階段: %d 個\n", maintainingPeaks));
-
-        debugInfoText.setText(info.toString());
+        newInfoText.setText(info.toString());
     }
 
     private void updateChart(List<PeakPoint> originalPeaks, List<PeakPoint> redistributedPeaks) {
@@ -480,7 +504,7 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         List<Entry> originalPeakEntries = new ArrayList<>();
         List<Entry> redistributedPeakEntries = new ArrayList<>();
 
-        // 原始數據
+        // 原始數據（已轉換）
         for (int i = 0; i < allDataValues.size(); i++) {
             dataEntries.add(new Entry(allTimePoints.get(i).floatValue(), allDataValues.get(i).floatValue()));
         }
@@ -493,8 +517,8 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
             redistributedPeakEntries.add(new Entry((float)peak.time, (float)peak.value));
         }
 
-        // 創建數據集
-        LineDataSet dataSet = new LineDataSet(dataEntries, "原始數據");
+        // 🎨 創建數據集
+        LineDataSet dataSet = new LineDataSet(dataEntries, isLipClosingData ? "原始數據 (正數轉換)" : "原始數據");
         dataSet.setColor(Color.BLUE);
         dataSet.setLineWidth(1.5f);
         dataSet.setDrawCircles(false);
@@ -505,11 +529,9 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
         originalPeakSet.setCircleColor(Color.rgb(255, 165, 0));
         originalPeakSet.setCircleRadius(6f);
         originalPeakSet.setDrawCircles(true);
-        originalPeakSet.setDrawValues(true);
-        originalPeakSet.setValueTextColor(Color.rgb(255, 165, 0));
-        originalPeakSet.setValueTextSize(8f);
+        originalPeakSet.setDrawValues(false);
 
-        LineDataSet redistributedPeakSet = new LineDataSet(redistributedPeakEntries, "重分布峰值");
+        LineDataSet redistributedPeakSet = new LineDataSet(redistributedPeakEntries, "最終峰值");
         redistributedPeakSet.setColor(Color.TRANSPARENT);
         redistributedPeakSet.setCircleColor(Color.RED);
         redistributedPeakSet.setCircleRadius(8f);
@@ -528,54 +550,90 @@ public class DebugPeakVisualizationActivity extends AppCompatActivity {
             lineData.addDataSet(redistributedPeakSet);
         }
 
-        // 更新圖表
-        debugPeakChart.setData(lineData);
-        debugPeakChart.invalidate();
+        // 🎨 添加 BASELINE 基準線（已轉換數據的基準線）
+        YAxis leftAxis = newPeakChart.getAxisLeft();
+        leftAxis.removeAllLimitLines();
 
-        Toast.makeText(this, "📈 圖表已更新！", Toast.LENGTH_SHORT).show();
+        for (int i = 0; i < baselineSegments.size(); i++) {
+            BaselineSegment segment = baselineSegments.get(i);
+
+            // 基準線（平均值）
+            LimitLine baselineLine = new LimitLine((float)segment.average, "BASELINE " + (i + 1));
+            baselineLine.setLineColor(Color.GREEN);
+            baselineLine.setLineWidth(2f);
+            baselineLine.enableDashedLine(10f, 5f, 0f);
+            leftAxis.addLimitLine(baselineLine);
+
+            // 閾值線
+            double threshold = segment.average + baselineMultiplier * segment.standardDeviation;
+            LimitLine thresholdLine = new LimitLine((float)threshold, "閾值 " + (i + 1));
+            thresholdLine.setLineColor(Color.RED);
+            thresholdLine.setLineWidth(1.5f);
+            thresholdLine.enableDashedLine(5f, 3f, 0f);
+            leftAxis.addLimitLine(thresholdLine);
+        }
+
+        // 更新圖表
+        newPeakChart.setData(lineData);
+        newPeakChart.invalidate();
+
+        String toastMessage = isLipClosingData ?
+                "📈 圖表已更新（基於 BASELINE，閔嘴唇正數轉換）！" :
+                "📈 圖表已更新（基於 BASELINE）！";
+        Toast.makeText(this, toastMessage, Toast.LENGTH_SHORT).show();
     }
 
     private void exportAnalysisData() {
         StringBuilder exportData = new StringBuilder();
-        exportData.append("=== DEBUG 峰值分析報告 (當前參數) ===\n");
-
-        // 🎛️ 包含敏感度資訊
-        String[] levelNames = {"極低", "低", "中", "高", "極高"};
-        exportData.append(String.format("敏感度等級: %s (%d)\n", levelNames[currentSensitivityLevel], currentSensitivityLevel));
-
-        exportData.append(String.format("閾值係數: %.1f 倍標準差\n", thresholdMultiplier));
+        exportData.append("=== NEW 基於 BASELINE 的峰值分析報告 ===\n");
+        exportData.append(String.format("BASELINE 倍數: %.1f 倍標準差\n", baselineMultiplier));
         exportData.append(String.format("合併距離: %.1f 秒\n", mergeDistance));
+        if (isLipClosingData) {
+            exportData.append("✨ 閔嘴唇數據已轉換為正數進行分析\n");
+        }
         exportData.append("━━━━━━━━━━━━━━━━━━━━\n");
-        exportData.append(debugInfoText.getText());
+        exportData.append(newInfoText.getText());
 
-        Log.d(TAG, "🔧 DEBUG: 匯出數據:\n" + exportData.toString());
+        Log.d(TAG, "🆕 NEW: 匯出數據:\n" + exportData.toString());
         Toast.makeText(this, "📤 詳細數據已輸出到 Logcat", Toast.LENGTH_LONG).show();
     }
 
     private void showError(String message) {
-        debugInfoText.setText("❌ 錯誤: " + message);
+        newInfoText.setText("❌ 錯誤: " + message);
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-        Log.e(TAG, "🔧 DEBUG: " + message);
+        Log.e(TAG, "🆕 NEW: " + message);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "🔧 DEBUG: 峰值視覺化頁面銷毀");
+        Log.d(TAG, "🆕 NEW: 基於 BASELINE 的峰值視覺化頁面銷毀");
     }
 
-    // 🎯 簡化的峰值點類別
+    // 🎯 BASELINE 段落類別
+    private static class BaselineSegment {
+        public int calibStartIndex;
+        public int calibEndIndex;
+        public int maintainStartIndex;
+        public int maintainEndIndex;
+        public double average;
+        public double standardDeviation;
+    }
+
+    // 🎯 峰值點類別
     private static class PeakPoint {
         public double time;
         public double value;
         public String phase;
         public int originalIndex;
+        public BaselineSegment baselineSegment;
 
-        public PeakPoint(double time, double value, String phase, int originalIndex) {
+        public PeakPoint(double time, double value, String phase, int originalIndex, BaselineSegment baselineSegment) {
             this.time = time;
             this.value = value;
             this.phase = phase;
             this.originalIndex = originalIndex;
+            this.baselineSegment = baselineSegment;
         }
     }
 }
