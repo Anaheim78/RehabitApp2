@@ -311,9 +311,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 checkFacePosition(result, mirroredBitmap.getWidth(), mirroredBitmap.getHeight(), mirroredBitmap);
 
                 // 清理記憶體
-                rawBitmap.recycle();
-                if (rotatedBitmap != rawBitmap) rotatedBitmap.recycle();
-                mirroredBitmap.recycle();
+                // 🔥 延遲回收，確保 UI 處理完成
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    rawBitmap.recycle();
+                    if (rotatedBitmap != rawBitmap) rotatedBitmap.recycle();
+                    mirroredBitmap.recycle();
+                }, 100); // 延遲 100ms 回收
             }
         } catch (Exception e) {
             Log.e(TAG, "圖像分析錯誤", e);
@@ -474,15 +477,64 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             int overlayWidth = overlayView.getWidth();
             int overlayHeight = overlayView.getHeight();
 
+            // 🔥 加入這些 Log
+            Log.d(TAG, String.format("📱 螢幕尺寸: overlay %dx%d", overlayWidth, overlayHeight));
+            Log.d(TAG, String.format("🖼️ 參數 Bitmap 尺寸: %dx%d", bitmapWidth, bitmapHeight));
+            Log.d(TAG, String.format("🖼️ mirroredBitmap 實際尺寸: %dx%d", mirroredBitmap.getWidth(), mirroredBitmap.getHeight()));
             // 🔥 修改：用屏幕尺寸計算 ROI
             Rect mouthROI = TongueYoloDetector.calculateMouthROI(allPoints, overlayWidth, overlayHeight);
 
+            // 🔥 新增：轉換為 Bitmap 座標
+            float scaleX = (float) mirroredBitmap.getWidth() / overlayWidth;
+            float scaleY = (float) mirroredBitmap.getHeight() / overlayHeight;
+
+            Log.d(TAG, String.format("🔄 縮放比例: %.3fx%.3f", scaleX, scaleY));
+
+            Rect bitmapROI = new Rect(
+                    (int)(mouthROI.left * scaleX),
+                    (int)(mouthROI.top * scaleY),
+                    (int)(mouthROI.right * scaleX),
+                    (int)(mouthROI.bottom * scaleY)
+            );
+
+            Log.d(TAG, String.format("📐 Bitmap ROI: %s", bitmapROI.toString()));
+
             // 🔥 使用 YOLO 檢測舌頭（在 ROI 區域）
-            boolean tongueDetected = tongueDetector.detectTongueInROI(mirroredBitmap, mouthROI);
+// 🔥 使用新的真實座標檢測方法
+            TongueYoloDetector.DetectionResult result = tongueDetector.detectTongueWithRealPosition(mirroredBitmap, bitmapROI);
+
+            boolean tongueDetected = result.detected;
+            Rect realTongueBox = result.boundingBox;
+
             Log.d(TAG, String.format("YOLO 檢測結果: %s", tongueDetected ? "發現舌頭" : "未發現舌頭"));
+            if (tongueDetected && realTongueBox != null) {
+                Log.d(TAG, String.format("✅ 舌頭真實位置: %s", realTongueBox.toString()));
+            }
+
+
+            // 🔥old 如果檢測到舌頭，創建舌頭框
+            Rect tongueBox = null;
+            if (tongueDetected) {
+                // 在 ROI 中心創建舌頭框
+                int centerX = (mouthROI.left + mouthROI.right) / 2;
+                int centerY = (mouthROI.top + mouthROI.bottom) / 2;
+                int boxSize = Math.min(mouthROI.width(), mouthROI.height()) / 3;
+
+                tongueBox = new Rect(
+                        centerX - boxSize/2,
+                        centerY - boxSize/2,
+                        centerX + boxSize/2,
+                        centerY + boxSize/2
+                );
+
+                Log.d(TAG, String.format("✅ 創建舌頭框: %s", tongueBox.toString()));
+            }
 
             // 🔥 更新 overlay 顯示（顯示 ROI 框，如果檢測到舌頭則顯示舌頭框）
-            overlayView.setYoloDetectionResult(tongueDetected, 0.8f, null, mouthROI);
+            // 🔥 使用真實的舌頭框位置
+            overlayView.setYoloDetectionResult(tongueDetected, result.confidence, realTongueBox, mouthROI);
+
+
 
             // 🔥 記錄資料（包含 YOLO 結果）
             if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {

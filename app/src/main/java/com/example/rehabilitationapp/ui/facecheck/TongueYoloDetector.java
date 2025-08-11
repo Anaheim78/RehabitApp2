@@ -28,7 +28,28 @@ public class TongueYoloDetector {
     private static final String MODEL_FILE = "tongue_yolo.tflite";
     private static final int INPUT_SIZE = 640;
     private static final int CHANNEL_SIZE = 3;
-    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.3f;
+    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.2f;
+
+
+    // 🔥 在這裡加入新的檢測結果類 ↓↓↓
+    public static class DetectionResult {
+        public boolean detected;
+        public float confidence;
+        public Rect boundingBox;  // 真實位置的邊界框
+
+        public DetectionResult(boolean detected) {
+            this.detected = detected;
+            this.confidence = 0;
+            this.boundingBox = null;
+        }
+
+        public DetectionResult(boolean detected, float confidence, Rect box) {
+            this.detected = detected;
+            this.confidence = confidence;
+            this.boundingBox = box;
+        }
+    }
+    // 🔥 新的檢測結果類結束 ↑↑↑
 
     private Interpreter tflite;
     private ByteBuffer inputBuffer;
@@ -322,7 +343,101 @@ public class TongueYoloDetector {
             Log.d(TAG, "✅ YOLO 資源已清理");
         }
     }
+    public DetectionResult detectTongueWithRealPosition(Bitmap fullBitmap, Rect roi) {
+        if (tflite == null || fullBitmap == null || roi == null) {
+            Log.w(TAG, "⚠️ 檢測輸入為空");
+            return new DetectionResult(false);
+        }
 
+        try {
+            // 裁切 ROI
+            int left = Math.max(0, roi.left);
+            int top = Math.max(0, roi.top);
+            int right = Math.min(fullBitmap.getWidth(), roi.right);
+            int bottom = Math.min(fullBitmap.getHeight(), roi.bottom);
+
+            if (right <= left || bottom <= top) {
+                Log.w(TAG, "⚠️ ROI 區域無效");
+                return new DetectionResult(false);
+            }
+
+            Bitmap roiBitmap = Bitmap.createBitmap(fullBitmap, left, top, right - left, bottom - top);
+
+            Log.d(TAG, String.format("🔪 ROI 裁切: (%d,%d) → (%d,%d), 大小: %dx%d",
+                    left, top, right, bottom, roiBitmap.getWidth(), roiBitmap.getHeight()));
+
+            // YOLO 推理
+            Bitmap resizedBitmap = preprocessImage(roiBitmap);
+            convertBitmapToByteBuffer(resizedBitmap);
+            tflite.run(inputBuffer, outputBuffer);
+
+            // 🔥 處理結果並轉換為真實座標
+            DetectionResult result = postprocessWithRealCoordinates(roi);
+
+            // 清理記憶體
+            if (roiBitmap != fullBitmap) roiBitmap.recycle();
+            if (resizedBitmap != roiBitmap) resizedBitmap.recycle();
+
+            return result;
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ 真實座標檢測失敗: " + e.getMessage());
+            return new DetectionResult(false);
+        }
+    }
+
+    private DetectionResult postprocessWithRealCoordinates(Rect originalROI) {
+        int bestDetectionIndex = -1;
+        float bestTongueProb = 0;
+
+        // 找出最佳舌頭檢測
+        for (int i = 0; i < 8400; i++) {
+            float tongueProb = outputBuffer[0][7][i]; // 舌頭概率
+            float width = outputBuffer[0][2][i];
+            float height = outputBuffer[0][3][i];
+
+            if (tongueProb > DEFAULT_CONFIDENCE_THRESHOLD &&
+                    width > 0.01f && height > 0.01f &&
+                    tongueProb > bestTongueProb) {
+                bestTongueProb = tongueProb;
+                bestDetectionIndex = i;
+            }
+        }
+
+        if (bestDetectionIndex >= 0) {
+            // 🔥 獲取 YOLO 輸出的相對位置 (0-1)
+            float relativeX = outputBuffer[0][0][bestDetectionIndex];
+            float relativeY = outputBuffer[0][1][bestDetectionIndex];
+            float relativeWidth = outputBuffer[0][2][bestDetectionIndex];
+            float relativeHeight = outputBuffer[0][3][bestDetectionIndex];
+
+            // 🔥 轉換為 ROI 內的絕對座標
+            int roiWidth = originalROI.width();
+            int roiHeight = originalROI.height();
+
+            int absoluteCenterX = originalROI.left + (int)(relativeX * roiWidth);
+            int absoluteCenterY = originalROI.top + (int)(relativeY * roiHeight);
+            int absoluteWidth = (int)(relativeWidth * roiWidth);
+            int absoluteHeight = (int)(relativeHeight * roiHeight);
+
+            // 🔥 創建真實的邊界框
+            Rect realTongueBox = new Rect(
+                    absoluteCenterX - absoluteWidth/2,
+                    absoluteCenterY - absoluteHeight/2,
+                    absoluteCenterX + absoluteWidth/2,
+                    absoluteCenterY + absoluteHeight/2
+            );
+
+            Log.d(TAG, String.format("🎯 舌頭真實位置: %s (信心度: %.3f)",
+                    realTongueBox.toString(), bestTongueProb));
+
+            return new DetectionResult(true, bestTongueProb, realTongueBox);
+        }
+
+        Log.d(TAG, "❌ 未檢測到舌頭");
+        return new DetectionResult(false);
+    }
+// 🔥 座標處理方法結束 ↑↑↑
     /**
      * 🔧 設定自訂檢測閾值
      */
