@@ -54,7 +54,7 @@ public class HomeFragment extends Fragment {
         };
         String[] labels = {
                 "鼓頰", "縮頰", "嘟嘴",
-                "抿嘴", "向左伸舌", "向右伸舌"
+                "抿嘴", "舌頭", "向右伸舌"
         };
 
 

@@ -28,7 +28,7 @@ public class TongueYoloDetector {
     private static final String MODEL_FILE = "tongue_yolo.tflite";
     private static final int INPUT_SIZE = 640;
     private static final int CHANNEL_SIZE = 3;
-    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.6f;
+    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.3f;
 
     private Interpreter tflite;
     private ByteBuffer inputBuffer;
@@ -167,6 +167,14 @@ public class TongueYoloDetector {
     private boolean postprocessResults(float confidenceThreshold) {
         int bestDetectionIndex = -1;
         float bestTongueProb = 0;
+
+        // 🔥 在這裡加入您的測試代碼
+        float maxProb = 0;
+        for (int i = 0; i < 8400; i++) {
+            maxProb = Math.max(maxProb, outputBuffer[0][7][i]);
+        }
+        Log.d(TAG, "最高舌頭概率: " + maxProb);
+        // 🔥 測試代碼結束
 
         // 🔍 遍歷所有 8400 個檢測點
         for (int i = 0; i < 8400; i++) {

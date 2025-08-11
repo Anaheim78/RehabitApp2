@@ -67,15 +67,18 @@ public class FaceDataRecorder {
             header = "time_seconds,state,total_lip_area"; // 改成總面積
         } else if ("嘟嘴".equals(trainingLabel)) {
             header = "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
+        } else if ("舌頭".equals(trainingLabel)) {
+            header = "time_seconds,state,tongue_detected";
         } else {
             header = "time_seconds,state,metric_value"; // 預設格式
         }
+
 
         dataLines.add(header);
         Log.d(TAG, "CSV 標題: " + header);
     }
 
-    public void recordLandmarkData(String state, float[][] landmarks) {
+    public void recordLandmarkData(String state, float[][] landmarks, Boolean tongueDetected) {
         try {
             // 🔥 改用相對時間，從0開始，以秒為單位
             long currentTime = System.currentTimeMillis();
@@ -108,6 +111,11 @@ public class FaceDataRecorder {
 
                 Log.d(TAG, String.format("嘟嘴數據 [%.3fs] - 高度: %.3f, 寬度: %.3f, 比值: %.3f",
                         relativeTimeSeconds, height, width, heightWidthRatio));
+            } else if ("舌頭".equals(trainingLabel)) {
+                String tongueResult = tongueDetected != null ? (tongueDetected ? "1" : "0") : "0";
+                dataLine = String.format(Locale.getDefault(),
+                        "%.3f,%s,%s",
+                        relativeTimeSeconds, state, tongueResult);
             }
 
             if (!dataLine.isEmpty()) {
