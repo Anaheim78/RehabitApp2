@@ -83,6 +83,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private TongueYoloDetector tongueDetector;
     private boolean isYoloEnabled = false; // 是否啟用 YOLO
 
+    // 用於控制頻率與紀錄時間
+    private int frameId = 0;
+    private long firstMetricTime = 0;
+
     // 狀態管理
     private enum AppState {
         CALIBRATING,    // 黃色 - 校正中
@@ -315,7 +319,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     rawBitmap.recycle();
                     if (rotatedBitmap != rawBitmap) rotatedBitmap.recycle();
-                    mirroredBitmap.recycle();
+                    //mirroredBitmap.recycle();
                 }, 100); // 延遲 100ms 回收
             }
         } catch (Exception e) {
@@ -470,6 +474,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
      */
     private void handleTongueMode(float[][] allPoints, Bitmap mirroredBitmap, int bitmapWidth, int bitmapHeight) {
         try {
+            if ((frameId++ % 3) != 0) {
+                return;
+            }
             // 🔥 計算嘴部 ROI
             //Rect mouthROI = TongueYoloDetector.calculateMouthROI(allPoints, bitmapWidth, bitmapHeight);
             //Log.d(TAG, String.format("嘴部 ROI: %s", mouthROI.toString()));
@@ -500,7 +507,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG, String.format("📐 Bitmap ROI: %s", bitmapROI.toString()));
 
             // 🔥 使用 YOLO 檢測舌頭（在 ROI 區域）
-// 🔥 使用新的真實座標檢測方法
+            // 🔥 使用新的真實座標檢測方法
+            /*
             TongueYoloDetector.DetectionResult result = tongueDetector.detectTongueWithRealPosition(
                     mirroredBitmap, bitmapROI, overlayWidth, overlayHeight);
 
@@ -536,19 +544,81 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 }
             }
 
-// 將「螢幕座標」的框與 mouthROI（本來就用螢幕座標計）交給 overlayView
+            // 將「螢幕座標」的框與 mouthROI（本來就用螢幕座標計）交給 overlayView
             overlayView.setYoloDetectionResult(tongueDetected, result.confidence, viewTongueBox, mouthROI);
+            */
+            final Rect mouthROIFinal = mouthROI;
+            final float[][] allPointsFinal = allPoints;
+            cameraExecutor.execute(() -> {
+                // 1) 計時
+                long t0 = System.nanoTime();
+                TongueYoloDetector.DetectionResult result =
+                        tongueDetector.detectTongueWithRealPosition(
+                                mirroredBitmap, bitmapROI, overlayWidth, overlayHeight);
+                long t1 = System.nanoTime();
+                float inferMs = (t1 - t0) / 1_000_000f;
+
+                // 2) Bitmap → Overlay 座標
+                Rect viewTongueBox = null;
+                if (result.detected && result.boundingBox != null) {
+                    float sx = overlayWidth  / (float) mirroredBitmap.getWidth();
+                    float sy = overlayHeight / (float) mirroredBitmap.getHeight();
+                    Rect b = result.boundingBox; // Bitmap 座標
+                    viewTongueBox = new Rect(
+                            Math.round(b.left   * sx),
+                            Math.round(b.top    * sy),
+                            Math.round(b.right  * sx),
+                            Math.round(b.bottom * sy)
+                    );
+                }
+
+                // 3) 讀熱狀態
+                String thermalStr = "N/A";
+                try {
+                    android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                    if (pm != null) {
+                        int ts = pm.getCurrentThermalStatus();
+                        switch (ts) {
+                            case android.os.PowerManager.THERMAL_STATUS_NONE:      thermalStr = "NONE"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_LIGHT:     thermalStr = "LIGHT"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_MODERATE:  thermalStr = "MODERATE"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_SEVERE:    thermalStr = "SEVERE"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_CRITICAL:  thermalStr = "CRITICAL"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_EMERGENCY: thermalStr = "EMERGENCY"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_SHUTDOWN:  thermalStr = "SHUTDOWN"; break;
+                            default: thermalStr = String.valueOf(ts);
+                        }
+                    }
+                } catch (Throwable ignore) {}
+
+                // 4) 每 10 秒打一行 METRICS（避免洗版）
+                long now = System.currentTimeMillis();
+                if (firstMetricTime == 0) firstMetricTime = now;
+                long elapsed = (now - firstMetricTime) / 1000;
+                if (elapsed == 10 || elapsed == 20 || elapsed == 30 || elapsed == 40) {
+                    Log.d(TAG, String.format("METRICS@%ds infer=%.1fms bestProb=%.3f thermal=%s",
+                            elapsed, inferMs, result.confidence, thermalStr));
+                }
+
+                // 5) 回到主執行緒畫框（這段才是 UI 執行緒）
+                Rect finalViewTongueBox = viewTongueBox;
+                final boolean detected = result.detected;        // ← 1) 先存起來
+                final float conf = result.confidence;
+                mainHandler.post(() -> {
+                    overlayView.setYoloDetectionResult(result.detected, result.confidence, finalViewTongueBox, mouthROIFinal);
+                    // 🔥 記錄資料（包含 YOLO 結果）
+                    if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
+                        String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
+                        dataRecorder.recordLandmarkData(stateString, allPointsFinal, detected);
+                        Log.d(TAG, String.format("記錄舌頭資料: %s, 關鍵點數量: %d, 舌頭: %s",
+                                stateString, allPointsFinal.length,
+                                detected ? "✓" : "✗"));
+                    }
+                });
+            });
 
 
 
-            // 🔥 記錄資料（包含 YOLO 結果）
-            if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
-                String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-                dataRecorder.recordLandmarkData(stateString, allPoints, tongueDetected);
-                Log.d(TAG, String.format("記錄舌頭資料: %s, 關鍵點數量: %d, 舌頭: %s",
-                        stateString, allPoints.length,
-                        tongueDetected ? "✓" : "✗"));
-            }
 
         } catch (Exception e) {
             Log.e(TAG, "處理舌頭模式時發生錯誤", e);

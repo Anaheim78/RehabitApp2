@@ -61,8 +61,12 @@ public class TongueYoloDetector {
     public TongueYoloDetector(Context context) {
         try {
             // 載入模型
+
             MappedByteBuffer modelBuffer = loadModelFile(context);
-            tflite = new Interpreter(modelBuffer);
+            //tflite = new Interpreter(modelBuffer);
+            Interpreter.Options opts = new Interpreter.Options();
+            opts.setNumThreads(4);            // 先設 4，看裝置再調
+            tflite = new Interpreter(modelBuffer, opts);
             Log.d(TAG, "✅ YOLO 模型載入成功");
 
             // 初始化輸入緩衝區
@@ -99,11 +103,12 @@ public class TongueYoloDetector {
      *
      * @param bitmap 輸入圖片
      * @return true 如果檢測到舌頭，false 反之
-     */
+
     public boolean detectTongue(Bitmap bitmap) {
         return detectTongue(bitmap, DEFAULT_CONFIDENCE_THRESHOLD);
-    }
+    }     */
 
+    /*
     public boolean detectTongue(Bitmap bitmap, float confidenceThreshold) {
         if (tflite == null || bitmap == null) {
             Log.w(TAG, "⚠️ 模型未初始化或輸入為空");
@@ -120,6 +125,7 @@ public class TongueYoloDetector {
             convertBitmapToByteBuffer(resizedBitmap);
 
             // 🔄 Step 3: 執行推理
+
             tflite.run(inputBuffer, outputBuffer);
 
             // 🔄 Step 4: 後處理結果
@@ -141,7 +147,7 @@ public class TongueYoloDetector {
             Log.e(TAG, "❌ YOLO 推理過程發生錯誤: " + e.getMessage());
             return false;
         }
-    }
+    } */
 
     /**
      * 🖼️ 圖片預處理：調整大小到 640x640
@@ -232,6 +238,7 @@ public class TongueYoloDetector {
     /**
      * 🎯 ROI 版本：只檢測指定區域（嘴部 ROI）
      */
+    /*
     public boolean detectTongueInROI(Bitmap fullBitmap, Rect roi) {
         if (fullBitmap == null || roi == null) {
             Log.w(TAG, "⚠️ ROI 檢測輸入為空");
@@ -270,7 +277,7 @@ public class TongueYoloDetector {
             Log.e(TAG, "❌ ROI 檢測失敗: " + e.getMessage());
             return false;
         }
-    }
+    }*/
 
     /**
      * 📐 根據 MediaPipe landmarks 計算嘴部 ROI
@@ -369,13 +376,19 @@ public class TongueYoloDetector {
             // YOLO 推理
             Bitmap resizedBitmap = preprocessImage(roiBitmap);
             convertBitmapToByteBuffer(resizedBitmap);
+            long t0 = System.nanoTime();
             tflite.run(inputBuffer, outputBuffer);
+            long t1 = System.nanoTime();
+            float inferMs = (t1 - t0) / 1_000_000f;
+
 
             // 🔥 處理結果並轉換為真實座標
             // 🔥 處理結果並轉換為真實座標（需要傳入螢幕尺寸）
             // 暫時用固定值，稍後從 Activity 傳入
             // 🔥 處理結果並轉換為真實座標
             DetectionResult result = postprocessWithRealCoordinates(roi, overlayWidth, overlayHeight);
+
+            Log.d("METRICS", String.format("infer=%.1f ms, prob=%.3f", inferMs, result.confidence));
 
             // 清理記憶體
             if (roiBitmap != fullBitmap) roiBitmap.recycle();
@@ -390,6 +403,7 @@ public class TongueYoloDetector {
     }
 
     private DetectionResult postprocessWithRealCoordinates(Rect originalROI, int overlayWidth, int overlayHeight) {
+
         int bestDetectionIndex = -1;
         float bestTongueProb = 0f;
 
@@ -405,6 +419,9 @@ public class TongueYoloDetector {
                 bestDetectionIndex = i;
             }
         }
+
+
+
 
         if (bestDetectionIndex < 0) {
             Log.d(TAG, "❌ 未檢測到舌頭");
