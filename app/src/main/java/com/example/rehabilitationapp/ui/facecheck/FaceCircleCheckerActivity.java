@@ -55,7 +55,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 計時用的目標常數(多久到點)，所以不會改
     private static final int CALIBRATION_TIME = 5000; // 5秒校正時間
-    private static final int MAINTAIN_TIME_TOTAL = 15000; // 總共30秒維持時間
+    private static final int MAINTAIN_TIME_TOTAL = 45000; // 總共30秒維持時間
     private static final int PROGRESS_UPDATE_INTERVAL = 50; // 進度條更新間隔 (毫秒)
 
     //android.camera.core等開源套件裡面的東西
@@ -501,38 +501,43 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
             // 🔥 使用 YOLO 檢測舌頭（在 ROI 區域）
 // 🔥 使用新的真實座標檢測方法
-            TongueYoloDetector.DetectionResult result = tongueDetector.detectTongueWithRealPosition(mirroredBitmap, bitmapROI);
+            TongueYoloDetector.DetectionResult result = tongueDetector.detectTongueWithRealPosition(
+                    mirroredBitmap, bitmapROI, overlayWidth, overlayHeight);
 
             boolean tongueDetected = result.detected;
-            Rect realTongueBox = result.boundingBox;
+            Rect realTongueBox = result.boundingBox;  // 這是 Bitmap（mirroredBitmap）座標
 
             Log.d(TAG, String.format("YOLO 檢測結果: %s", tongueDetected ? "發現舌頭" : "未發現舌頭"));
             if (tongueDetected && realTongueBox != null) {
-                Log.d(TAG, String.format("✅ 舌頭真實位置: %s", realTongueBox.toString()));
+                Log.d(TAG, String.format("✅ 舌頭真實位置(Bitmap): %s", realTongueBox.toString()));
             }
 
+// 將 Bitmap → Overlay 的比例換算，得到「螢幕座標」的框
+            Rect viewTongueBox = null;
+            if (tongueDetected && realTongueBox != null) {
+                int overlayW = overlayView.getWidth();
+                int overlayH = overlayView.getHeight();
+                int bitmapW  = mirroredBitmap.getWidth();
+                int bitmapH  = mirroredBitmap.getHeight();
 
-            // 🔥old 如果檢測到舌頭，創建舌頭框
-            Rect tongueBox = null;
-            if (tongueDetected) {
-                // 在 ROI 中心創建舌頭框
-                int centerX = (mouthROI.left + mouthROI.right) / 2;
-                int centerY = (mouthROI.top + mouthROI.bottom) / 2;
-                int boxSize = Math.min(mouthROI.width(), mouthROI.height()) / 3;
+                if (overlayW > 0 && overlayH > 0 && bitmapW > 0 && bitmapH > 0) {
+                    float sx = overlayW / (float) bitmapW;
+                    float sy = overlayH / (float) bitmapH;
 
-                tongueBox = new Rect(
-                        centerX - boxSize/2,
-                        centerY - boxSize/2,
-                        centerX + boxSize/2,
-                        centerY + boxSize/2
-                );
-
-                Log.d(TAG, String.format("✅ 創建舌頭框: %s", tongueBox.toString()));
+                    viewTongueBox = new Rect(
+                            Math.round(realTongueBox.left   * sx),
+                            Math.round(realTongueBox.top    * sy),
+                            Math.round(realTongueBox.right  * sx),
+                            Math.round(realTongueBox.bottom * sy)
+                    );
+                    Log.d(TAG, String.format("🎯 舌頭位置(Overlay): %s", viewTongueBox.toString()));
+                } else {
+                    Log.w(TAG, "Overlay 或 Bitmap 尺寸為 0，略過繪製本幀");
+                }
             }
 
-            // 🔥 更新 overlay 顯示（顯示 ROI 框，如果檢測到舌頭則顯示舌頭框）
-            // 🔥 使用真實的舌頭框位置
-            overlayView.setYoloDetectionResult(tongueDetected, result.confidence, realTongueBox, mouthROI);
+// 將「螢幕座標」的框與 mouthROI（本來就用螢幕座標計）交給 overlayView
+            overlayView.setYoloDetectionResult(tongueDetected, result.confidence, viewTongueBox, mouthROI);
 
 
 
