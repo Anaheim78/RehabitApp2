@@ -13,6 +13,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.util.Pair;
+
+
+import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.gpu.GpuDelegate;
+import org.tensorflow.lite.nnapi.NnApiDelegate;
 
 /**
  * 🎯 YOLO 舌頭檢測器 - 專門用於檢測舌頭的 TensorFlow Lite 模型
@@ -21,6 +29,7 @@ import java.nio.channels.FileChannel;
  * - [center_x, center_y, width, height, heart_prob, left_lung_prob, right_lung_prob, tongue_prob]
  */
 public class TongueYoloDetector {
+
 
     private static final String TAG = "TongueYoloDetector";
 
@@ -55,33 +64,92 @@ public class TongueYoloDetector {
     private ByteBuffer inputBuffer;
     private float[][][] outputBuffer; // [1][8][8400] 根據你的實際格式
 
+    private GpuDelegate gpuDelegate = null;
+    private  NnApiDelegate nnApiDelegate = null;
+    private String backend = "CPU";  // 用來在 logcat 顯示實際跑哪個後端
+
+
+
+    // 調整Yolo輸入圖像為方形，需調整縮放與補黑邊 : 前處理時記錄 letterbox 參數，給後處理還原用
+    static final class LetterboxCtx {
+        int inW, inH;     // 模型輸入邊長（這裡就是 INPUT_SIZE）
+        float scale;      // 等比縮放係數
+        int padX, padY;   // 左右/上下補邊像素
+    }
     /**
      * 🏗️ 建構子：初始化模型
      */
     public TongueYoloDetector(Context context) {
         try {
-            // 載入模型
-
+            // 讀模型
             MappedByteBuffer modelBuffer = loadModelFile(context);
-            //tflite = new Interpreter(modelBuffer);
-            Interpreter.Options opts = new Interpreter.Options();
-            opts.setNumThreads(4);            // 先設 4，看裝置再調
-            tflite = new Interpreter(modelBuffer, opts);
-            Log.d(TAG, "✅ YOLO 模型載入成功");
 
-            // 初始化輸入緩衝區
-            inputBuffer = ByteBuffer.allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * CHANNEL_SIZE);
-            inputBuffer.order(ByteOrder.nativeOrder());
+            boolean ok = false;
 
-            // 🔥 根據你的實際格式初始化輸出緩衝區 [1][8][8400]
+            // ===== 1) 先嘗試 GPU（不帶 Options，所有版本都可編）=====
+            try {
+                Interpreter.Options gpuOpts = new Interpreter.Options();
+                gpuOpts.setNumThreads(4);
+                gpuDelegate = new GpuDelegate();     // 舊新版本都支援的建構法
+                gpuOpts.addDelegate(gpuDelegate);
+
+                tflite = new Interpreter(modelBuffer, gpuOpts);
+                backend = "GPU";
+                ok = true;
+                Log.d(TAG, "✅ TFLite Interpreter 建立成功（GPU）");
+            } catch (Throwable ge) {
+                Log.w(TAG, "⚠️ GPU delegate 失敗，改試 NNAPI。原因: " + ge.getMessage());
+                if (gpuDelegate != null) {
+                    try { gpuDelegate.close(); } catch (Throwable ignore) {}
+                    gpuDelegate = null;
+                }
+            }
+
+            // ===== 2) 再嘗試 NNAPI =====
+            if (!ok) {
+                try {
+                    Interpreter.Options nnOpts = new Interpreter.Options();
+                    nnOpts.setNumThreads(4);
+                    nnApiDelegate = new NnApiDelegate();
+                    nnOpts.addDelegate(nnApiDelegate);
+
+                    tflite = new Interpreter(modelBuffer, nnOpts);
+                    backend = "NNAPI";
+                    ok = true;
+                    Log.d(TAG, "✅ TFLite Interpreter 建立成功（NNAPI）");
+                    Log.d(TAG, "input dtype=" + tflite.getInputTensor(0).dataType() +
+                            ", shape=" + java.util.Arrays.toString(tflite.getInputTensor(0).shape()));
+                } catch (Throwable ne) {
+                    Log.w(TAG, "⚠️ NNAPI delegate 失敗，改用 CPU。原因: " + ne.getMessage());
+                    if (nnApiDelegate != null) {
+                        try { nnApiDelegate.close(); } catch (Throwable ignore) {}
+                        nnApiDelegate = null;
+                    }
+                }
+            }
+
+            // ===== 3) 最後回落 CPU =====
+            if (!ok) {
+                Interpreter.Options cpuOpts = new Interpreter.Options();
+                cpuOpts.setNumThreads(4);
+                tflite = new Interpreter(modelBuffer, cpuOpts);
+                backend = "CPU";
+                Log.d(TAG, "✅ TFLite Interpreter 建立成功（CPU）");
+            }
+
+            // 建好後再配置 buffer
+            inputBuffer = ByteBuffer.allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * CHANNEL_SIZE).order(ByteOrder.nativeOrder());
             outputBuffer = new float[1][8][8400];
 
-            Log.d(TAG, "✅ 緩衝區初始化完成");
+            Log.d(TAG, "✅ 緩衝區初始化完成，backend=" + backend);
 
         } catch (Exception e) {
             Log.e(TAG, "❌ YOLO 模型初始化失敗: " + e.getMessage());
         }
     }
+
+
+
 
     /**
      * 📂 從 assets 載入模型文件
@@ -101,7 +169,7 @@ public class TongueYoloDetector {
     /**
      * 🎯 主要檢測方法：檢測 Bitmap 中是否有舌頭
      *
-     * @param bitmap 輸入圖片
+     * @param
      * @return true 如果檢測到舌頭，false 反之
 
     public boolean detectTongue(Bitmap bitmap) {
@@ -148,7 +216,38 @@ public class TongueYoloDetector {
             return false;
         }
     } */
+// 等比縮放 + 黑邊補齊到 INPUT_SIZE×INPUT_SIZE；回傳可直接丟給 TFLite 的 ByteBuffer 與 letterbox 參數
+    private Pair<ByteBuffer, LetterboxCtx> preprocessLetterbox(Bitmap roiBmp, int imgSize) {
+        int rw = roiBmp.getWidth();
+        int rh = roiBmp.getHeight();
+        float scale = Math.min(imgSize * 1f / rw, imgSize * 1f / rh);
 
+        int nw = Math.round(rw * scale);
+        int nh = Math.round(rh * scale);
+        int padX = (imgSize - nw) / 2;
+        int padY = (imgSize - nh) / 2;
+
+        // 1) 等比縮放
+        Bitmap scaled = Bitmap.createScaledBitmap(roiBmp, nw, nh, true);
+
+        // 2) 貼到正方形畫布（黑邊）
+        Bitmap canvas = Bitmap.createBitmap(imgSize, imgSize, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(canvas);
+        c.drawColor(Color.BLACK);
+        c.drawBitmap(scaled, padX, padY, null);
+
+        // 3) 轉成模型輸入（沿用你現有的 inputBuffer）
+        convertBitmapToByteBuffer(canvas);  // 直接把畫布丟進你原本的轉換函式
+
+        LetterboxCtx ctx = new LetterboxCtx();
+        ctx.inW = ctx.inH = imgSize;
+        ctx.scale = scale;
+        ctx.padX = padX;
+        ctx.padY = padY;
+
+        // 注意：inputBuffer 是類成員，已被剛才那行填好了
+        return new Pair<>(inputBuffer, ctx);
+    }
     /**
      * 🖼️ 圖片預處理：調整大小到 640x640
      */
@@ -347,8 +446,16 @@ public class TongueYoloDetector {
         if (tflite != null) {
             tflite.close();
             tflite = null;
-            Log.d(TAG, "✅ YOLO 資源已清理");
         }
+        if (gpuDelegate != null) {
+            try { gpuDelegate.close(); } catch (Throwable ignore) {}
+            gpuDelegate = null;
+        }
+        if (nnApiDelegate != null) {
+            try { nnApiDelegate.close(); } catch (Throwable ignore) {}
+            nnApiDelegate = null;
+        }
+        Log.d(TAG, "✅ YOLO 資源已清理");
     }
     public DetectionResult detectTongueWithRealPosition(Bitmap fullBitmap, Rect roi, int overlayWidth, int overlayHeight) {
         if (tflite == null || fullBitmap == null || roi == null) {
@@ -373,11 +480,16 @@ public class TongueYoloDetector {
             Log.d(TAG, String.format("🔪 ROI 裁切: (%d,%d) → (%d,%d), 大小: %dx%d",
                     left, top, right, bottom, roiBitmap.getWidth(), roiBitmap.getHeight()));
 
-            // YOLO 推理
-            Bitmap resizedBitmap = preprocessImage(roiBitmap);
-            convertBitmapToByteBuffer(resizedBitmap);
+            // YOLO 推理，這裡先改成Pair
+            //Bitmap resizedBitmap = preprocessImage(roiBitmap);
+            //convertBitmapToByteBuffer(resizedBitmap);
+
+            // ✅ 新：letterbox 前處理（會把 inputBuffer 填好），同時拿到 ctx
+            Pair<ByteBuffer, LetterboxCtx> in = preprocessLetterbox(roiBitmap, INPUT_SIZE);
+
+
             long t0 = System.nanoTime();
-            tflite.run(inputBuffer, outputBuffer);
+            tflite.run(in.first, outputBuffer);  // in.first 就是 inputBuffer
             long t1 = System.nanoTime();
             float inferMs = (t1 - t0) / 1_000_000f;
 
@@ -386,13 +498,19 @@ public class TongueYoloDetector {
             // 🔥 處理結果並轉換為真實座標（需要傳入螢幕尺寸）
             // 暫時用固定值，稍後從 Activity 傳入
             // 🔥 處理結果並轉換為真實座標
-            DetectionResult result = postprocessWithRealCoordinates(roi, overlayWidth, overlayHeight);
+            // ✅ 新：後處理要用 ctx 去除 padding/縮放，回到 Bitmap 座標
+            DetectionResult result = postprocessWithRealCoordinates(roi, in.second);
 
-            Log.d("METRICS", String.format("infer=%.1f ms, prob=%.3f", inferMs, result.confidence));
+            //DetectionResult result = postprocessWithRealCoordinates(roi, overlayWidth, overlayHeight);
+
+            Log.d("METRICS",
+                    "infer=" + String.format(java.util.Locale.US, "%.1f", inferMs) +
+                            " ms, prob=" + String.format(java.util.Locale.US, "%.3f", result.confidence) +
+                            ", backend=" + backend);
 
             // 清理記憶體
             if (roiBitmap != fullBitmap) roiBitmap.recycle();
-            if (resizedBitmap != roiBitmap) resizedBitmap.recycle();
+            //if (resizedBitmap != roiBitmap) resizedBitmap.recycle();
 
             return result;
 
@@ -402,70 +520,60 @@ public class TongueYoloDetector {
         }
     }
 
-    private DetectionResult postprocessWithRealCoordinates(Rect originalROI, int overlayWidth, int overlayHeight) {
+    private DetectionResult postprocessWithRealCoordinates(Rect originalROI, LetterboxCtx ctx) {
+        int bestIdx = -1;
+        float bestProb = 0f;
 
-        int bestDetectionIndex = -1;
-        float bestTongueProb = 0f;
-
-        // 1) 找最佳框
+        // 1) 找舌頭最大機率的框（類別=舌頭，在你模型是 channel index 7）
         for (int i = 0; i < 8400; i++) {
-            float prob   = outputBuffer[0][7][i]; // 舌頭機率
-            float wNorm  = outputBuffer[0][2][i];
-            float hNorm  = outputBuffer[0][3][i];
-            if (prob > DEFAULT_CONFIDENCE_THRESHOLD &&
-                    wNorm > 0.01f && hNorm > 0.01f &&
-                    prob > bestTongueProb) {
-                bestTongueProb = prob;
-                bestDetectionIndex = i;
+            float prob = outputBuffer[0][7][i];
+            float wN = outputBuffer[0][2][i];
+            float hN = outputBuffer[0][3][i];
+            if (prob > DEFAULT_CONFIDENCE_THRESHOLD && wN > 0.01f && hN > 0.01f && prob > bestProb) {
+                bestProb = prob;
+                bestIdx = i;
             }
         }
+        if (bestIdx < 0) return new DetectionResult(false);
 
+        // 2) 讀出（0~1）正規化座標（以 INPUT_SIZE 正方形為基準）
+        float cxN = outputBuffer[0][0][bestIdx];
+        float cyN = outputBuffer[0][1][bestIdx];
+        float wN  = outputBuffer[0][2][bestIdx];
+        float hN  = outputBuffer[0][3][bestIdx];
 
+        // 3) 轉成「正方形像素座標」
+        float cxS = cxN * ctx.inW;
+        float cyS = cyN * ctx.inH;
+        float wS  = wN  * ctx.inW;
+        float hS  = hN  * ctx.inH;
 
+        // 4) 去 padding（回縮放後的 ROI）
+        float cxNoPad = cxS - ctx.padX;
+        float cyNoPad = cyS - ctx.padY;
 
-        if (bestDetectionIndex < 0) {
-            Log.d(TAG, "❌ 未檢測到舌頭");
-            return new DetectionResult(false);
-        }
+        // 5) 除以 scale（回原 ROI 大小，以像素計）
+        float cxRoi = cxNoPad / ctx.scale;
+        float cyRoi = cyNoPad / ctx.scale;
+        float wRoi  = wS / ctx.scale;
+        float hRoi  = hS / ctx.scale;
 
-        // 2) YOLO 輸出（相對 ROI 的 0~1）
-        float xNorm = outputBuffer[0][0][bestDetectionIndex];
-        float yNorm = outputBuffer[0][1][bestDetectionIndex];
-        float wNorm = outputBuffer[0][2][bestDetectionIndex];
-        float hNorm = outputBuffer[0][3][bestDetectionIndex];
+        // 6) 映回整張 Bitmap：加上 ROI 起點
+        int left   = Math.round(originalROI.left + (cxRoi - wRoi / 2f));
+        int top    = Math.round(originalROI.top  + (cyRoi - hRoi / 2f));
+        int right  = Math.round(left + wRoi);
+        int bottom = Math.round(top  + hRoi);
 
-        // ⚠️ 不要做任何 X 向比例補償（沒有 letterbox）
+        // 7) 夾在 ROI 內，避免越界
+        left   = Math.max(originalROI.left,   Math.min(left,   originalROI.right));
+        top    = Math.max(originalROI.top,    Math.min(top,    originalROI.bottom));
+        right  = Math.max(originalROI.left,   Math.min(right,  originalROI.right));
+        bottom = Math.max(originalROI.top,    Math.min(bottom, originalROI.bottom));
+        if (right <= left || bottom <= top) return new DetectionResult(false);
 
-        // 3) 轉回「Bitmap 空間」絕對座標（先落在 ROI、再加 ROI 左上角）
-        int roiW = originalROI.width();
-        int roiH = originalROI.height();
-
-        int cx = originalROI.left + Math.round(xNorm * roiW);
-        int cy = originalROI.top  + Math.round(yNorm * roiH);
-        int bw = Math.round(wNorm * roiW);
-        int bh = Math.round(hNorm * roiH);
-
-        int left   = cx - bw / 2;
-        int top    = cy - bh / 2;
-        int right  = left + bw;
-        int bottom = top  + bh;
-
-        // 4) 夾回 ROI 範圍，避免越界
-        left   = Math.max(originalROI.left,   left);
-        top    = Math.max(originalROI.top,    top);
-        right  = Math.min(originalROI.right,  right);
-        bottom = Math.min(originalROI.bottom, bottom);
-
-        // 若夾完變成空框，直接視為沒偵測到
-        if (right <= left || bottom <= top) {
-            Log.d(TAG, "❌ 偵測框越界後為空，忽略此檢測");
-            return new DetectionResult(false);
-        }
-
-        Rect realTongueBox = new Rect(left, top, right, bottom);
-        Log.d(TAG, String.format("🎯 舌頭真實位置(Bitmap): %s (conf=%.3f)", realTongueBox, bestTongueProb));
-
-        return new DetectionResult(true, bestTongueProb, realTongueBox);
+        Rect realBox = new Rect(left, top, right, bottom);
+        Log.d(TAG, String.format("🎯 舌頭真實位置(Bitmap): %s (conf=%.3f)", realBox, bestProb));
+        return new DetectionResult(true, bestProb, realBox);
     }
 
 // 🔥 座標處理方法結束 ↑↑↑

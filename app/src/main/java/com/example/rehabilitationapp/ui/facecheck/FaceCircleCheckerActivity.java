@@ -7,7 +7,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.os.Bundle;
@@ -48,141 +47,121 @@ import java.util.concurrent.Executors;
 
 public class FaceCircleCheckerActivity extends AppCompatActivity {
 
-    //相機權限用
+    // 相機權限用
     private static final int PERMISSION_REQUEST_CODE = 123;
-    //LOG的Tag
+    // LOG 的 Tag
     private static final String TAG = "FaceCircleChecker";
 
-    // 計時用的目標常數(多久到點)，所以不會改
-    private static final int CALIBRATION_TIME = 5000; // 5秒校正時間
-    private static final int MAINTAIN_TIME_TOTAL = 45000; // 總共30秒維持時間
-    private static final int PROGRESS_UPDATE_INTERVAL = 50; // 進度條更新間隔 (毫秒)
+    // 計時常數
+    private static final int CALIBRATION_TIME = 5000;         // 5 秒校正
+    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 30 秒維持
+    private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
 
-    //android.camera.core等開源套件裡面的東西
+    // ★★★ 頻率控制（可自行調整）★★★
+    private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
+    private static final int YOLO_EVERY      = 3;   // 每 3 幀跑一次 YOLO
+
+    // android.camera.core
     private PreviewView cameraView;
     private FaceLandmarker faceLandmarker;
     private ProcessCameraProvider cameraProvider;
 
-    // ExecutorService 執行緒管理工具
+    // 執行緒
     private ExecutorService cameraExecutor;
 
-    //UI用變數
+    // UI
     private CircleOverlayView overlayView;
     private TextView statusText;
-    private TextView timerText; // 倒數計時顯示
-    private ProgressBar progressBar; // 進度條
+    private TextView timerText;
+    private ProgressBar progressBar;
 
-    // 變數 : 接收 訓練的動作類型
-    private String trainingLabel = "訓練"; // 預設值
+    // 訓練資訊
+    private String trainingLabel = "訓練";
     private int trainingType = -1;
 
-    // 🔥 資料記錄器，方法會紀錄landmark到dataLines，算動作指標到dataLines，dataLines存csv
+    // 記錄器
     private FaceDataRecorder dataRecorder;
 
-    // 🔥 新增：YOLO 檢測器
+    // YOLO
     private TongueYoloDetector tongueDetector;
-    private boolean isYoloEnabled = false; // 是否啟用 YOLO
+    private boolean isYoloEnabled = false;
 
-    // 用於控制頻率與紀錄時間
+    // 幀計數與統計
     private int frameId = 0;
     private long firstMetricTime = 0;
 
-    // 狀態管理
-    private enum AppState {
-        CALIBRATING,    // 黃色 - 校正中
-        MAINTAINING,    // 綠色 - 維持狀態
-        OUT_OF_BOUNDS   // 紅色 - 超出範圍
-    }
+    // ROI 快取（Overlay/Bitmap 兩套座標系）
+    private Rect lastOverlayRoi = null;
+    private Rect lastBitmapRoi  = null;
 
+    // 狀態管理
+    private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
     private AppState currentState = AppState.CALIBRATING;
 
-    //mainHandler.Looper.getMaininLoop()，說是主執行緒才可改畫面，其他分支Thread做好了要回傳給Handler要他改
+    // 主執行緒 handler 與計時任務
     private Handler mainHandler;
-    //runable 是用來開新執行緒，裡面可以裝lamda，lamda就是把一套可跑程式當變數存起來，丟給mainHandler執行
     private Runnable calibrationTimer;
     private Runnable maintainTimer;
     private Runnable progressUpdater;
 
-    //紀錄時間
+    // 計時
     private long calibrationStartTime = 0;
     private long maintainStartTime = 0;
-    private long maintainTotalTime = 0; // 累計維持時間
-    private boolean isTrainingCompleted = false; // 🔥 新增：標記訓練是否完成
+    private long maintainTotalTime = 0;
+    private boolean isTrainingCompleted = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //綁定layout
         setContentView(R.layout.activity_face_circle_checker);
 
-        //獲取從前一個頁面傳過來的資料
         trainingType = getIntent().getIntExtra("training_type", -1);
         trainingLabel = getIntent().getStringExtra("training_label");
-        if (trainingLabel == null) {
-            trainingLabel = "訓練"; // 預設值
-        }
-
+        if (trainingLabel == null) trainingLabel = "訓練";
         Log.d(TAG, "接收到訓練類型: " + trainingType + ", 標籤: " + trainingLabel);
 
-        // 🔥 根據訓練類型決定是否初始化 YOLO
         if ("舌頭".equals(trainingLabel)) {
             initializeTongueDetector();
-            // 設置 overlay 為 YOLO 模式
             Log.d(TAG, "✅ 舌頭模式：啟用 YOLO 檢測 + YOLO 顯示");
         } else {
             Log.d(TAG, "✅ 嘴唇模式：使用 MediaPipe 關鍵點顯示");
         }
 
-        // 🔥 初始化資料記錄器
         dataRecorder = new FaceDataRecorder(this, trainingLabel, trainingType);
         Log.d(TAG, "資料記錄器初始化完成");
 
-        //把LAYOUT控件 物件化
         cameraView = findViewById(R.id.camera_view);
         overlayView = findViewById(R.id.overlay_view);
         statusText = findViewById(R.id.status_text);
         timerText = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
 
-        // 🔥 根據訓練類型設置 overlay 顯示模式
         if ("舌頭".equals(trainingLabel)) {
             overlayView.setDisplayMode(CircleOverlayView.DisplayMode.YOLO_DETECTION);
         } else {
             overlayView.setDisplayMode(CircleOverlayView.DisplayMode.LANDMARKS);
         }
 
-        // 一個新的可反覆利用的子執行緒
         cameraExecutor = Executors.newSingleThreadExecutor();
-        // 主執行緒 : 改UI用的
         mainHandler = new Handler(Looper.getMainLooper());
 
-        Log.d("FaceCircleAct","into onCreate");
-        //第三方套件的前置作業
         testCameraPermission();
         setupFaceLandmarker();
-
-        // 初始化UI
         initializeUI();
 
         if (checkCameraPermission()) {
-            Log.d("FaceCircleAct"," onCreate : into checkCameraPermission : YES");
             startCamera();
         } else {
-            Log.d("FaceCircleAct"," onCreate : into checkCameraPermission : NO");
             requestCameraPermission();
         }
     }
 
-    /**
-     * 🔥 初始化舌頭檢測器
-     */
+    // 初始化舌頭檢測器
     private void initializeTongueDetector() {
         try {
             tongueDetector = new TongueYoloDetector(this);
             isYoloEnabled = tongueDetector.isInitialized();
-            if (isYoloEnabled) {
-                Log.d(TAG, "✅ 舌頭檢測器初始化成功");
-            } else {
+            if (!isYoloEnabled) {
                 Log.e(TAG, "❌ 舌頭檢測器初始化失敗");
                 Toast.makeText(this, "舌頭檢測器初始化失敗，將使用一般模式", Toast.LENGTH_SHORT).show();
             }
@@ -194,21 +173,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     private void initializeUI() {
-        // 設置進度條
         progressBar.setMax(100);
         progressBar.setProgress(0);
-
-        // 初始化狀態
-        //更新和狀態有關的"提示文字"
         updateStatusDisplay();
-        //更新和狀態有關的"時間"
         updateTimerDisplay();
-        //更新進度條，它直接給主執行緒定期跑
         startProgressUpdater();
     }
-    /*
-     * 初始化Landmark模型，還沒有推論座標
-     * */
+
+    // 初始化 FaceLandmarker
     private void setupFaceLandmarker() {
         try {
             Log.d(TAG, "try to FaceLandmarker 初始化");
@@ -219,17 +191,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     .setRunningMode(RunningMode.IMAGE)
                     .setNumFaces(1)
                     .build();
-
             faceLandmarker = FaceLandmarker.createFromOptions(this, options);
             Log.d(TAG, "FaceLandmarker 初始化成功");
-
         } catch (Exception e) {
             Log.e(TAG, "FaceLandmarker 初始化錯誤: " + e.getMessage());
         }
     }
 
     private boolean checkCameraPermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private void requestCameraPermission() {
@@ -252,7 +223,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
-
         cameraProviderFuture.addListener(() -> {
             try {
                 cameraProvider = cameraProviderFuture.get();
@@ -271,8 +241,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
-
         imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
+
         CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
 
         try {
@@ -285,7 +255,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
-    // 🔥 修復後的 analyzeImage 方法 - 添加旋轉處理
+    // 圖像分析
     private void analyzeImage(@NonNull ImageProxy imageProxy) {
         if (faceLandmarker == null) {
             imageProxy.close();
@@ -293,57 +263,45 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         try {
-            // 🔥 關鍵：獲取圖像旋轉角度
             int rotationDegrees = imageProxy.getImageInfo().getRotationDegrees();
-
             Bitmap rawBitmap = imageProxyToBitmap(imageProxy);
             if (rawBitmap != null) {
-                // 🔥 步驟1：先旋轉
                 Bitmap rotatedBitmap = rotateBitmap(rawBitmap, rotationDegrees);
-
-                // 🔥 步驟2：再鏡像翻轉
                 Bitmap mirroredBitmap = mirrorBitmap(rotatedBitmap);
 
                 MPImage mpImage = new BitmapImageBuilder(mirroredBitmap).build();
                 FaceLandmarkerResult result = faceLandmarker.detect(mpImage);
 
-                // 調試信息
                 if (result != null && !result.faceLandmarks().isEmpty()) {
                     Log.d(TAG, "檢測到人臉，關鍵點數量: " + result.faceLandmarks().get(0).size());
                 }
-                //**判斷臉部位置
                 checkFacePosition(result, mirroredBitmap.getWidth(), mirroredBitmap.getHeight(), mirroredBitmap);
 
-                // 清理記憶體
-                // 🔥 延遲回收，確保 UI 處理完成
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     rawBitmap.recycle();
                     if (rotatedBitmap != rawBitmap) rotatedBitmap.recycle();
-                    //mirroredBitmap.recycle();
-                }, 100); // 延遲 100ms 回收
+                    // mirroredBitmap 交由 GC
+                }, 100);
             }
         } catch (Exception e) {
             Log.e(TAG, "圖像分析錯誤", e);
         } finally {
+            // ⭐ 每幀結束自增（統一幀節奏）
+            frameId++;
             imageProxy.close();
         }
     }
 
-    // 🔥 新增：旋轉Bitmap的方法
     private Bitmap rotateBitmap(Bitmap original, int degrees) {
-        if (degrees == 0) {
-            return original; // 不需要旋轉，直接返回原圖
-        }
-
+        if (degrees == 0) return original;
         Matrix matrix = new Matrix();
         matrix.postRotate(degrees);
         return Bitmap.createBitmap(original, 0, 0, original.getWidth(), original.getHeight(), matrix, true);
     }
 
-    // 🔥 新增：鏡像翻轉方法
     private Bitmap mirrorBitmap(Bitmap original) {
         Matrix matrix = new Matrix();
-        matrix.preScale(-1.0f, 1.0f); // 水平翻轉
+        matrix.preScale(-1.0f, 1.0f);
         return Bitmap.createBitmap(original, 0, 0, original.getWidth(), original.getHeight(), matrix, false);
     }
 
@@ -387,7 +345,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
-    // 🔥 修改 checkFacePosition 方法 - 加入 YOLO 整合
+    // 加入 YOLO 整合
     private void checkFacePosition(FaceLandmarkerResult result, int bitmapWidth, int bitmapHeight, Bitmap mirroredBitmap) {
         boolean faceDetected = result != null && !result.faceLandmarks().isEmpty();
 
@@ -398,7 +356,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     int overlayHeight = overlayView.getHeight();
 
                     if (overlayWidth > 0 && overlayHeight > 0) {
-                        // 🔥 加上比例補償，修復臉部變窄問題
                         float inputAspect = 480f / 640f; // Bitmap 寬高比
                         float viewAspect = overlayWidth / (float) overlayHeight; // Overlay 寬高比
                         float scaleX = inputAspect / viewAspect;
@@ -409,47 +366,53 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         for (int i = 0; i < landmarkCount; i++) {
                             float x = result.faceLandmarks().get(0).get(i).x();
                             float y = result.faceLandmarks().get(0).get(i).y();
-
-                            // ⭐ 關鍵：中心對齊後補償 X 軸壓縮
-                            x = (x - 0.5f) * scaleX + 0.5f;
-
+                            x = (x - 0.5f) * scaleX + 0.5f;  // X 軸比例補償（只影響畫面顯示）
                             allPoints[i][0] = x * overlayWidth;
                             allPoints[i][1] = y * overlayHeight;
                         }
 
-                        // 🔥 根據訓練類型決定處理方式
                         if ("舌頭".equals(trainingLabel) && isYoloEnabled) {
-                            // =================== 舌頭模式：YOLO 檢測 ===================
-                            handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight);
+                            // ★ 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap）
+                            boolean needFaceMesh = (lastOverlayRoi == null) || (frameId % FACE_MESH_EVERY == 0);
+                            if (needFaceMesh) {
+                                Rect overlayRoi = TongueYoloDetector.calculateMouthROI(allPoints, overlayWidth, overlayHeight);
+                                lastOverlayRoi = overlayRoi;
+
+                                float sx = (float) mirroredBitmap.getWidth()  / overlayWidth;
+                                float sy = (float) mirroredBitmap.getHeight() / overlayHeight;
+                                lastBitmapRoi = new Rect(
+                                        Math.round(overlayRoi.left   * sx),
+                                        Math.round(overlayRoi.top    * sy),
+                                        Math.round(overlayRoi.right  * sx),
+                                        Math.round(overlayRoi.bottom * sy)
+                                );
+                            }
+
+                            // 把快取 ROI 傳給 YOLO（不一定每幀更新 ROI）
+                            handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
+                                    lastOverlayRoi, lastBitmapRoi);
+
                         } else {
-                            // ================= 嘴唇模式：MediaPipe 關鍵點 =================
+                            // 嘴唇模式
                             handleLipMode(allPoints);
                         }
 
-                        // 🔥 計算鼻尖坐標（也要應用相同的比例補償）
+                        // 鼻尖 for 圓框狀態（顯示層用）
                         float noseRelativeX = result.faceLandmarks().get(0).get(1).x();
                         float noseRelativeY = result.faceLandmarks().get(0).get(1).y();
-
-                        // 應用X軸比例補償
                         float noseCorrectedX = (noseRelativeX - 0.5f) * scaleX + 0.5f;
 
                         float noseScreenX = noseCorrectedX * overlayWidth;
                         float noseScreenY = noseRelativeY * overlayHeight;
 
-                        // 🔥 計算圓圈的中心和半徑
                         float centerX = overlayWidth / 2f;
                         float centerY = overlayHeight / 2f;
                         float radius = Math.min(centerX, centerY) - 80;
 
-                        // 計算鼻尖到圓心的距離
                         float dx = noseScreenX - centerX;
                         float dy = noseScreenY - centerY;
-                        float distance = (float) Math.sqrt(dx * dx + dy * dy);
+                        boolean noseInside = (dx * dx + dy * dy) <= (radius * radius);
 
-                        // 🔥 判斷鼻尖是否在圓圈內
-                        boolean noseInside = distance <= radius;
-
-                        // 調用處理邏輯
                         handleFacePosition(noseInside);
                     }
                 });
@@ -459,10 +422,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 runOnUiThread(() -> handleFacePosition(false));
             }
         } else {
-            // 沒有檢測到人臉
             runOnUiThread(() -> {
                 overlayView.clearAllLandmarks();
-                overlayView.clearYoloResults(); // 🔥 新增：清除 YOLO 結果
+                overlayView.clearYoloResults();
                 handleFacePosition(false);
                 Log.d(TAG, "未檢測到人臉");
             });
@@ -470,100 +432,39 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     /**
-     * 🎯 處理舌頭模式：YOLO 檢測 + 記錄資料
+     * 舌頭模式：用快取好的 ROI + 節流 YOLO
      */
-    private void handleTongueMode(float[][] allPoints, Bitmap mirroredBitmap, int bitmapWidth, int bitmapHeight) {
+    private void handleTongueMode(float[][] allPoints,
+                                  Bitmap mirroredBitmap,
+                                  int bitmapWidth,
+                                  int bitmapHeight,
+                                  Rect overlayRoi,   // ← 使用快取 Overlay ROI
+                                  Rect bitmapRoi) {  // ← 使用快取 Bitmap ROI
         try {
-            if ((frameId++ % 3) != 0) {
-                return;
-            }
-            // 🔥 計算嘴部 ROI
-            //Rect mouthROI = TongueYoloDetector.calculateMouthROI(allPoints, bitmapWidth, bitmapHeight);
-            //Log.d(TAG, String.format("嘴部 ROI: %s", mouthROI.toString()));
-            // 🔥 新增：取得屏幕尺寸
+            // ★ 每 YOLO_EVERY 幀跑一次 YOLO
+            if ((frameId % YOLO_EVERY) != 0) return;
+            if (overlayRoi == null || bitmapRoi == null) return;
+
             int overlayWidth = overlayView.getWidth();
             int overlayHeight = overlayView.getHeight();
 
-            // 🔥 加入這些 Log
-            Log.d(TAG, String.format("📱 螢幕尺寸: overlay %dx%d", overlayWidth, overlayHeight));
-            Log.d(TAG, String.format("🖼️ 參數 Bitmap 尺寸: %dx%d", bitmapWidth, bitmapHeight));
-            Log.d(TAG, String.format("🖼️ mirroredBitmap 實際尺寸: %dx%d", mirroredBitmap.getWidth(), mirroredBitmap.getHeight()));
-            // 🔥 修改：用屏幕尺寸計算 ROI
-            Rect mouthROI = TongueYoloDetector.calculateMouthROI(allPoints, overlayWidth, overlayHeight);
-
-            // 🔥 新增：轉換為 Bitmap 座標
-            float scaleX = (float) mirroredBitmap.getWidth() / overlayWidth;
-            float scaleY = (float) mirroredBitmap.getHeight() / overlayHeight;
-
-            Log.d(TAG, String.format("🔄 縮放比例: %.3fx%.3f", scaleX, scaleY));
-
-            Rect bitmapROI = new Rect(
-                    (int)(mouthROI.left * scaleX),
-                    (int)(mouthROI.top * scaleY),
-                    (int)(mouthROI.right * scaleX),
-                    (int)(mouthROI.bottom * scaleY)
-            );
-
-            Log.d(TAG, String.format("📐 Bitmap ROI: %s", bitmapROI.toString()));
-
-            // 🔥 使用 YOLO 檢測舌頭（在 ROI 區域）
-            // 🔥 使用新的真實座標檢測方法
-            /*
-            TongueYoloDetector.DetectionResult result = tongueDetector.detectTongueWithRealPosition(
-                    mirroredBitmap, bitmapROI, overlayWidth, overlayHeight);
-
-            boolean tongueDetected = result.detected;
-            Rect realTongueBox = result.boundingBox;  // 這是 Bitmap（mirroredBitmap）座標
-
-            Log.d(TAG, String.format("YOLO 檢測結果: %s", tongueDetected ? "發現舌頭" : "未發現舌頭"));
-            if (tongueDetected && realTongueBox != null) {
-                Log.d(TAG, String.format("✅ 舌頭真實位置(Bitmap): %s", realTongueBox.toString()));
-            }
-
-// 將 Bitmap → Overlay 的比例換算，得到「螢幕座標」的框
-            Rect viewTongueBox = null;
-            if (tongueDetected && realTongueBox != null) {
-                int overlayW = overlayView.getWidth();
-                int overlayH = overlayView.getHeight();
-                int bitmapW  = mirroredBitmap.getWidth();
-                int bitmapH  = mirroredBitmap.getHeight();
-
-                if (overlayW > 0 && overlayH > 0 && bitmapW > 0 && bitmapH > 0) {
-                    float sx = overlayW / (float) bitmapW;
-                    float sy = overlayH / (float) bitmapH;
-
-                    viewTongueBox = new Rect(
-                            Math.round(realTongueBox.left   * sx),
-                            Math.round(realTongueBox.top    * sy),
-                            Math.round(realTongueBox.right  * sx),
-                            Math.round(realTongueBox.bottom * sy)
-                    );
-                    Log.d(TAG, String.format("🎯 舌頭位置(Overlay): %s", viewTongueBox.toString()));
-                } else {
-                    Log.w(TAG, "Overlay 或 Bitmap 尺寸為 0，略過繪製本幀");
-                }
-            }
-
-            // 將「螢幕座標」的框與 mouthROI（本來就用螢幕座標計）交給 overlayView
-            overlayView.setYoloDetectionResult(tongueDetected, result.confidence, viewTongueBox, mouthROI);
-            */
-            final Rect mouthROIFinal = mouthROI;
+            final Rect mouthROIFinal = new Rect(overlayRoi);
             final float[][] allPointsFinal = allPoints;
+            final Rect bitmapROIFinal = new Rect(bitmapRoi);
+
             cameraExecutor.execute(() -> {
-                // 1) 計時
                 long t0 = System.nanoTime();
                 TongueYoloDetector.DetectionResult result =
                         tongueDetector.detectTongueWithRealPosition(
-                                mirroredBitmap, bitmapROI, overlayWidth, overlayHeight);
+                                mirroredBitmap, bitmapROIFinal, overlayWidth, overlayHeight);
                 long t1 = System.nanoTime();
                 float inferMs = (t1 - t0) / 1_000_000f;
 
-                // 2) Bitmap → Overlay 座標
                 Rect viewTongueBox = null;
                 if (result.detected && result.boundingBox != null) {
                     float sx = overlayWidth  / (float) mirroredBitmap.getWidth();
                     float sy = overlayHeight / (float) mirroredBitmap.getHeight();
-                    Rect b = result.boundingBox; // Bitmap 座標
+                    Rect b = result.boundingBox;
                     viewTongueBox = new Rect(
                             Math.round(b.left   * sx),
                             Math.round(b.top    * sy),
@@ -572,7 +473,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     );
                 }
 
-                // 3) 讀熱狀態
+                // 每 10 秒打一行 METRICS
                 String thermalStr = "N/A";
                 try {
                     android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
@@ -591,7 +492,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     }
                 } catch (Throwable ignore) {}
 
-                // 4) 每 10 秒打一行 METRICS（避免洗版）
                 long now = System.currentTimeMillis();
                 if (firstMetricTime == 0) firstMetricTime = now;
                 long elapsed = (now - firstMetricTime) / 1000;
@@ -600,29 +500,21 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             elapsed, inferMs, result.confidence, thermalStr));
                 }
 
-                // 5) 回到主執行緒畫框（這段才是 UI 執行緒）
                 Rect finalViewTongueBox = viewTongueBox;
-                final boolean detected = result.detected;        // ← 1) 先存起來
+                final boolean detected = result.detected;
                 final float conf = result.confidence;
+
                 mainHandler.post(() -> {
-                    overlayView.setYoloDetectionResult(result.detected, result.confidence, finalViewTongueBox, mouthROIFinal);
-                    // 🔥 記錄資料（包含 YOLO 結果）
+                    overlayView.setYoloDetectionResult(detected, conf, finalViewTongueBox, mouthROIFinal);
                     if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
                         String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
                         dataRecorder.recordLandmarkData(stateString, allPointsFinal, detected);
-                        Log.d(TAG, String.format("記錄舌頭資料: %s, 關鍵點數量: %d, 舌頭: %s",
-                                stateString, allPointsFinal.length,
-                                detected ? "✓" : "✗"));
                     }
                 });
             });
 
-
-
-
         } catch (Exception e) {
             Log.e(TAG, "處理舌頭模式時發生錯誤", e);
-            // 發生錯誤時，回退到基本記錄
             if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
                 String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
                 dataRecorder.recordLandmarkData(stateString, allPoints, false);
@@ -630,26 +522,19 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 📍 處理嘴唇模式：MediaPipe 關鍵點 + 記錄資料
-     */
+    // 嘴唇模式：MediaPipe 關鍵點
     private void handleLipMode(float[][] allPoints) {
-        // 🔥 設置關鍵點到 overlayView 顯示
         overlayView.setAllFaceLandmarks(allPoints);
 
-        // 🔥 記錄關鍵點資料 (只在校正和維持狀態時記錄)
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
             String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-            dataRecorder.recordLandmarkData(stateString, allPoints,null); // 不帶 YOLO 結果
+            dataRecorder.recordLandmarkData(stateString, allPoints, null);
             Log.d(TAG, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
         }
     }
 
     private void handleFacePosition(boolean faceInside) {
-        // 🔥 如果訓練已完成，不再處理位置變化
-        if (isTrainingCompleted) {
-            return;
-        }
+        if (isTrainingCompleted) return;
 
         long currentTime = System.currentTimeMillis();
 
@@ -675,7 +560,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     }
                     overlayView.setStatus(CircleOverlayView.Status.OK);
                 } else {
-                    // 記錄已維持的時間
                     if (maintainStartTime > 0) {
                         maintainTotalTime += (currentTime - maintainStartTime);
                         maintainStartTime = 0;
@@ -697,10 +581,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateTimerDisplay();
     }
 
-    /*
-     * 開始校正的方法
-     * 看起來他只有跑通知完成的CODE，沒做別的
-     * */
     private void startCalibrationTimer() {
         cancelTimers();
         Log.d(TAG, "🟡 開始校正階段計時器");
@@ -714,7 +594,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             updateStatusDisplay();
             updateTimerDisplay();
         };
-        mainHandler.postDelayed(calibrationTimer, CALIBRATION_TIME);//隔CALIBRATION_TIME秒後執行。
+        mainHandler.postDelayed(calibrationTimer, CALIBRATION_TIME);
     }
 
     private void startMaintainTimer() {
@@ -722,15 +602,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Log.d(TAG, "🟢 開始維持階段計時器");
 
         maintainTimer = () -> {
-            // 檢查總維持時間是否達到30秒
             long currentTime = System.currentTimeMillis();
             long currentMaintainTime = maintainTotalTime;
             if (maintainStartTime > 0) {
                 currentMaintainTime += (currentTime - maintainStartTime);
             }
 
-            // 🔥 增加除錯訊息
-            if (currentMaintainTime % 5000 < 100) { // 每5秒顯示一次
+            if (currentMaintainTime % 5000 < 100) {
                 Log.d(TAG, String.format("⏱️ 維持計時檢查 - 累計時間: %d ms / %d ms (%.1f%%)",
                         currentMaintainTime, MAINTAIN_TIME_TOTAL,
                         (currentMaintainTime * 100.0 / MAINTAIN_TIME_TOTAL)));
@@ -740,15 +618,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 Log.d(TAG, "✅ 維持時間達標！訓練完成");
                 completedTraining();
             } else {
-                // 繼續檢查
                 mainHandler.postDelayed(maintainTimer, 100);
             }
         };
         mainHandler.postDelayed(maintainTimer, 100);
     }
-    /*
-     * 丟給主執行緒定期跑更新進度條
-     * */
+
     private void startProgressUpdater() {
         progressUpdater = () -> {
             updateProgressBar();
@@ -756,9 +631,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         };
         mainHandler.post(progressUpdater);
     }
-    /**
-     *中間進度條，各狀態顯示更新
-     */
+
     private void updateProgressBar() {
         if (isTrainingCompleted) {
             progressBar.setProgress(100);
@@ -787,7 +660,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 break;
 
             case OUT_OF_BOUNDS:
-                // 保持當前進度
                 break;
         }
 
@@ -822,62 +694,45 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
-    // 🔥 修改：使用 callback 的訓練完成方法
     private void completedTraining() {
         Log.d(TAG, "🎉🎉🎉 === 訓練完成！開始儲存資料 === 🎉🎉🎉");
-
-        // 標記訓練完成，停止記錄資料
         isTrainingCompleted = true;
-
-        // 停止所有計時器
         cancelTimers();
 
-        // 更新 UI
         overlayView.setStatus(CircleOverlayView.Status.OK);
-        //用來更新會跟狀態變化呼應的【提示字】
         updateStatusDisplay();
-        //用來更新跟狀態變化呼應的【時間】
         updateTimerDisplay();
 
         Toast.makeText(this, "🎉 訓練完成！\n正在儲存檔案並進行峰值分析...", Toast.LENGTH_LONG).show();
 
-        // 🔥 使用 callback 版本的儲存方法
         dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
             @Override
             public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
                 Log.d(TAG, "✅ 儲存與分析完成，準備跳轉結果頁面");
                 Log.d(TAG, String.format("📊 分析結果 - 總峰值: %d", result.totalPeaks));
-
-                // 🔥 跳轉到結果頁面
                 Intent intent = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
                 intent.putExtra("training_label", trainingLabel);
-                intent.putExtra("actual_count", result.totalPeaks);  // 🔥 真正的峰值數量
-                intent.putExtra("target_count", 4);  // 目標次數
-                intent.putExtra("training_duration", MAINTAIN_TIME_TOTAL / 1000);  // 訓練時間（秒）
+                intent.putExtra("actual_count", result.totalPeaks);
+                intent.putExtra("target_count", 4);
+                intent.putExtra("training_duration", MAINTAIN_TIME_TOTAL / 1000);
                 intent.putExtra("csv_file_name", dataRecorder.getFileName());
-
                 startActivity(intent);
-                finish();  // 關閉當前頁面
+                finish();
             }
 
             @Override
             public void onError(String error) {
                 Log.e(TAG, "❌ 儲存或分析失敗: " + error);
                 Toast.makeText(FaceCircleCheckerActivity.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
-
-                // 🔥 發生錯誤時延遲關閉
                 new Handler(Looper.getMainLooper()).postDelayed(() -> finish(), 3000);
             }
         });
     }
 
-    /*
-     * 用來更新會跟狀態變化呼應的提示文字
-     * */
     private void updateStatusDisplay() {
         if (statusText == null) return;
 
-        String text = "";
+        String text;
         if (isTrainingCompleted) {
             text = "✅ 訓練完成！\n正在進行峰值分析...";
         } else {
@@ -889,6 +744,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     text = trainingLabel + "\n請維持30秒";
                     break;
                 case OUT_OF_BOUNDS:
+                default:
                     text = "偵測到臉部超出區域\n請讓鼻尖回到圓框內，重新校正";
                     break;
             }
@@ -896,9 +752,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         statusText.setText(text);
     }
 
-    /*
-     * 用來更新跟狀態變化呼應的時間顯示
-     * */
     private void updateTimerDisplay() {
         if (timerText == null) return;
 
@@ -908,7 +761,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         long currentTime = System.currentTimeMillis();
-        String timeText = "";
+        String timeText;
 
         switch (currentState) {
             case CALIBRATING:
@@ -931,6 +784,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 break;
 
             case OUT_OF_BOUNDS:
+            default:
                 timeText = "⏱ --";
                 break;
         }
@@ -954,15 +808,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (cameraProvider != null) {
             cameraProvider.unbindAll();
         }
-
-        // 🔥 清理 YOLO 檢測器
         if (tongueDetector != null) {
             tongueDetector.release();
             tongueDetector = null;
             Log.d(TAG, "✅ YOLO 檢測器資源已清理");
         }
-
-        // 🔥 清理資料記錄器
         if (dataRecorder != null) {
             dataRecorder.clearData();
         }
