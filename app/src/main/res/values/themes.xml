@@ -14,10 +14,13 @@
         <item name="colorOnSecondary">@color/text_primary</item>                  <!-- 次色上的文字 -->
 
         <!-- ✅ Status bar color. -->
-        <item name="android:statusBarColor">@color/brand_primary_dark</item>      <!-- 狀態列顏色 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>   <!-- 狀態列顏色 -->
 
         <!-- ✅ Background (整體表面用色，非必要，但可強制全域背景色統一) -->
         <item name="android:windowBackground">@color/surface_default</item>       <!-- 全域背景色（米白） -->
+
 
         <!-- 其他可自定義項目可視需求擴充 -->
     </style>

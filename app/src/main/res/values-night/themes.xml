@@ -14,7 +14,9 @@
         <item name="colorOnSecondary">@color/text_invert</item>
 
         <!-- ✅ Status bar color -->
-        <item name="android:statusBarColor">@color/brand_primary_dark</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
 
         <!-- ✅ Background color (夜間主背景為深底) -->
         <item name="android:windowBackground">@color/surface_dark</item>

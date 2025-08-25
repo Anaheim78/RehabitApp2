@@ -1,5 +1,16 @@
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#FFDA73"/>
-    <stroke android:width="2dp" android:color="#EEA752"/>
-    <corners android:radius="16dp"/>
+<!-- res/drawable/button_login.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- 填色 -->
+    <solid android:color="#FFDA73" />
+
+    <!-- 邊框 -->
+    <stroke
+        android:width="2dp"
+        android:color="#EEA752" />
+
+    <!-- 圓角 -->
+    <corners android:radius="16dp" />
+
 </shape>
