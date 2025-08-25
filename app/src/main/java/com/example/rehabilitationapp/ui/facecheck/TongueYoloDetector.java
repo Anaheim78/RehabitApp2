@@ -34,8 +34,13 @@ public class TongueYoloDetector {
     private static final String TAG = "TongueYoloDetector";
 
     // 🔧 模型設定
-    private static final String MODEL_FILE = "tongue_yolo.tflite";
-    private static final int INPUT_SIZE = 640;
+    //640
+    //private static final String MODEL_FILE = "tongue_yolo.tflite";
+    //private static final int INPUT_SIZE = 640;
+
+    private static final int INPUT_SIZE = 320;
+    private static final String MODEL_FILE = "tongue_yolo_fp16_320.tflite"; // or fp32
+
     private static final int CHANNEL_SIZE = 3;
     private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.2f;
 
@@ -67,6 +72,8 @@ public class TongueYoloDetector {
     private GpuDelegate gpuDelegate = null;
     private  NnApiDelegate nnApiDelegate = null;
     private String backend = "CPU";  // 用來在 logcat 顯示實際跑哪個後端
+
+    private int numDet ;
 
 
 
@@ -138,8 +145,23 @@ public class TongueYoloDetector {
             }
 
             // 建好後再配置 buffer
-            inputBuffer = ByteBuffer.allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * CHANNEL_SIZE).order(ByteOrder.nativeOrder());
-            outputBuffer = new float[1][8][8400];
+            //inputBuffer = ByteBuffer.allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * CHANNEL_SIZE).order(ByteOrder.nativeOrder());
+            //outputBuffer = new float[1][8][8400];
+
+            // 建好 tflite 後再配置 buffer
+            inputBuffer = ByteBuffer
+                    .allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * CHANNEL_SIZE)
+                    .order(ByteOrder.nativeOrder());
+
+// 依模型實際輸出 shape 配置輸出緩衝區
+            int[] outShape = tflite.getOutputTensor(0).shape(); // [1, 8, N]
+            numDet = (outShape.length >= 3) ? outShape[2] : 8400; // 保險用
+            outputBuffer = new float[outShape[0]][outShape[1]][numDet];
+            numDet = outputBuffer[0][0].length;
+
+            Log.d(TAG, "✅ 緩衝區初始化完成，backend=" + backend +
+                    ", input=" + INPUT_SIZE + "x" + INPUT_SIZE +
+                    ", numDet=" + numDet);
 
             Log.d(TAG, "✅ 緩衝區初始化完成，backend=" + backend);
 
@@ -296,14 +318,14 @@ public class TongueYoloDetector {
 
         // 🔥 在這裡加入您的測試代碼
         float maxProb = 0;
-        for (int i = 0; i < 8400; i++) {
+        for (int i = 0; i < numDet; i++) {
             maxProb = Math.max(maxProb, outputBuffer[0][7][i]);
         }
         Log.d(TAG, "最高舌頭概率: " + maxProb);
         // 🔥 測試代碼結束
 
         // 🔍 遍歷所有 8400 個檢測點
-        for (int i = 0; i < 8400; i++) {
+        for (int i = 0; i < numDet; i++) {
             float tongueProb = outputBuffer[0][7][i]; // 舌頭概率
             float width = outputBuffer[0][2][i];      // 寬度
             float height = outputBuffer[0][3][i];     // 高度
@@ -525,7 +547,7 @@ public class TongueYoloDetector {
         float bestProb = 0f;
 
         // 1) 找舌頭最大機率的框（類別=舌頭，在你模型是 channel index 7）
-        for (int i = 0; i < 8400; i++) {
+        for (int i = 0; i < numDet; i++) {
             float prob = outputBuffer[0][7][i];
             float wN = outputBuffer[0][2][i];
             float hN = outputBuffer[0][3][i];

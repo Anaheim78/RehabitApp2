@@ -50,11 +50,11 @@ public class HomeFragment extends Fragment {
 
         int[] imageIds = {
                 R.drawable.cheeks, R.drawable.cheeks_reduction, R.drawable.pout_lips,
-                R.drawable.sip_lips, R.drawable.tongueright, R.drawable.tongueleft
+                R.drawable.sip_lips, R.drawable.tongueright, R.drawable.jaw_left
         };
         String[] labels = {
                 "鼓頰", "縮頰", "嘟嘴",
-                "抿嘴", "舌頭", "向右伸舌"
+                "抿嘴", "舌頭", "下顎"
         };
 
 
