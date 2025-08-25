@@ -2,6 +2,7 @@ package com.example.rehabilitationapp;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
@@ -49,12 +50,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupNavigation() {
+        //可以設定監聽
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
         appBarConfiguration = new AppBarConfiguration.Builder(
                 R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications)
                 .build();
         NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
         NavigationUI.setupWithNavController(binding.navView, navController);
+
+        // 👇 在這裡加監聽
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            if (destination.getId() == R.id.loginFragment) {
+                binding.navView.setVisibility(View.GONE);
+                getSupportActionBar().hide();
+            } else {
+                binding.navView.setVisibility(View.VISIBLE);
+                getSupportActionBar().show();
+            }
+        });
     }
 
     private void setupAutoWindowInsets() {

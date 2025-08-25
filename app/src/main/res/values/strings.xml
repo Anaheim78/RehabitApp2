@@ -4,4 +4,8 @@
     <string name="title_plan">Plan</string>
     <string name="title_dashboard">Dashboard</string>
     <string name="title_notifications">Notifications</string>
+
+    <string name="login_id">ID</string>
+    <string name="login_password">Password</string>
+    <string name="login_login">登入</string>
 </resources>

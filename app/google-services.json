@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "184591192638",
+    "project_id": "rehabilitaionappv2",
+    "storage_bucket": "rehabilitaionappv2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:184591192638:android:834625decfe89d7f1db76f",
+        "android_client_info": {
+          "package_name": "com.example.rehabilitationappv2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9F1NkjMTe8nYM9J_0Rdpk9p-mk4jR0pQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

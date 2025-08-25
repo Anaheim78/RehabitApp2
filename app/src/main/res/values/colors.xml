@@ -40,4 +40,9 @@
     <color name="button_primary">#5FB4A0</color>
     <color name="button_primary_pressed">#4A9B87</color>
 
+    <!-- ✅ UX登入頁功能按鈕色 -->
+    <color name="button_bg">#FFDA73</color>
+    <color name="button_border">#EEA752</color>
+
+
 </resources>

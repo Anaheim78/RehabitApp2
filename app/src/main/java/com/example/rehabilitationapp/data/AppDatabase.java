@@ -9,18 +9,21 @@ import androidx.room.RoomDatabase;
 
 import com.example.rehabilitationapp.data.dao.TrainingItemDao;
 import com.example.rehabilitationapp.data.dao.TrainingPlanDao;
+import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.PlanItemCrossRef;
 import com.example.rehabilitationapp.data.model.Preload;
 import com.example.rehabilitationapp.data.model.TrainingItem;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
+import com.example.rehabilitationapp.data.model.User;
 
 @Database(
         entities = {
                 TrainingItem.class,
                 TrainingPlan.class,
-                PlanItemCrossRef.class
+                PlanItemCrossRef.class,
+                User.class
         },
-        version = 1
+        version = 2
 )
 public abstract class AppDatabase extends RoomDatabase {
     private static final String DB_DEBUG_TAG = "DB_DEBUG_TAG";
@@ -28,6 +31,7 @@ public abstract class AppDatabase extends RoomDatabase {
 
     public abstract TrainingItemDao trainingItemDao();
     public abstract TrainingPlanDao trainingPlanDao();
+    public abstract UserDao userDao();
 
     public static AppDatabase getInstance(Context context) {
         Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
