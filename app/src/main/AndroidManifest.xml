@@ -46,6 +46,15 @@
         <activity
             android:name=".ui.debug.DebugPeakVisualizationActivity"
             android:exported="false" />
+
+        <!-- 個人設定與修改的2個Activity -->
+        <activity android:name=".EditProfileActivity" />
+        <activity android:name=".ProfileActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
