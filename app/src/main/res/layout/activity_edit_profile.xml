@@ -34,6 +34,34 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <!-- Row：ID -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="72dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:text="ID"
+                android:textColor="@android:color/black"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tvIdReadonly"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_field_input"
+                android:paddingHorizontal="8dp"
+                android:text="Tmutmu"
+                android:textColor="@android:color/black"
+                android:textSize="14sp"/>
+        </LinearLayout>
+
         <!-- Row：Email -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -41,7 +69,6 @@
             android:orientation="horizontal"
             android:layout_marginTop="12dp">
 
-            <!-- Label (純黑字，無白塊) -->
             <TextView
                 android:layout_width="72dp"
                 android:layout_height="wrap_content"
@@ -50,7 +77,6 @@
                 android:textColor="@android:color/black"
                 android:textSize="16sp" />
 
-            <!-- Input 白框 -->
             <EditText
                 android:id="@+id/etEmail"
                 android:layout_width="0dp"
@@ -119,7 +145,7 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Row：性別（滑塊） -->
+        <!-- Row：性別 滑塊 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -134,7 +160,6 @@
                 android:textColor="@android:color/black"
                 android:textSize="16sp" />
 
-            <!-- Segment 外框 -->
             <FrameLayout
                 android:id="@+id/genderSegment"
                 android:layout_width="0dp"
@@ -143,17 +168,13 @@
                 android:layout_marginStart="12dp"
                 android:background="@drawable/segment_track">
 
-                <!-- Thumb 滑塊 -->
                 <View
                     android:id="@+id/genderThumb"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_gravity="start"
                     android:background="@drawable/segment_thumb" />
 
-                <!-- 左右文字 -->
                 <LinearLayout
-                    android:id="@+id/genderLabels"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:orientation="horizontal"
@@ -181,6 +202,71 @@
                 </LinearLayout>
             </FrameLayout>
         </LinearLayout>
+
+        <!-- 標籤：介面風格 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:text="介面風格"
+            android:textColor="@android:color/black"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Row：介面風格 滑塊 -->
+        <FrameLayout
+            android:id="@+id/styleSegment"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/segment_track">
+
+            <View
+                android:id="@+id/styleThumb"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/segment_thumb" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:weightSum="2">
+
+                <TextView
+                    android:id="@+id/tvStyleOption1"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="男生"
+                    android:textColor="@android:color/black"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvStyleOption2"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="女生"
+                    android:textColor="@android:color/black"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- 加入日期 -->
+        <TextView
+            android:id="@+id/tvJoinDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="加入日期：2025/08/05"
+            android:textColor="@android:color/black"
+            android:textSize="14sp" />
+
     </LinearLayout>
 
     <!-- 底部確認按鈕 -->
