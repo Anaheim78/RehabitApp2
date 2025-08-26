@@ -4,69 +4,174 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:paddingTop="0dp">
-<!-- 主活動共用框架，含導航 -->
+    android:layout_height="match_parent">
 
-    <!--
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/nav_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="0dp"
-        android:layout_marginEnd="0dp"
-        android:background="?android:attr/windowBackground"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:itemIconTint="@null"
-        app:itemTextColor="@null"
-        app:menu="@menu/bottom_nav_menu" />
-
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/nav_view"
-        style="@style/App.BottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?android:attr/windowBackground"
-        app:itemIconSize="32dp"
-        app:menu="@menu/bottom_nav_menu"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:itemIconTint="@null"
-        app:itemTextColor="@null"
-        app:itemBackground="@null"
-        app:itemRippleColor="@null"
-        /> -->
-
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/nav_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@android:color/white"
-        app:itemIconSize="32dp"
-        app:menu="@menu/bottom_nav_menu"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:itemIconTint="@null"
-        app:itemTextColor="@null"
-        app:itemBackground="@android:color/transparent"
-        app:itemRippleColor="@android:color/transparent"
-        app:labelVisibilityMode="labeled"
-        style="@style/Widget.MaterialComponents.BottomNavigationView" />
-
-    <fragment
+    <!-- Fragment 容器（上半部畫面） -->
+    <FrameLayout
         android:id="@+id/nav_host_fragment_activity_main"
-        android:name="androidx.navigation.fragment.NavHostFragment"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:defaultNavHost="true"
-        app:layout_constraintBottom_toTopOf="@id/nav_view"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
+        android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
-        app:navGraph="@navigation/mobile_navigation" />
+        app:layout_constraintBottom_toTopOf="@+id/custom_nav" />
+
+    <!-- 白色大橢圓背景（設計師 SVG） -->
+    <!-- 高度用你 Figma 標的 109dp；寬度配合螢幕拉伸 -->
+    <ImageView
+        android:id="@+id/bottom_oval_bg"
+        android:layout_width="match_parent"
+        android:layout_height="109dp"
+        android:src="@drawable/bg_nav_circle_bar_nav"
+        android:scaleType="fitXY"
+        android:adjustViewBounds="true"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- 自訂底部導航（覆蓋在橢圓上方） -->
+    <LinearLayout
+        android:id="@+id/custom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="109dp"
+        android:orientation="horizontal"
+        android:background="@android:color/transparent"
+        android:gravity="center"
+        android:paddingStart="55dp"
+        android:paddingEnd="30dp"
+        android:paddingTop="35dp"
+        android:paddingBottom="14dp"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <!-- Home Tab -->
+        <FrameLayout
+            android:id="@+id/tab_home"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/icon_home"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/nav_home_icon_selector"
+                    android:contentDescription="@string/title_home" />
+
+                <TextView
+                    android:id="@+id/text_home"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="首頁"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Plan Tab -->
+        <FrameLayout
+            android:id="@+id/tab_plan"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/icon_plan"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/nav_plan_icon_selector"
+                    android:contentDescription="Plan" />
+
+                <TextView
+                    android:id="@+id/text_plan"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="計畫"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Record Tab -->
+        <FrameLayout
+            android:id="@+id/tab_record"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/icon_record"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/nav_record_icon_selector"
+                    android:contentDescription="Record" />
+
+                <TextView
+                    android:id="@+id/text_record"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="紀錄"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Setting Tab -->
+        <FrameLayout
+            android:id="@+id/tab_setting"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/icon_setting"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/nav_setting_icon_selector"
+                    android:contentDescription="Setting" />
+
+                <TextView
+                    android:id="@+id/text_setting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="設定"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

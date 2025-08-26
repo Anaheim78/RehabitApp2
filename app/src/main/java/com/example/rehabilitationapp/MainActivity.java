@@ -1,136 +1,86 @@
 package com.example.rehabilitationapp;
 
 import android.os.Bundle;
-import android.util.Log;
-import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
-import androidx.navigation.ui.AppBarConfiguration;
-import androidx.navigation.ui.NavigationUI;
-import com.example.rehabilitationapp.databinding.ActivityMainBinding;
-import com.example.rehabilitationapp.data.AppDatabase;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 
+import com.example.rehabilitationapp.ui.home.HomeFragment;
+import com.example.rehabilitationapp.ui.notifications.NotificationsFragment;
+import com.example.rehabilitationapp.ui.plan.PlanFragment;
+import com.example.rehabilitationapp.ui.setting.SettingFragment;
 
 public class MainActivity extends AppCompatActivity {
 
-    private AppBarConfiguration appBarConfiguration;
-    private ActivityMainBinding binding;
+    // tab 容器
+    private FrameLayout tabHome, tabPlan, tabRecord, tabSetting;
+
+    // icon
+    private ImageView iconHome, iconPlan, iconRecord, iconSetting;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d("DB_DEBUG_TAG", "=== 1. MainActivity onCreate started ===");
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        setContentView(R.layout.activity_main);
 
-        // 設置 Navigation
-        setupNavigation();
+        // 綁定元件（容器）
+        tabHome   = findViewById(R.id.tab_home);
+        tabPlan   = findViewById(R.id.tab_plan);
+        tabRecord = findViewById(R.id.tab_record);
+        tabSetting= findViewById(R.id.tab_setting);
 
-        // 讓系統自動處理窗口插入
-        setupAutoWindowInsets();
+        // 綁定元件（圖示）
+        iconHome   = findViewById(R.id.icon_home);
+        iconPlan   = findViewById(R.id.icon_plan);
+        iconRecord = findViewById(R.id.icon_record);
+        iconSetting= findViewById(R.id.icon_setting);
 
-        try {
-            Log.d("DB_DEBUG_TAG", "=== 2. Calling AppDatabase.getInstance ===");
-            AppDatabase db = AppDatabase.getInstance(this);
-            Log.d("DB_DEBUG_TAG", "=== 3. AppDatabase.getInstance returned: " + (db != null) + " ===");
+        // 預設顯示 Home
+        switchFragment(new HomeFragment());
+        selectTab(R.id.tab_home);
 
-            // 額外檢查
-            if (db != null) {
-                Log.d("DB_DEBUG_TAG", "=== 4. Database object created successfully ===");
-            }
-        } catch (Exception e) {
-            Log.e("DB_DEBUG_TAG", "=== ERROR: " + e.getMessage() + " ===");
-            e.printStackTrace();
-        }
+        // 點擊事件
+        tabHome.setOnClickListener(v -> {
+            switchFragment(new HomeFragment());
+            selectTab(R.id.tab_home);
+        });
 
+        tabPlan.setOnClickListener(v -> {
+            switchFragment(new PlanFragment());
+            selectTab(R.id.tab_plan);
+        });
+
+        tabRecord.setOnClickListener(v -> {
+            switchFragment(new NotificationsFragment());
+            selectTab(R.id.tab_record);
+        });
+
+        tabSetting.setOnClickListener(v -> {
+            switchFragment(new SettingFragment());
+            selectTab(R.id.tab_setting);
+        });
     }
 
-    private void setupNavigation() {
-        //可以設定監聽
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
-        appBarConfiguration = new AppBarConfiguration.Builder(
-                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_setting)
-                .build();
-        NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
-        NavigationUI.setupWithNavController(binding.navView, navController);
-
-        // 👇 在這裡加監聽
-        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
-            if (destination.getId() == R.id.loginFragment) {
-                binding.navView.setVisibility(View.GONE);
-                getSupportActionBar().hide();
-            } else {
-                binding.navView.setVisibility(View.VISIBLE);
-                getSupportActionBar().show();
-            }
-        });
-
-        binding.navView.setItemBackground(null);
-
-        // 強制移除所有背景效果
-        binding.navView.post(() -> {
-            binding.navView.setItemBackground(null);
-            binding.navView.setItemBackgroundResource(0);
-
-            // 如果有 Material 3 的 indicator，也要移除
-            try {
-                binding.navView.setItemActiveIndicatorEnabled(false);
-            } catch (Exception e) {
-                // 忽略錯誤，可能是舊版本
-            }
-        });
-        binding.navView.post(() -> {
-            try {
-                // 反射移除背景
-                binding.navView.getClass().getMethod("setItemActiveIndicatorEnabled", boolean.class)
-                        .invoke(binding.navView, false);
-            } catch (Exception ignored) {}
-
-            // 強制設定透明
-            binding.navView.setBackgroundTintList(null);
-        });
-
+    /** 切換 Fragment */
+    private void switchFragment(Fragment fragment) {
+        FragmentTransaction tx = getSupportFragmentManager().beginTransaction();
+        tx.replace(R.id.nav_host_fragment_activity_main, fragment);
+        tx.commit();
     }
 
-    private void setupAutoWindowInsets() {
-        // 為整個根視圖設置自動窗口插入處理
-        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, windowInsets) -> {
-            // 讓系統自動處理狀態欄
-            int topInset = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
-            view.setPadding(0, topInset, 0, 0);
+    /** 切換 Tab 選中狀態（會觸發 selector） */
+    private void selectTab(int tabId) {
+        iconHome.setSelected(false);
+        iconPlan.setSelected(false);
+        iconRecord.setSelected(false);
+        iconSetting.setSelected(false);
 
-            return windowInsets;
-        });
-
-        // 為 Fragment 容器設置底部窗口插入處理
-        ViewCompat.setOnApplyWindowInsetsListener(
-                findViewById(R.id.nav_host_fragment_activity_main),
-                (view, windowInsets) -> {
-                    // 獲取系統導航欄高度
-                    int bottomInset = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
-
-                    // 獲取 Bottom Navigation 的高度
-                    binding.navView.post(() -> {
-                        int navViewHeight = binding.navView.getHeight();
-                        // 設置 Fragment 容器的底部內邊距 = 系統導航欄高度
-                        // ConstraintLayout 已經處理了 Bottom Navigation，所以只需要處理系統導航欄
-                        view.setPadding(0, 0, 0, bottomInset);
-                    });
-
-                    // 消費掉這個窗口插入，不讓子視圖再處理
-                    return WindowInsetsCompat.CONSUMED;
-                }
-        );
-    }
-
-    @Override
-    public boolean onSupportNavigateUp() {
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
-        return NavigationUI.navigateUp(navController, appBarConfiguration)
-                || super.onSupportNavigateUp();
+        if (tabId == R.id.tab_home)       iconHome.setSelected(true);
+        else if (tabId == R.id.tab_plan)  iconPlan.setSelected(true);
+        else if (tabId == R.id.tab_record)iconRecord.setSelected(true);
+        else if (tabId == R.id.tab_setting) iconSetting.setSelected(true);
     }
 }

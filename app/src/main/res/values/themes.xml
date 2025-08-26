@@ -1,7 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Base application theme. -->
-    <style name="Theme.RehabilitationApp" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+    <style name="Theme.RehabilitationApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
 
         <!-- ✅ Primary brand color. -->
         <item name="colorPrimary">@color/brand_primary</item>                     <!-- 主色 -->
@@ -25,5 +25,7 @@
         <!-- 其他可自定義項目可視需求擴充 -->
 
     </style>
+
+
 
 </resources>
