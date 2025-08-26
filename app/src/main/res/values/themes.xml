@@ -21,7 +21,8 @@
         <!-- ✅ Background (整體表面用色，非必要，但可強制全域背景色統一) -->
         <item name="android:windowBackground">@color/surface_default</item>       <!-- 全域背景色（米白） -->
 
-
+        <item name="android:colorControlNormal">@null</item>
+        <item name="android:colorControlActivated">@null</item>
         <!-- 其他可自定義項目可視需求擴充 -->
     </style>
 

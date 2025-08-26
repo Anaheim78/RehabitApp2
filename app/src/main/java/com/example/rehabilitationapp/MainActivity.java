@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
         //可以設定監聽
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
         appBarConfiguration = new AppBarConfiguration.Builder(
-                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications)
+                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_setting)
                 .build();
         NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
         NavigationUI.setupWithNavController(binding.navView, navController);

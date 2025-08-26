@@ -9,6 +9,8 @@
     <color name="teal_700">#018786</color>
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
+    <color name="orange">#EEA752</color>
+
 
     <!-- ✅ 品牌色系（主湖綠清新，避免高對比與 burn-in） -->
     <color name="brand_primary">#60B4A3</color>              <!-- 主色（湖綠） -->

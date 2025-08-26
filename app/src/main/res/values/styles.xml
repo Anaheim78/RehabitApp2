@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="App.BottomNav" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="itemIconTint">@null</item>
+        <item name="itemTextColor">@null</item>
+
+        <!-- 關掉 ripple 水波紋 -->
+        <item name="itemRippleColor">@android:color/transparent</item>
+
+        <!-- 關掉膠囊色塊（activeIndicator） -->
+        <item name="itemActiveIndicatorStyle">@style/TransparentIndicator</item>
+    </style>
+
+    <style name="TransparentIndicator">
+        <item name="android:color">@android:color/transparent</item>
+    </style>
+
+</resources>
