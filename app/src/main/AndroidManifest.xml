@@ -48,8 +48,14 @@
             android:exported="false" />
 
         <!-- 個人設定與修改的2個Activity -->
-        <activity android:name=".EditProfileActivity" />
-        <activity android:name=".ProfileActivity">
+        <!-- 個人設定與修改的2個Activity -->
+        <activity
+            android:name=".ui.setting.EditProfileActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.setting.ProfileActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

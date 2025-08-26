@@ -1,9 +1,12 @@
 package com.example.rehabilitationapp.ui.setting;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -13,15 +16,20 @@ import com.example.rehabilitationapp.R;
 
 public class SettingFragment extends Fragment {
 
-    public SettingFragment() {
-        // Required empty public constructor
-    }
+    public SettingFragment() { super(R.layout.fragment_setting); }
 
-    @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
-        // 指定這個 Fragment 要顯示的畫面（對應 fragment_profile.xml）
-        return inflater.inflate(R.layout.fragment_setting, container, false);
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        Button btn = view.findViewById(R.id.btnEditProfile);
+        TextView tvUserId = view.findViewById(R.id.tvUserId);
+
+        btn.setOnClickListener(v -> {
+            String raw = tvUserId != null ? tvUserId.getText().toString() : "";
+            String userId = raw.replace("ID:", "").trim();
+
+            Intent i = new Intent(requireContext(), EditProfileActivity.class);
+            i.putExtra("EXTRA_USER_ID", userId);
+            startActivity(i);
+        });
     }
 }

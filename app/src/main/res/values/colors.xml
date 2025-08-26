@@ -47,4 +47,15 @@
     <color name="button_border">#EEA752</color>
 
 
+        <!-- setting/profile 色票 -->
+        <color name="bg_top">#FFFBEA</color>
+        <color name="bg_bottom">#FFD17C</color>
+
+        <color name="accent_yellow">#FFDA73</color>
+        <color name="accent_yellow_border">#EEA752</color>
+
+        <color name="field_bg">#FFFFFFFF</color>
+        <color name="field_border">#40000000</color> <!-- 25% 黑做描邊 -->
+
+
 </resources>
