@@ -38,7 +38,7 @@ public class ProfileActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_profile);
+        //setContentView(R.layout.activity_profile);
 
         tvUserId = findViewById(R.id.tvUserId);
         tvEmail = findViewById(R.id.tvEmail);
@@ -52,7 +52,7 @@ public class ProfileActivity extends AppCompatActivity {
             String raw = tvUserId.getText().toString();
             String userId = raw.replace("ID:", "").trim();
 
-            Intent intent = new Intent(ProfileActivity.this, EditProfileActivity.class);
+            Intent intent = new Intent(ProfileActivity.this, com.example.rehabilitationapp.ui.setting.EditProfileActivity.class);
             intent.putExtra(EXTRA_USER_ID, userId);
             // 你也可以把目前值都帶去預填
             intent.putExtra("EXTRA_EMAIL", tvEmail.getText().toString().replace("e-mail:","").trim());

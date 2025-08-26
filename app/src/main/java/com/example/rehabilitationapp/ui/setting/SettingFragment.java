@@ -27,7 +27,7 @@ public class SettingFragment extends Fragment {
             String raw = tvUserId != null ? tvUserId.getText().toString() : "";
             String userId = raw.replace("ID:", "").trim();
 
-            Intent i = new Intent(requireContext(), EditProfileActivity.class);
+            Intent i = new Intent(requireContext(), com.example.rehabilitationapp.ui.setting.EditProfileActivity.class);
             i.putExtra("EXTRA_USER_ID", userId);
             startActivity(i);
         });

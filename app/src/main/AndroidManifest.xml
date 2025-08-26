@@ -49,10 +49,10 @@
 
         <!-- 個人設定與修改的2個Activity -->
         <!-- 個人設定與修改的2個Activity -->
-        <activity
-            android:name=".ui.setting.EditProfileActivity"
-            android:exported="false" />
 
+
+        <activity android:name=".ui.setting.EditProfileActivity"
+            android:exported="false"/>
         <activity
             android:name=".ui.setting.ProfileActivity"
             android:exported="true">
