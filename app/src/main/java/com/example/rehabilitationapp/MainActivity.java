@@ -68,6 +68,32 @@ public class MainActivity extends AppCompatActivity {
                 getSupportActionBar().show();
             }
         });
+
+        binding.navView.setItemBackground(null);
+
+        // 強制移除所有背景效果
+        binding.navView.post(() -> {
+            binding.navView.setItemBackground(null);
+            binding.navView.setItemBackgroundResource(0);
+
+            // 如果有 Material 3 的 indicator，也要移除
+            try {
+                binding.navView.setItemActiveIndicatorEnabled(false);
+            } catch (Exception e) {
+                // 忽略錯誤，可能是舊版本
+            }
+        });
+        binding.navView.post(() -> {
+            try {
+                // 反射移除背景
+                binding.navView.getClass().getMethod("setItemActiveIndicatorEnabled", boolean.class)
+                        .invoke(binding.navView, false);
+            } catch (Exception ignored) {}
+
+            // 強制設定透明
+            binding.navView.setBackgroundTintList(null);
+        });
+
     }
 
     private void setupAutoWindowInsets() {

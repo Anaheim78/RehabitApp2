@@ -1,0 +1,5 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <size android:width="32dp" android:height="32dp"/>
+    <corners android:radius="10dp"/>
+    <solid android:color="#49A88A"/>  <!-- ✅ 選中：綠色 -->
+</shape>

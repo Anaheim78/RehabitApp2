@@ -13,7 +13,7 @@
 
 
     <!-- ✅ 品牌色系（主湖綠清新，避免高對比與 burn-in） -->
-    <color name="brand_primary">#60B4A3</color>              <!-- 主色（湖綠） -->
+    <color name="brand_primary">#FFDA73</color>              <!-- 主色（湖綠） -->
     <color name="brand_secondary">#C8E1DA</color>            <!-- 次色（淡湖綠） -->
     <color name="brand_primary_dark">#4A9B87</color>         <!-- 深色變體（for status bar、按下時） -->
     <color name="brand_primary_light">#B8D5CE</color>        <!-- 淡色變體（卡片底色等） -->
