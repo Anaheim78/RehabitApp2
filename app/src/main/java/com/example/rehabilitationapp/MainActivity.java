@@ -7,7 +7,7 @@ import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
-
+import com.example.rehabilitationapp.ui.login.LoginFragment;
 import com.example.rehabilitationapp.ui.home.HomeFragment;
 import com.example.rehabilitationapp.ui.notifications.NotificationsFragment;
 import com.example.rehabilitationapp.ui.plan.PlanFragment;
@@ -27,6 +27,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         // 綁定元件（容器）
+
+
         tabHome   = findViewById(R.id.tab_home);
         tabPlan   = findViewById(R.id.tab_plan);
         tabRecord = findViewById(R.id.tab_record);
@@ -38,9 +40,10 @@ public class MainActivity extends AppCompatActivity {
         iconRecord = findViewById(R.id.icon_record);
         iconSetting= findViewById(R.id.icon_setting);
 
-        // 預設顯示 Home
+        //預設顯示 Home
         switchFragment(new HomeFragment());
         selectTab(R.id.tab_home);
+
 
         // 點擊事件
         tabHome.setOnClickListener(v -> {

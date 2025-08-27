@@ -10,8 +10,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/mobile_navigation"
-    app:startDestination="@id/navigation_home">
-    <!--app:startDestination="@id/loginFragment">要登入再改回來-->
+    app:startDestination="@id/loginFragment">
+    <!--app:startDestination="@id/navigation_home">要登入再改回來-->
 
     <fragment
         android:id="@+id/loginFragment"

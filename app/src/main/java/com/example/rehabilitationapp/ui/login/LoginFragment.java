@@ -1,6 +1,5 @@
 package com.example.rehabilitationapp.ui.login;
 
-import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -18,8 +17,8 @@ import androidx.navigation.Navigation;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
-import com.example.rehabilitationapp.data.model.User;
 import com.example.rehabilitationapp.data.dao.UserDao;
+import com.example.rehabilitationapp.data.model.User;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -72,14 +71,18 @@ public class LoginFragment extends Fragment {
                                     ? doc.getLong("createdAt") : System.currentTimeMillis();
                             String createdAtFormatted = doc.getString("createdAtFormatted");
 
-                            // 存到 Room
-                            User user = new User();
-                            user.userId = id;
-                            user.password = password;
-                            user.createdAt = createdAt;
-                            user.createdAtFormatted = createdAtFormatted;
-
-                            new Thread(() -> userDao.insert(user)).start();
+                            // 存到 Room（先檢查是否存在）
+                            new Thread(() -> {
+                                User existing = userDao.getUserById(id);  // <-- 你需要在 UserDao 定義這個查詢
+                                if (existing == null) {
+                                    User user = new User();
+                                    user.userId = id;
+                                    user.password = password;
+                                    user.createdAt = createdAt;
+                                    user.createdAtFormatted = createdAtFormatted;
+                                    userDao.insert(user);
+                                }
+                            }).start();
 
                             // 導航到首頁，清掉 LoginFragment
                             NavController navController = Navigation.findNavController(view);
