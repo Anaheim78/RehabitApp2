@@ -20,69 +20,105 @@ public class SettingFragment extends Fragment {
 
     public SettingFragment() { super(R.layout.fragment_setting); }
 
+    // === Views ===
+    private Button btnEditProfile;
+    private TextView tvUserId, tvEmail, tvName, tvBirthday, tvGender, tvJoinDate;
+    private View segmentUi, thumbUi;
+
+    // === DB ===
+    private UserDao userDao;
+
+    // === State ===
+    private String currentUserId;
+
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        Button btn = view.findViewById(R.id.btnEditProfile);
-        TextView tvUserId = view.findViewById(R.id.tvUserId);
-        TextView tvEmail  = view.findViewById(R.id.tvEmail);
+        // ---- Bind views ----
+        btnEditProfile = view.findViewById(R.id.btnEditProfile);
 
-        // 滑塊
-        View thumbUi = view.findViewById(R.id.thumbUi);
+        tvUserId   = view.findViewById(R.id.tvUserId);
+        tvEmail    = view.findViewById(R.id.tvEmail);
+        tvName     = view.findViewById(R.id.tvName);
+        tvBirthday = view.findViewById(R.id.tvBirthday);
+        tvGender   = view.findViewById(R.id.tvGender);
+        tvJoinDate = view.findViewById(R.id.tvJoinDate);
 
-        // DB
-        final AppDatabase db = AppDatabase.getInstance(requireContext());
-        final UserDao userDao = db.userDao();
+        segmentUi  = view.findViewById(R.id.segmentUi);
+        thumbUi    = view.findViewById(R.id.thumbUi);
 
-        // 存當前登入 userId
-        final String[] currentUserId = { null };
+        // ---- DB ----
+        userDao = AppDatabase.getInstance(requireContext()).userDao();
 
-        new Thread(() -> {
-            User me = userDao.findLoggedInOne(); // 你在 UserDao 要有這個查詢
+        // ---- 初次載入 ----
+        loadUserAndUpdateUI();
 
-            if (me != null) {
-                currentUserId[0] = me.userId;
+        // ---- 進入編輯 ----
+        btnEditProfile.setOnClickListener(v -> {
+            // 以防 currentUserId 還沒載完，這裡再保險查一次
+            new Thread(() -> {
+                String uid = currentUserId;
+                if (uid == null || uid.isEmpty()) {
+                    User me = userDao.findLoggedInOne();
+                    if (me != null) uid = me.userId;
+                }
+                if (uid == null) return;
 
+                final String finalUid = uid;
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
-                    // 更新畫面顯示
-                    tvUserId.setText("ID: " + me.userId);
-                    if (tvEmail != null && me.email != null) {
-                        tvEmail.setText("e-mail: " + me.email);
-                    }
-
-                    // UI Style → 黃色滑塊位置
-                    if (thumbUi != null) {
-                        // 先取父容器寬度（segmentUi 寬度會在 layout 完成後才知道）
-                        thumbUi.post(() -> {
-                            View segment = view.findViewById(R.id.segmentUi);
-                            if (segment != null) {
-                                int segmentWidth = segment.getWidth();
-                                int half = segmentWidth / 2;
-
-                                ViewGroup.LayoutParams lp = thumbUi.getLayoutParams();
-                                lp.width = half;
-                                thumbUi.setLayoutParams(lp);
-
-                                if ("F".equalsIgnoreCase(me.uiStyle)) {
-                                    // 女生 → 放右邊
-                                    thumbUi.setX(half);
-                                } else {
-                                    // 預設男生 → 放左邊
-                                    thumbUi.setX(0);
-                                }
-                            }
-                        });
-                    }
+                    Intent i = new Intent(requireContext(), EditProfileActivity.class);
+                    i.putExtra("EXTRA_USER_ID", finalUid);
+                    startActivity(i);
                 });
-            }
-        }).start();
-
-        // 「修改個人資料」
-        btn.setOnClickListener(v -> {
-            Intent i = new Intent(requireContext(), EditProfileActivity.class);
-            i.putExtra("EXTRA_USER_ID", currentUserId[0]);
-            startActivity(i);
+            }).start();
         });
     }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 從 Edit 回來會走這裡 → 再刷一次
+        loadUserAndUpdateUI();
+    }
+
+    /** 從 DB 載入目前登入使用者，並更新整個畫面 */
+    private void loadUserAndUpdateUI() {
+        new Thread(() -> {
+            User me = userDao.findLoggedInOne();
+            if (me == null || !isAdded()) return;
+
+            currentUserId = me.userId;
+
+            requireActivity().runOnUiThread(() -> {
+                // ---- 文字欄位 ----
+                tvUserId.setText("ID: " + nz(me.userId));
+                if (me.email != null)     tvEmail.setText("e-mail: " + me.email);
+                if (me.name != null)      tvName.setText("姓名：" + me.name);
+                if (me.birthday != null)  tvBirthday.setText("生日：" + me.birthday);
+                tvGender.setText("性別：" + ("F".equalsIgnoreCase(me.gender) ? "女" : "男"));
+                if (me.createdAtFormatted != null)
+                    tvJoinDate.setText("加入日期：" + me.createdAtFormatted);
+
+                // ---- UI Style 滑塊 ----
+                if (segmentUi != null && thumbUi != null) {
+                    // 等 segment 量到寬度後再設定 thumb
+                    segmentUi.post(() -> {
+                        int segmentWidth = segmentUi.getWidth();
+                        int half = segmentWidth / 2;
+
+                        ViewGroup.LayoutParams lp = thumbUi.getLayoutParams();
+                        lp.width = half;
+                        thumbUi.setLayoutParams(lp);
+
+                        // "F" → 右側；預設 "M" → 左側
+                        thumbUi.setX("F".equalsIgnoreCase(me.uiStyle) ? half : 0);
+                    });
+                }
+            });
+        }).start();
+    }
+
+    private static String nz(String s) { return s == null ? "" : s; }
 }
