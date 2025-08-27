@@ -1,12 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 首頁的個別動作圖卡 -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/card_container"
-    android:layout_width="102dp"
-    android:layout_height="128dp"
-    android:layout_margin="8dp"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
     app:cardCornerRadius="16dp"
     app:cardElevation="4dp"
     app:cardBackgroundColor="@color/surface_white"
@@ -18,34 +15,26 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="12dp"
-        android:gravity="center">
+        android:gravity="center"
+        android:padding="3dp">
 
         <ImageView
             android:id="@+id/card_image"
-            android:layout_width="65dp"
-            android:layout_height="65dp"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
             android:scaleType="centerInside"
-            android:background="@drawable/circle_background"
-            android:padding="8dp"
-            android:src="@drawable/ic_launcher_foreground" />
+            android:padding="2dp"/>
 
         <TextView
             android:id="@+id/card_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="鼓頰"
             android:textSize="14sp"
-            android:textColor="@color/text_primary"
             android:textStyle="bold"
-            android:layout_marginTop="8dp"
-            android:gravity="center" />
-
-
-
+            android:layout_marginTop="3dp"
+            android:gravity="center"/>
     </LinearLayout>
 
-    <!-- 選中指示器 -->
     <ImageView
         android:id="@+id/selected_indicator"
         android:layout_width="24dp"
@@ -54,5 +43,4 @@
         android:layout_margin="8dp"
         android:src="@drawable/ic_check_circle"
         android:visibility="gone" />
-
 </androidx.cardview.widget.CardView>

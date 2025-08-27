@@ -2,8 +2,10 @@ package com.example.rehabilitationapp.ui.home;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.LinearLayout;
@@ -17,12 +19,18 @@ import android.widget.Toast;
 import android.widget.GridLayout;
 import android.content.Intent;
 import com.example.rehabilitationapp.ui.facecheck.FaceCircleCheckerActivity;
+import java.util.List;
+import java.util.concurrent.Executors;
 
+import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.dao.TrainingItemDao;
+import com.example.rehabilitationapp.data.model.TrainingItem;
 public class HomeFragment extends Fragment {
 
     private FragmentHomeBinding binding;
     private View selectedCard = null;
     private int selectedTrainingType = -1;
+    private List<TrainingItem> items;
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
@@ -41,92 +49,49 @@ public class HomeFragment extends Fragment {
 
         // 初始化界面
         initializeUI();
+        // onViewCreated 或 initializeUI 之後
+        //HorizontalScrollView hsv = binding.hsTraining; // 先在 XML 給 HorizontalScrollView 加個 id: @+id/hs_training
+        //hsv.setFillViewport(true);
+        //hsv.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
+// 禁止水平滑動，但保留點擊：只攔截 MOVE，不攔截 DOWN/UP
+        //hsv.setOnTouchListener((v, ev) -> ev.getAction() == MotionEvent.ACTION_MOVE);
         return root;
     }
 
     private void initializeUI() {
         binding.titleGreeting.setText("Hi, Allen!");
 
-        int[] imageIds = {
-                R.drawable.ic_home_cheekspuff, R.drawable.cheeks_reduction, R.drawable.pout_lips,
-                R.drawable.sip_lips, R.drawable.tongueright, R.drawable.jaw_left
-        };
-        String[] labels = {
-                "鼓頰", "縮頰", "嘟嘴",
-                "抿嘴", "舌頭", "下顎"
-        };
+        // 1) 用 DAO 讀資料（背景執行緒）
+        Executors.newSingleThreadExecutor().execute(() -> {
+            TrainingItemDao dao = AppDatabase.getInstance(requireContext()).trainingItemDao();
 
+            List<TrainingItem> list = dao.getAllNow(); // 同步查詢
 
-        // 獲取容器
-        GridLayout trainingContainer = binding.trainingContainer;
-        LayoutInflater layoutInflater = LayoutInflater.from(getContext());
+            // 2) 回到主執行緒渲染 UI
+            requireActivity().runOnUiThread(() -> {
+                items = list;
+                buildCards(items);
+            });
+        });
 
-        // 動態創建卡片
-        for (int i = 0; i < imageIds.length; i++) {
-            try {
-                View card = layoutInflater.inflate(R.layout.training_card_item, null, false);
-
-                // 設置卡片內容
-                ImageView image = card.findViewById(R.id.card_image);
-                TextView label = card.findViewById(R.id.card_label);
-                ImageView indicator = card.findViewById(R.id.selected_indicator);
-
-                if (image != null) {
-                    image.setImageResource(imageIds[i]);
-                }
-                if (label != null) {
-                    label.setText(labels[i]);
-                }
-
-                // 設置點擊事件
-                final int trainingType = i;
-                final String[] finalLabels = labels; // 為了在內部類中使用
-                card.setOnClickListener(new OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        selectCard(v, trainingType);
-                    }
-                });
-
-                // 設置布局參數
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                params.setMargins(8, 32, 8, 32);
-                card.setLayoutParams(params);
-
-                // 添加到容器
-                trainingContainer.addView(card);
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                Toast.makeText(getContext(), "創建卡片失敗: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        // 設置開始按鈕
-        setupStartButton(labels);
+        // 3) 開始按鈕
+        binding.startButton.setOnClickListener(v -> onStartClicked());
     }
 
-    private void setupStartButton(final String[] labels) {
-        binding.startButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (selectedTrainingType != -1) {
-                    Toast.makeText(getContext(), "開始 " + labels[selectedTrainingType] + " 訓練！", Toast.LENGTH_SHORT).show();
-                    // 啟動 FaceCircleCheckerActivity
-                    Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
-                    // 可以傳遞選擇的訓練類型
-                    intent.putExtra("training_type", selectedTrainingType);
-                    intent.putExtra("training_label", labels[selectedTrainingType]);
-                    startActivity(intent);
-                } else {
-                    Toast.makeText(getContext(), "請先選擇一個訓練項目", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
+    private void onStartClicked() {
+        if (selectedTrainingType == -1 || items == null || selectedTrainingType >= items.size()) {
+            Toast.makeText(getContext(), "請先選擇一個訓練項目", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        TrainingItem item = items.get(selectedTrainingType);
+
+        Toast.makeText(getContext(), "開始 " + item.title + " 訓練！", Toast.LENGTH_SHORT).show();
+
+        Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
+        intent.putExtra("training_type", item.analysisType); // 用 DB 裡的 type
+        intent.putExtra("training_label", item.title);
+        startActivity(intent);
     }
 
     private void selectCard(View card, int trainingType) {
@@ -152,6 +117,44 @@ public class HomeFragment extends Fragment {
         // 啟用開始按鈕
         binding.startButton.setEnabled(true);
     }
+
+    private void buildCards(List<TrainingItem> items) {
+        GridLayout trainingContainer = binding.trainingContainer;
+        LayoutInflater layoutInflater = LayoutInflater.from(getContext());
+
+        trainingContainer.removeAllViews();
+
+        for (int i = 0; i < items.size(); i++) {
+            TrainingItem item = items.get(i);
+            View card = layoutInflater.inflate(R.layout.training_card_item, trainingContainer, false);
+
+            ImageView image = card.findViewById(R.id.card_image);
+            TextView  label = card.findViewById(R.id.card_label);
+
+            int resId = getResources().getIdentifier(
+                    item.imageResName, "drawable", requireContext().getPackageName()
+            );
+            if (resId != 0) image.setImageResource(resId);
+            label.setText(item.title);
+
+            final int index = i;
+            card.setOnClickListener(v -> selectCard(v, index));
+
+            // ✅ 父容器為 GridLayout → 用 GridLayout.LayoutParams
+            GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
+            // 若要 Figma 的水平 18 / 垂直 13，左右各 9、上下各 13
+            lp.setMargins(dp(9), dp(13), dp(9), dp(13));
+            card.setLayoutParams(lp);
+
+            trainingContainer.addView(card);
+        }
+    }
+
+    private int dp(int v) {
+        float d = getResources().getDisplayMetrics().density;
+        return Math.round(v * d);
+    }
+
 
     @Override
     public void onDestroyView() {

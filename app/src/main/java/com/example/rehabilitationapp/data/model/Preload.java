@@ -8,14 +8,23 @@ public class Preload {
 
     public static List<TrainingItem> getDefaultItems() {
         List<TrainingItem> list = new ArrayList<>();
-        list.add(make("鼓頰", "鼓起雙頰\n保持3秒", "cheeks", "PUFF_CHEEK"));
-        list.add(make("縮頰", "吸縮雙頰\n保持3秒", "cheeks_reduction", "REDUCE_CHEEK"));
-        list.add(make("嘟嘴", "嘟起嘴巴\n保持3秒", "pout_lips", "POUT_LIPS"));
-        list.add(make("抿嘴", "輕抿嘴唇\n保持3秒", "sip_lips", "SIP_LIPS"));
-        list.add(make("向左伸舌", "舌頭向左\n保持3秒", "tongueright", "TONGUE_LEFT"));
-        list.add(make("向右伸舌", "舌頭向右\n保持3秒", "tongueleft", "TONGUE_RIGHT"));
+        list.add(make("臉頰鼓起", "鼓起雙頰\n保持3秒", "ic_home_cheekpuff", "PUFF_CHEEK"));
+        list.add(make("臉頰內縮", "吸縮雙頰\n保持3秒", "ic_home_cheekreduce", "REDUCE_CHEEK"));
+        list.add(make("嘟嘴", "嘟起嘴巴\n保持3秒", "ic_home_lippout", "POUT_LIPS"));
+        list.add(make("抿嘴唇", "輕抿嘴唇\n保持3秒", "ic_home_lipsip", "SIP_LIPS"));
+
+        list.add(make("舌頭往左側", "伸出舌頭向左\n保持3秒", "ic_home_tongueleft", "TONGUE_LEFT"));
+        list.add(make("舌頭往右側", "伸出舌頭向右\n保持3秒", "ic_home_tongueright", "TONGUE_RIGHT"));
+        list.add(make("舌頭往前", "伸出舌頭向前\n保持3秒", "ic_home_tonguefoward", "TONGUE_FOWARD"));
+        list.add(make("舌頭往後", "捲起舌頭\n保持3秒", "ic_home_tongueback", "TONGUE_BACK"));
+        list.add(make("舌頭上抬", "伸出舌頭向上\n保持3秒", "ic_home_tongueup", "TONGUE_UP"));
+        list.add(make("舌頭下壓", "伸出舌頭向下\n保持3秒", "ic_home_tonguedown", "TONGUE_DOWN"));
+
+        list.add(make("下顎往左側", "下顎往左\n保持3秒", "ic_home_jawleft", "JAW_LEFT"));
+        list.add(make("下顎往右側", "下顎往右\n保持3秒", "ic_home_jawright", "JAW_RIGHT"));
         return list;
     }
+
 
     public static List<TrainingPlan> getDefaultPlans() {
         List<TrainingPlan> list = new ArrayList<>();
