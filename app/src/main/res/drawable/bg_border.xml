@@ -1,0 +1,14 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- 背景白色 -->
+    <solid android:color="@android:color/white" />
+
+    <!-- 外框顏色和粗細 -->
+    <stroke
+        android:width="2dp"
+        android:color="@color/button_border" />
+
+    <!-- 邊角圓弧 -->
+    <corners android:radius="8dp" />
+</shape>

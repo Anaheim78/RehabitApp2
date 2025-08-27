@@ -1,6 +1,6 @@
 package com.example.rehabilitationapp.ui.setting;
 
-
+//半棄用，只是經過
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;

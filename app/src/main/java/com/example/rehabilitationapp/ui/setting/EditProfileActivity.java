@@ -71,6 +71,7 @@ public class EditProfileActivity extends AppCompatActivity {
                     ", Gender: " + gender +
                     ", Style: " + style);
 
+            //TO DO..寫入room
             finish();
         });
     }

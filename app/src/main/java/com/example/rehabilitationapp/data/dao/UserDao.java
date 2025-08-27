@@ -27,4 +27,8 @@ public interface UserDao {
 
     @Query("UPDATE users SET email = :email, birthday = :birthday, name = :name, gender = :gender, ui_style = :uiStyle WHERE user_id = :userId")
     void updateProfile(String userId, String email, String birthday, String name, String gender, String uiStyle);
+
+    @Query("SELECT * FROM users WHERE login_status = 1 LIMIT 1")
+    User findLoggedInOne();
+
 }
