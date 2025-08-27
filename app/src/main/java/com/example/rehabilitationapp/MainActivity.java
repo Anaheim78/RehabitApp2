@@ -7,45 +7,50 @@ import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
-import com.example.rehabilitationapp.ui.login.LoginFragment;
+
+import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.ui.home.HomeFragment;
+import com.example.rehabilitationapp.ui.login.LoginFragment;
 import com.example.rehabilitationapp.ui.notifications.NotificationsFragment;
 import com.example.rehabilitationapp.ui.plan.PlanFragment;
 import com.example.rehabilitationapp.ui.setting.SettingFragment;
 
 public class MainActivity extends AppCompatActivity {
 
-    // tab 容器
     private FrameLayout tabHome, tabPlan, tabRecord, tabSetting;
-
-    // icon
     private ImageView iconHome, iconPlan, iconRecord, iconSetting;
+    private UserDao userDao;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 綁定元件（容器）
-
-
         tabHome   = findViewById(R.id.tab_home);
         tabPlan   = findViewById(R.id.tab_plan);
         tabRecord = findViewById(R.id.tab_record);
         tabSetting= findViewById(R.id.tab_setting);
 
-        // 綁定元件（圖示）
         iconHome   = findViewById(R.id.icon_home);
         iconPlan   = findViewById(R.id.icon_plan);
         iconRecord = findViewById(R.id.icon_record);
         iconSetting= findViewById(R.id.icon_setting);
 
-        //預設顯示 Home
-        switchFragment(new HomeFragment());
-        selectTab(R.id.tab_home);
+        userDao = AppDatabase.getInstance(this).userDao();
 
+        new Thread(() -> {
+            boolean loggedIn = userDao.countLoggedIn() > 0;
+            runOnUiThread(() -> {
+                if (!loggedIn) {
+                    switchFragment(new LoginFragment());
+                } else {
+                    switchFragment(new HomeFragment());
+                    selectTab(R.id.tab_home);
+                }
+            });
+        }).start();
 
-        // 點擊事件
         tabHome.setOnClickListener(v -> {
             switchFragment(new HomeFragment());
             selectTab(R.id.tab_home);
@@ -67,15 +72,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** 切換 Fragment */
-    private void switchFragment(Fragment fragment) {
+    public void switchFragment(Fragment fragment) {
         FragmentTransaction tx = getSupportFragmentManager().beginTransaction();
         tx.replace(R.id.nav_host_fragment_activity_main, fragment);
         tx.commit();
     }
 
-    /** 切換 Tab 選中狀態（會觸發 selector） */
-    private void selectTab(int tabId) {
+    public void selectTab(int tabId) {
         iconHome.setSelected(false);
         iconPlan.setSelected(false);
         iconRecord.setSelected(false);

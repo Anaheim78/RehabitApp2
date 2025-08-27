@@ -11,14 +11,13 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import androidx.navigation.NavController;
-import androidx.navigation.NavOptions;
-import androidx.navigation.Navigation;
 
+import com.example.rehabilitationapp.MainActivity;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
+import com.example.rehabilitationapp.ui.home.HomeFragment;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -66,30 +65,43 @@ public class LoginFragment extends Fragment {
                         if (task.isSuccessful() && !task.getResult().isEmpty()) {
                             DocumentSnapshot doc = task.getResult().getDocuments().get(0);
 
-                            // 取 Firebase 欄位
                             long createdAt = doc.getLong("createdAt") != null
                                     ? doc.getLong("createdAt") : System.currentTimeMillis();
                             String createdAtFormatted = doc.getString("createdAtFormatted");
 
-                            // 存到 Room（先檢查是否存在）
+                            String email = doc.getString("email");
+                            String name = doc.getString("name");
+                            String birthday = doc.getString("birthday");
+                            String gender = doc.getString("gender");
+                            String uiStyle = doc.getString("ui_style");
+
                             new Thread(() -> {
-                                User existing = userDao.getUserById(id);  // <-- 你需要在 UserDao 定義這個查詢
+                                User existing = userDao.findById(id);
                                 if (existing == null) {
-                                    User user = new User();
-                                    user.userId = id;
-                                    user.password = password;
-                                    user.createdAt = createdAt;
-                                    user.createdAtFormatted = createdAtFormatted;
-                                    userDao.insert(user);
+                                    User u = new User();
+                                    u.userId = id;
+                                    u.password = password;
+                                    u.createdAt = createdAt;
+                                    u.createdAtFormatted = createdAtFormatted;
+                                    u.loginStatus = 1;
+                                    u.email = email;
+                                    u.name = name;
+                                    u.birthday = birthday;
+                                    u.gender = gender;
+                                    u.uiStyle = uiStyle;
+                                    userDao.insert(u);
+                                } else {
+                                    userDao.updateLoginStatus(id, 1);
                                 }
                             }).start();
 
-                            // 導航到首頁，清掉 LoginFragment
-                            NavController navController = Navigation.findNavController(view);
-                            NavOptions navOptions = new NavOptions.Builder()
-                                    .setPopUpTo(R.id.loginFragment, true)
-                                    .build();
-                            navController.navigate(R.id.navigation_home, null, navOptions);
+                            // ✅ 改成直接呼叫 MainActivity 切換 Fragment
+                            requireActivity().runOnUiThread(() -> {
+                                if (getActivity() instanceof MainActivity) {
+                                    ((MainActivity) getActivity()).switchFragment(new HomeFragment());
+                                    ((MainActivity) getActivity()).selectTab(R.id.tab_home);
+                                }
+                            });
 
                         } else {
                             Toast.makeText(getContext(), "帳號或密碼錯誤", Toast.LENGTH_SHORT).show();
