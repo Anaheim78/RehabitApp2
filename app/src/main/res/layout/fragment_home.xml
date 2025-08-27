@@ -3,40 +3,36 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/surface_default"
+    android:background="@drawable/bg_login_gradient"
     android:padding="20dp">
     <!-- 首頁  -->
     <TextView
         android:id="@+id/title_greeting"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Hi, Allen!"
+        android:textAlignment="center"
+        android:textColor="@color/text_primary"
         android:textSize="24sp"
-        android:textColor="@color/text_primary"
         android:textStyle="bold"
-        android:layout_marginBottom="30dp" />
+        android:layout_marginTop="87dp"
+        />
+
 
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="個別復健訓練"
-        android:textSize="20sp"
+        android:layout_marginTop="1dp"
+        android:text="點選復健項目開始你的訓練"
+        android:textAlignment="center"
         android:textColor="@color/text_primary"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="選擇一項復健動作，即可開始訓練"
-        android:textSize="14sp"
-        android:textColor="@color/text_primary"
-        android:layout_marginBottom="20dp" />
+        android:textSize="16sp" />
 
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scrollbars="none"
+        android:layout_marginTop="10dp"
         android:layout_marginBottom="40dp">
 
 
@@ -44,8 +40,10 @@
             android:id="@+id/training_container"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:rowCount="2"
+            android:rowCount="4"
             android:columnCount="3"
+            android:layout_marginVertical="18dp"
+            android:layout_marginHorizontal="13dp"
             android:orientation="horizontal"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
