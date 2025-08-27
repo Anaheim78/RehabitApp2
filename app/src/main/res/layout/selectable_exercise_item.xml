@@ -13,7 +13,7 @@
         android:id="@+id/exercise_image"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:src="@drawable/cheeks"
+        android:src="@drawable/cheeksbak"
         android:scaleType="centerCrop" />
 
     <!-- 運動資訊 -->

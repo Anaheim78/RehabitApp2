@@ -49,7 +49,7 @@ public class HomeFragment extends Fragment {
         binding.titleGreeting.setText("Hi, Allen!");
 
         int[] imageIds = {
-                R.drawable.cheeks, R.drawable.cheeks_reduction, R.drawable.pout_lips,
+                R.drawable.ic_home_cheekspuff, R.drawable.cheeks_reduction, R.drawable.pout_lips,
                 R.drawable.sip_lips, R.drawable.tongueright, R.drawable.jaw_left
         };
         String[] labels = {

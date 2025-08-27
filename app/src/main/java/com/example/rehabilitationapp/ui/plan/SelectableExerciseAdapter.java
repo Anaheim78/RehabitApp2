@@ -1,6 +1,5 @@
 package com.example.rehabilitationapp.ui.plan;
 
-import android.util.Log;
 import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -101,10 +100,10 @@ public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableEx
                 if (resId != 0) {
                     exerciseImage.setImageResource(resId);
                 } else {
-                    exerciseImage.setImageResource(R.drawable.cheeks);
+                    exerciseImage.setImageResource(R.drawable.cheeksbak);
                 }
             } else {
-                exerciseImage.setImageResource(R.drawable.cheeks);
+                exerciseImage.setImageResource(R.drawable.cheeksbak);
             }
 
             checkbox.setChecked(isChecked);
