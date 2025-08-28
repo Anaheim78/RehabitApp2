@@ -4,21 +4,23 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#3A3A3A">
+    android:fitsSystemWindows="true"
+    android:background="@drawable/bg_login_gradient">
 
     <!-- 標題列：左側返回＋首頁，中央標題永遠置中 -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="wrap_content"
         android:paddingStart="16dp"
-        android:paddingEnd="16dp">
+        android:paddingEnd="16dp"
+        android:layout_marginBottom="65dp">
 
         <ImageView
             android:id="@+id/back_btn"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_arrow_back"
-            android:tint="@android:color/white"
+            android:tint="@android:color/black"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
@@ -28,7 +30,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="首頁"
-            android:textColor="@android:color/white"
+            android:textColor="@android:color/black"
             android:textSize="16sp"
             android:layout_marginStart="8dp"
             app:layout_constraintStart_toEndOf="@id/back_btn"
@@ -42,11 +44,12 @@
             android:layout_height="wrap_content"
             android:text="自訂訓練計畫"
             android:textSize="18sp"
-            android:textColor="@android:color/white"
+            android:textColor="@android:color/black"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
+            android:layout_marginTop="50dp"
             app:layout_constraintBottom_toBottomOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -55,20 +58,60 @@
         android:id="@+id/exercises_recycler"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="60dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@android:color/white"
         android:clipToPadding="false"
-        android:padding="16dp" />
+        android:overScrollMode="never"/>
+<!--
+        android:layout_marginTop="40dp"
+        android:layout_marginBottom="16dp"
+                android:padding="16dp"
+                  app:layout_constraintTop_toTopOf="parent"
+-->
 
-    <!-- 開始訓練按鈕 -->
-    <Button
-        android:id="@+id/start_plan_btn"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="24dp"
-        android:text="開始訓練"
-        android:textSize="16sp"
-        android:textColor="@android:color/white"
-        android:backgroundTint="#FFC107"
-        android:elevation="4dp" />
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="16dp">
+        <!-- 開始訓練按鈕 -->
+        <!-- 左邊：文字按鈕 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/start_plan_btn"
+            android:layout_width="154dp"
+            android:layout_height="43dp"
+            android:layout_marginEnd="12dp"
+            android:text="開始訓練"
+            android:textColor="@android:color/black"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/button_border"
+            app:strokeWidth="2dp"
+            android:backgroundTint="@null"/>
+
+        <!-- 右邊：icon 按鈕（MaterialButton 版） -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_edit_plan"
+            android:layout_width="44dp"
+            android:layout_height="43dp"
+            app:icon="@drawable/ic_edit_plan"
+            app:iconTint="@null"
+            app:iconSize="18dp"
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/button_border"
+            app:strokeWidth="2dp"
+            android:backgroundTint="@null"
+            android:contentDescription="編輯計畫"/>
+
+
+
+
+    </LinearLayout>
+
 
 </LinearLayout>
