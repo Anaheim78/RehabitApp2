@@ -10,6 +10,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.rehabilitationapp.R;
@@ -32,8 +33,8 @@ public class TrainingDetailActivity extends AppCompatActivity {
     private RecyclerView exercisesRecycler;
     private ExecutorService executor;
     private boolean isCreateMode = false;  // 新增：模式標記
-
-    //頂端 垃圾桶刪除
+    //可能用不到了
+    //是否為創建模式，頂端垃圾桶刪除
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (!isCreateMode) {
@@ -48,7 +49,8 @@ public class TrainingDetailActivity extends AppCompatActivity {
         return true;
     }
 
-
+    //刪除確認
+    //刪除點選+確認
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.action_delete) {
@@ -91,28 +93,31 @@ public class TrainingDetailActivity extends AppCompatActivity {
         // 檢查是否為創建模式
         String mode = getIntent().getStringExtra("mode");
         isCreateMode = "create_new".equals(mode);
-
         Log.d("test_PlanDetail", "=== Mode Check: " + mode + ", isCreateMode: " + isCreateMode + " ===");
 
         // 設置標題
         String planTitle = getIntent().getStringExtra("plan_title");
         TextView titleText = findViewById(R.id.page_title);
-        titleText.setText(planTitle != null ? planTitle : "自訂訓練計畫");
+        //titleText.setText(planTitle != null ? planTitle : "自訂訓練計畫");
 
-        // 設置返回按鈕
+        // 設置返回按鈕 可以保留並且全局使用
         ImageView backBtn = findViewById(R.id.back_btn);
         backBtn.setOnClickListener(v -> finish());
 
         // 設置 RecyclerView
         exercisesRecycler = findViewById(R.id.exercises_recycler);
-        exercisesRecycler.setLayoutManager(new LinearLayoutManager(this));
+        //exercisesRecycler.setLayoutManager(new LinearLayoutManager(this));
+        // 兩列、橫向滑動
+        GridLayoutManager glm = new GridLayoutManager(this, 2, GridLayoutManager.HORIZONTAL, false);
+        exercisesRecycler.setLayoutManager(glm);
 
         // 載入運動項目
         loadExercises();
 
         // 設置按鈕
         Button createBtn = findViewById(R.id.start_plan_btn);
-        //根據模式配置文字
+
+        //根據模式配置文字，先不管
         if (isCreateMode) {
             createBtn.setText("建立計畫");
         } else {

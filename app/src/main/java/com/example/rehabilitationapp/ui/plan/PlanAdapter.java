@@ -12,7 +12,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class PlanAdapter extends RecyclerView.Adapter<PlanAdapter.PlanViewHolder> {
 
@@ -20,10 +23,10 @@ public class PlanAdapter extends RecyclerView.Adapter<PlanAdapter.PlanViewHolder
         void onItemClick(TrainingPlan plan);
     }
 
-    private List<TrainingPlan> planList;
-    private OnItemClickListener listener;
+    private final List<TrainingPlan> planList;
+    private final OnItemClickListener listener;
 
-    public PlanAdapter(List<TrainingPlan> planList, OnItemClickListener listener) {
+    public PlanAdapter(@NonNull List<TrainingPlan> planList, OnItemClickListener listener) {
         this.planList = planList;
         this.listener = listener;
     }
@@ -32,7 +35,7 @@ public class PlanAdapter extends RecyclerView.Adapter<PlanAdapter.PlanViewHolder
     @Override
     public PlanViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.plan_card_item, parent, false);
+                .inflate(R.layout.item_plan_card, parent, false);
         return new PlanViewHolder(view);
     }
 
@@ -44,34 +47,40 @@ public class PlanAdapter extends RecyclerView.Adapter<PlanAdapter.PlanViewHolder
 
     @Override
     public int getItemCount() {
-        return planList.size();
+        return planList == null ? 0 : planList.size();
     }
 
     static class PlanViewHolder extends RecyclerView.ViewHolder {
-        TextView titleText;
-        TextView descText;
-        ImageView image;
+        ImageView imgPlan;
+        TextView tvTitle;
+        TextView tvDate;
 
-        public PlanViewHolder(@NonNull View itemView) {
+        PlanViewHolder(@NonNull View itemView) {
             super(itemView);
-            titleText = itemView.findViewById(R.id.plan_title);
-            descText = itemView.findViewById(R.id.plan_description);
-            image = itemView.findViewById(R.id.plan_image);
+            imgPlan = itemView.findViewById(R.id.imgPlan);
+            tvTitle = itemView.findViewById(R.id.tvTitle);
+            tvDate  = itemView.findViewById(R.id.tvDate);
         }
 
-        public void bind(TrainingPlan plan, OnItemClickListener listener) {
-            titleText.setText(plan.title);
-            descText.setText(plan.description);
+        void bind(final TrainingPlan plan, final OnItemClickListener listener) {
+            // 標題
+            tvTitle.setText(plan.title != null ? plan.title : "");
 
-            // 如果有設定圖片資源名，可載入對應圖片
-            if (plan.imageResName != null) {
-                int imageResId = itemView.getContext().getResources()
-                        .getIdentifier(plan.imageResName, "drawable", itemView.getContext().getPackageName());
-                if (imageResId != 0) {
-                    image.setImageResource(imageResId);
-                }
+            // ✅ 永遠顯示今天日期（MM/dd/yy，例如 08/28/25）
+            String today = new SimpleDateFormat("MM/dd/yy", Locale.getDefault())
+                    .format(new Date());
+            tvDate.setText(today);
+
+            // 圖片（imageResName -> drawable）
+            int resId = 0;
+            if (plan.imageResName != null && !plan.imageResName.isEmpty()) {
+                resId = itemView.getResources().getIdentifier(
+                        plan.imageResName, "drawable", itemView.getContext().getPackageName()
+                );
             }
+            imgPlan.setImageResource(resId != 0 ? resId : R.drawable.ic_home_cheekpuff);
 
+            // 點擊
             itemView.setOnClickListener(v -> {
                 if (listener != null) listener.onItemClick(plan);
             });

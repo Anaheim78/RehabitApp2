@@ -4,12 +4,11 @@
     android:id="@+id/plan_card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginVertical="8dp"
+    android:layout_marginVertical="3dp"
     android:layout_marginHorizontal="16dp"
     app:cardCornerRadius="16dp"
     app:cardElevation="4dp"
     app:cardUseCompatPadding="true"
-    app:strokeColor="@color/button_border"
     app:strokeWidth="1dp"
     android:clickable="true"
     android:focusable="true">
@@ -19,19 +18,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:paddingTop="8dp"
         android:padding="16dp"
         android:gravity="center_vertical">
 
         <!-- 左邊圖片（計畫 icon/avatar） -->
         <ImageView
             android:id="@+id/imgPlan"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"
             android:scaleType="centerCrop"
             android:contentDescription="@string/app_name"
-            android:background="@android:color/darker_gray"
             android:src="@drawable/ic_launcher_foreground"
-            android:layout_marginEnd="16dp" />
+            android:layout_marginEnd="10dp" />
 
         <!-- 右邊文字區 -->
         <LinearLayout

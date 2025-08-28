@@ -1,52 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 訓練計畫_計畫詳細內容_顯示選中運動的圖卡列表 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_container"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="12dp"
-    android:gravity="center_vertical"
-    android:background="?attr/selectableItemBackground">
+    android:layout_margin="8dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="4dp"
+    app:cardUseCompatPadding="true"
+    app:strokeWidth="0dp"
+    app:cardBackgroundColor="@android:color/white"
+    android:clickable="true"
+    android:focusable="true">
 
-    <!-- 運動圖示 -->
-    <ImageView
-        android:id="@+id/exercise_image"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:src="@drawable/cheeksbak"
-        android:scaleType="centerCrop" />
-
-    <!-- 運動資訊 -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:layout_marginStart="16dp"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="10dp">
+
+        <ImageView
+            android:id="@+id/exercise_image"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:scaleType="centerInside"
+            android:padding="2dp"/>
 
         <TextView
             android:id="@+id/exercise_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="深蹲"
-            android:textSize="16sp"
-            android:textColor="@android:color/white"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/exercise_description"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="腿部肌力訓練-3組"
-            android:textSize="12sp"
-            android:textColor="#E0FFFFFF" />
+            android:layout_marginTop="4dp"
+            android:text="動作名稱"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:gravity="center"/>
 
     </LinearLayout>
 
-    <!-- 勾選框 -->
-    <CheckBox
-        android:id="@+id/exercise_checkbox"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
-
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

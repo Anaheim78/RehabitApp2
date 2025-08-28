@@ -16,8 +16,7 @@ import android.util.Log;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
-import android.widget.ImageView;
-import android.widget.Toast;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -32,9 +31,10 @@ public class PlanFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // 在這裡設定標題
-        requireActivity().setTitle("訓練計畫");  // 或 "訓練計畫"
+        // 設定標題
+        requireActivity().setTitle("訓練計畫");
     }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -45,18 +45,14 @@ public class PlanFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.fragment_plan, container, false);
 
-        recyclerView = root.findViewById(R.id.recycler_plan);
+        // 綁 RecyclerView
+        recyclerView = root.findViewById(R.id.rvPlans);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
 
-        // 設置 + 號按鈕的點擊事件
-        ImageView addPlanBtn = root.findViewById(R.id.add_plan_btn);
-        addPlanBtn.setOnClickListener(v -> {
-            //Toast.makeText(getContext(), "點擊了 + 號，準備創建新計劃", Toast.LENGTH_SHORT).show();
-            Log.d("PlanFragment","set Listener for addPlan");
-            // 跳轉到詳細頁面，但使用特殊模式顯示所有運動項目
-            Intent intent = new Intent(getContext(), TrainingDetailActivity.class);
-            intent.putExtra("mode", "create_new");  // 特殊模式標記
-            intent.putExtra("plan_title", "創建新計劃");
+        // 綁 FAB（加號）
+        FloatingActionButton fab = root.findViewById(R.id.fabAddPlan);
+        fab.setOnClickListener(v -> {
+            Intent intent = new Intent(requireContext(), TrainingDetailActivity.class);
             startActivity(intent);
         });
 
@@ -102,9 +98,8 @@ public class PlanFragment extends Fragment {
     }
 
     @Override
-    public  void onResume() {
+    public void onResume() {
         super.onResume();
         loadPlans();
     }
-
 }

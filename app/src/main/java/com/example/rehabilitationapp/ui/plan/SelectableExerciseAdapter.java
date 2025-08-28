@@ -4,35 +4,38 @@ import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.model.TrainingItem;
+import com.google.android.material.card.MaterialCardView;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableExerciseAdapter.ExerciseViewHolder> {
 
-    private List<TrainingItem> exerciseList;
-    private boolean isReadOnlyMode = false;
-    private SparseBooleanArray selectionMap = new SparseBooleanArray();  // ✅ 勾選狀態記錄器
+    private final List<TrainingItem> exerciseList;
+    private final boolean isReadOnlyMode;
+    private final SparseBooleanArray selectionMap = new SparseBooleanArray(); // 勾選狀態
 
-    // 建構子 - 創建模式
-    public SelectableExerciseAdapter(List<TrainingItem> exerciseList) {
-        this.exerciseList = exerciseList;
-        this.isReadOnlyMode = false;
+
+    // 建構子 - 創建模式（可選取）
+    public SelectableExerciseAdapter(@NonNull List<TrainingItem> exerciseList) {
+        this(exerciseList, false);
     }
 
-    // 建構子 - 檢視模式
-    public SelectableExerciseAdapter(List<TrainingItem> exerciseList, boolean isReadOnlyMode) {
+    // 建構子 - 可指定只讀模式
+    public SelectableExerciseAdapter(@NonNull List<TrainingItem> exerciseList, boolean isReadOnlyMode) {
         this.exerciseList = exerciseList;
         this.isReadOnlyMode = isReadOnlyMode;
 
         if (isReadOnlyMode) {
-            // ✅ 若為只讀模式，預設全部都勾選
+            // 只讀模式預設全部顯示選取
             for (int i = 0; i < exerciseList.size(); i++) {
                 selectionMap.put(i, true);
             }
@@ -42,6 +45,7 @@ public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableEx
     @NonNull
     @Override
     public ExerciseViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // 這裡要用你的白底卡片 layout 檔名（下面假設就是 selectable_exercise_item）
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.selectable_exercise_item, parent, false);
         return new ExerciseViewHolder(view);
@@ -49,22 +53,26 @@ public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableEx
 
     @Override
     public void onBindViewHolder(@NonNull ExerciseViewHolder holder, int position) {
-        TrainingItem exercise = exerciseList.get(position);
+        TrainingItem item = exerciseList.get(position);
         boolean isChecked = selectionMap.get(position, false);
-        holder.bind(exercise, isReadOnlyMode, isChecked, v -> {
-            // ✅ 點擊時更新 selectionMap
-            boolean newState = !selectionMap.get(position, false);
-            selectionMap.put(position, newState);
-            notifyItemChanged(position);  // 更新畫面
-        });
+        holder.bind(item, isReadOnlyMode, isChecked);
+
+        // 點整張卡切換勾選（只讀模式不動）
+        /*
+        holder.itemView.setOnClickListener(v -> {
+            if (isReadOnlyMode) return;
+            boolean newState = !selectionMap.get(holder.getBindingAdapterPosition(), false);
+            selectionMap.put(holder.getBindingAdapterPosition(), newState);
+            notifyItemChanged(holder.getBindingAdapterPosition());
+        });*/
     }
 
     @Override
     public int getItemCount() {
-        return exerciseList.size();
+        return exerciseList == null ? 0 : exerciseList.size();
     }
 
-    // ✅ 回傳所有有勾選的項目
+    // 取得已勾選清單
     public List<TrainingItem> getSelectedItems() {
         List<TrainingItem> selected = new ArrayList<>();
         for (int i = 0; i < exerciseList.size(); i++) {
@@ -76,48 +84,38 @@ public class SelectableExerciseAdapter extends RecyclerView.Adapter<SelectableEx
     }
 
     static class ExerciseViewHolder extends RecyclerView.ViewHolder {
-        TextView titleText;
-        TextView descText;
-        ImageView exerciseImage;
-        CheckBox checkbox;
+        final TextView titleText;
+        final ImageView exerciseImage;
+        final MaterialCardView cardContainer; // 新增
 
-        public ExerciseViewHolder(@NonNull View itemView) {
+        ExerciseViewHolder(@NonNull View itemView) {
             super(itemView);
             titleText = itemView.findViewById(R.id.exercise_title);
-            descText = itemView.findViewById(R.id.exercise_description);
             exerciseImage = itemView.findViewById(R.id.exercise_image);
-            checkbox = itemView.findViewById(R.id.exercise_checkbox);
+            cardContainer = itemView.findViewById(R.id.card_container); // ✅ 初始化
         }
 
-        public void bind(TrainingItem exercise, boolean isReadOnly, boolean isChecked, View.OnClickListener toggleListener) {
-            titleText.setText(exercise.title);
-            descText.setText(exercise.description);
+        void bind(@NonNull TrainingItem exercise, boolean isReadOnly, boolean isChecked) {
+            // 標題
+            titleText.setText(exercise.title == null ? "" : exercise.title);
 
             // 圖片
-            if (exercise.imageResName != null) {
-                int resId = itemView.getContext().getResources().getIdentifier(
+            int resId = 0;
+            if (exercise.imageResName != null && !exercise.imageResName.isEmpty()) {
+                resId = itemView.getResources().getIdentifier(
                         exercise.imageResName, "drawable", itemView.getContext().getPackageName());
-                if (resId != 0) {
-                    exerciseImage.setImageResource(resId);
-                } else {
-                    exerciseImage.setImageResource(R.drawable.cheeksbak);
-                }
-            } else {
-                exerciseImage.setImageResource(R.drawable.cheeksbak);
             }
+            exerciseImage.setImageResource(resId != 0 ? resId : R.drawable.ic_launcher_foreground);
 
-            checkbox.setChecked(isChecked);
+            // ✅ 用框線顯示選中狀態
+            cardContainer.setStrokeWidth(isChecked ? 4 : 0);
+            cardContainer.setStrokeColor(
+                    isChecked ? itemView.getResources().getColor(R.color.teal_700)
+                            : itemView.getResources().getColor(android.R.color.transparent));
 
-            if (isReadOnly) {
-                checkbox.setEnabled(false);
-                checkbox.setAlpha(0.6f);
-                itemView.setOnClickListener(null);
-            } else {
-                checkbox.setEnabled(true);
-                checkbox.setAlpha(1f);
-                itemView.setOnClickListener(toggleListener);
-                checkbox.setOnClickListener(toggleListener);  // 讓點 Checkbox 也有反應
-            }
+            // 只讀模式：視覺微弱化
+            itemView.setAlpha(isReadOnly ? 0.95f : 1f);
         }
     }
+
 }
