@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:fitsSystemWindows="true"
     android:background="@drawable/bg_login_gradient">
 
-    <!-- 標題列：左側返回＋首頁，中央標題永遠置中 -->
+    <!-- 標題列 -->
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/title_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:layout_marginBottom="65dp">
+        android:layout_marginBottom="65dp"
+        app:layout_constraintTop_toTopOf="parent">
 
+        <!-- 你的標題內容保持不變 -->
         <ImageView
             android:id="@+id/back_btn"
             android:layout_width="24dp"
@@ -37,7 +40,6 @@
             app:layout_constraintTop_toTopOf="@id/back_btn"
             app:layout_constraintBottom_toBottomOf="@id/back_btn" />
 
-        <!-- 中央標題：相對父容器水平垂直置中 -->
         <TextView
             android:id="@+id/page_title"
             android:layout_width="wrap_content"
@@ -53,33 +55,25 @@
             app:layout_constraintBottom_toBottomOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- 運動列表 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/exercises_recycler"
+    <!-- 底部導航 - 固定在底部 -->
+    <include
+        android:id="@+id/bottom_nav"
+        layout="@layout/include_bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:layout_marginBottom="60dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="@android:color/white"
-        android:clipToPadding="false"
-        android:overScrollMode="never"/>
-<!--
-        android:layout_marginTop="40dp"
-        android:layout_marginBottom="16dp"
-                android:padding="16dp"
-                  app:layout_constraintTop_toTopOf="parent"
--->
+        app:layout_constraintBottom_toBottomOf="parent" />
 
+    <!-- 按鈕區域 - 在底部導航上方 -->
     <LinearLayout
+        android:id="@+id/button_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center"
-        android:padding="16dp">
-        <!-- 開始訓練按鈕 -->
-        <!-- 左邊：文字按鈕 -->
+        android:padding="16dp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav">
+
+        <!-- 你的按鈕內容保持不變 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/start_plan_btn"
             android:layout_width="154dp"
@@ -94,7 +88,6 @@
             app:strokeWidth="2dp"
             android:backgroundTint="@null"/>
 
-        <!-- 右邊：icon 按鈕（MaterialButton 版） -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_edit_plan"
             android:layout_width="44dp"
@@ -108,10 +101,21 @@
             android:backgroundTint="@null"
             android:contentDescription="編輯計畫"/>
 
-
-
-
     </LinearLayout>
 
+    <!-- 運動列表 - 填滿中間空間 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/exercises_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="32dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@android:color/white"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        app:layout_constraintTop_toBottomOf="@id/title_layout"
+        app:layout_constraintBottom_toTopOf="@id/button_layout" />
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
