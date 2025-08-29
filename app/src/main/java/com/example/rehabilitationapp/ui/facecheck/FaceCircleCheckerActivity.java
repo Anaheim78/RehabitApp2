@@ -148,11 +148,19 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         trainingType = getIntent().getIntExtra("training_type", -1);
-        trainingLabel = getIntent().getStringExtra("training_label");
+        //trainingLabel = getIntent().getStringExtra("training_label");
+        //改動作，拿到DB的anlaystType
+        trainingLabel = getIntent().getStringExtra("training_type");
         if (trainingLabel == null) trainingLabel = "訓練";
         Log.d(TAG, "接收到訓練類型: " + trainingType + ", 標籤: " + trainingLabel);
 
-        if ("舌頭".equals(trainingLabel)) {
+        if ("舌頭".equals(trainingLabel) ||
+                "TONGUE_LEFT".equals(trainingLabel) ||
+                "TONGUE_RIGHT".equals(trainingLabel) ||
+                "TONGUE_FOWARD".equals(trainingLabel) ||
+                "TONGUE_BACK".equals(trainingLabel) ||
+                "TONGUE_UP".equals(trainingLabel) ||
+                "TONGUE_DOWN".equals(trainingLabel)) {
             initializeTongueDetector();
             Log.d(TAG, "✅ 舌頭模式：使用 MediaPipe 關鍵點顯示與啟用 YOLO 檢測 + YOLO 顯示");
         }
@@ -169,7 +177,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         timerText = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
 
-        if ("舌頭".equals(trainingLabel)) {
+        if ("舌頭".equals(trainingLabel) ||
+                "TONGUE_LEFT".equals(trainingLabel) ||
+                "TONGUE_RIGHT".equals(trainingLabel) ||
+                "TONGUE_FOWARD".equals(trainingLabel) ||
+                "TONGUE_BACK".equals(trainingLabel) ||
+                "TONGUE_UP".equals(trainingLabel) ||
+                "TONGUE_DOWN".equals(trainingLabel)) {
             overlayView.setDisplayMode(CircleOverlayView.DisplayMode.YOLO_DETECTION);
         } else {
             overlayView.setDisplayMode(CircleOverlayView.DisplayMode.LANDMARKS);
@@ -451,7 +465,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             allPoints[i][1] = y * overlayHeight;
                         }
 
-                        if ("舌頭".equals(trainingLabel) && isYoloEnabled) {
+                        if (("舌頭".equals(trainingLabel) ||
+                                "TONGUE_LEFT".equals(trainingLabel) ||
+                                "TONGUE_RIGHT".equals(trainingLabel) ||
+                                "TONGUE_FOWARD".equals(trainingLabel) ||
+                                "TONGUE_BACK".equals(trainingLabel) ||
+                                "TONGUE_UP".equals(trainingLabel) ||
+                                "TONGUE_DOWN".equals(trainingLabel)) && isYoloEnabled) {
                             // ★ 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap）
                             boolean needFaceMesh = (lastOverlayRoi == null) || (frameId % FACE_MESH_EVERY == 0);
                             if (needFaceMesh) {
@@ -472,11 +492,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
                                     lastOverlayRoi, lastBitmapRoi);
 
-                        } else if ("鼓頰".equals(trainingLabel)) {
+                        } else if ("鼓頰".equals(trainingLabel) ||
+                                "PUFF_CHEEK".equals(trainingLabel) ||
+                                "REDUCE_CHEEK".equals(trainingLabel)) {
                             // ★★★ 臉頰模式：呼叫 Farneback 光流引擎
                             handleCheeksMode(landmarks01, mirroredBitmap);
-
-                        } else if ("下顎".equals(trainingLabel)) {
+                        } else if ("下顎".equals(trainingLabel) ||
+                                "JAW_LEFT".equals(trainingLabel) ||
+                                "JAW_RIGHT".equals(trainingLabel)) {
                             // ★★★ 下顎模式
                             handleJawMode(allPoints);
                         } else {

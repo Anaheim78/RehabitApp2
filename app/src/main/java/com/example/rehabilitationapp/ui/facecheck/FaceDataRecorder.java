@@ -89,14 +89,20 @@ public class FaceDataRecorder {
 
     private void initializeCSV() {
         String header = "";
-        if ("抿嘴".equals(trainingLabel)) {
+        if ("SIP_LIPS".equals(trainingLabel)) {
             header = Lip_Closure_HEADER; // 改成總面積
-        } else if ("嘟嘴".equals(trainingLabel)) {
+        } else if ("POUT_LIPS".equals(trainingLabel)) {
             header = Lip_Prot_HEADER;
             //header = "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
-        } else if ("舌頭".equals(trainingLabel)) {
+        } else if ("舌頭".equals(trainingLabel) ||
+                "TONGUE_LEFT".equals(trainingLabel) ||
+                "TONGUE_RIGHT".equals(trainingLabel) ||
+                "TONGUE_FOWARD".equals(trainingLabel) ||
+                "TONGUE_BACK".equals(trainingLabel) ||
+                "TONGUE_UP".equals(trainingLabel) ||
+                "TONGUE_DOWN".equals(trainingLabel)) {
             header = TONGUE_HEADER;
-        } else if ("鼓頰".equals(trainingLabel)) {
+        } else if ("PUFF_CHEEK".equals(trainingLabel)||"REDUCE_CHEEK".equals(trainingLabel)) {
             header = CHEEKS_HEADER;
         } else {
             header = "time_seconds,state,metric_value"; // 預設格式
@@ -117,7 +123,7 @@ public class FaceDataRecorder {
 
             String dataLine = "";
 
-            if ("抿嘴".equals(trainingLabel)) {
+            if ("SIP_LIPS".equals(trainingLabel)) {
                 // 🔥 改用掃描線方法計算上下嘴唇面積
                 float upperLipArea = calculateLipAreaByScanline(landmarks, UPPER_LIP_INDICES);
                 float lowerLipArea = calculateLipAreaByScanline(landmarks, LOWER_LIP_INDICES);
@@ -130,7 +136,7 @@ public class FaceDataRecorder {
                 Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
                         relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
 
-            } else if ("嘟嘴".equals(trainingLabel)) {
+            } else if ("POUT_LIPS".equals(trainingLabel)) {
                 // 🔥 改用外緣點計算嘴巴高度和寬度
                 float[] mouthDimensions = calculateMouthDimensionsImproved(landmarks);
                 float height = mouthDimensions[0];
@@ -143,7 +149,7 @@ public class FaceDataRecorder {
                 Log.d(TAG, String.format("嘟嘴數據 [%.3fs] - 高度: %.3f, 寬度: %.3f, 比值: %.3f",
                         relativeTimeSeconds, height, width, heightWidthRatio));
             }
-            else if ("下顎".equals(trainingLabel)) {
+            else if ("JAW_LEFT".equals(trainingLabel)||"JAW_RIGHT".equals(trainingLabel)) {
                 // 🔥 改用三點平均計算下顎水平位移
                 float[] jawShift = calculateJawMoving(landmarks);
                 float shift = jawShift[0];      // 可正可負
@@ -167,7 +173,7 @@ public class FaceDataRecorder {
     //多載:臉頰
     public void recordLandmarkData(String state, Float liX, Float liY, Float riX, Float riY, Float liRawX, Float liRawY, Float riRawX, Float riRawY) {
         try {
-            if (!"鼓頰".equals(trainingLabel)) return; // 僅在臉頰模式有效
+            if (!("PUFF_CHEEK".equals(trainingLabel)||"REDUCE_CHEEK".equals(trainingLabel))) return; // 僅在臉頰模式有效
 
             long now = System.currentTimeMillis();
             double t = (now - startTime) / 1000.0;
