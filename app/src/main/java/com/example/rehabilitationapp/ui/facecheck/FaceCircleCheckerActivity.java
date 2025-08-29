@@ -154,10 +154,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         if ("舌頭".equals(trainingLabel)) {
             initializeTongueDetector();
-            Log.d(TAG, "✅ 舌頭模式：啟用 YOLO 檢測 + YOLO 顯示");
+            Log.d(TAG, "✅ 舌頭模式：使用 MediaPipe 關鍵點顯示與啟用 YOLO 檢測 + YOLO 顯示");
         }
         else {
-            Log.d(TAG, "✅ 嘴唇模式：使用 MediaPipe 關鍵點顯示");
+            Log.d(TAG, "✅ 非頭模式：使用 MediaPipe 關鍵點顯示");
         }
 
         dataRecorder = new FaceDataRecorder(this, trainingLabel, trainingType);
@@ -174,7 +174,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         } else {
             overlayView.setDisplayMode(CircleOverlayView.DisplayMode.LANDMARKS);
         }
-
+        //Thread控制器初始化
         cameraExecutor = Executors.newSingleThreadExecutor();//處理圖像
         yoloExecutor = Executors.newSingleThreadExecutor(); //處理YOLO
         mainHandler = new Handler(Looper.getMainLooper());
@@ -182,8 +182,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         testCameraPermission();
         setupFaceLandmarker();
         initializeUI();
-
-
 
         if (checkCameraPermission()) {
             startCamera();

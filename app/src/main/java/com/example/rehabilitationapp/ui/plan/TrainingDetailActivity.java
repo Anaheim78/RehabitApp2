@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp.ui.plan;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -18,6 +19,7 @@ import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.model.PlanWithItems;
 import com.example.rehabilitationapp.data.model.TrainingItem;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
+import com.example.rehabilitationapp.ui.facecheck.FaceCircleCheckerActivity;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -174,8 +176,33 @@ public class TrainingDetailActivity extends AppCompatActivity {
                         .show();
 
             } else {
+                //2025 08 29__開始訓練，銜接到舊版的首頁訓練
+                // 開始訓練：銜接到舊版的首頁訓練
                 Log.d("TrainDetailAct","into the createBtn__is not CreateMode");
-                Toast.makeText(this, "開始訓練", Toast.LENGTH_SHORT).show();
+
+                // 🔍 取得被選中的項目
+                SelectableExerciseAdapter adapter = (SelectableExerciseAdapter) exercisesRecycler.getAdapter();
+                List<TrainingItem> selectedItems = adapter.getSelectedItems();
+
+                if (selectedItems.isEmpty()) {
+                    Toast.makeText(this, "請先選擇一個訓練項目", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // ✅ 取第一個被選中的項目（因為是單選）
+                TrainingItem selectedItem = selectedItems.get(0);
+                // 🔍 印出 analysisType
+                Log.d("TrainDetailAct", "selectedItem.analysisType: " + selectedItem.analysisType);
+                Log.d("TrainDetailAct", "selectedItem.title: " + selectedItem.title);
+
+                Toast.makeText(this, "開始 " + selectedItem.title + " 訓練！", Toast.LENGTH_SHORT).show();
+
+                // ✅ 用一樣的參數傳遞方式
+                Intent intent = new Intent(this, FaceCircleCheckerActivity.class);
+                intent.putExtra("training_type", selectedItem.analysisType); // 用 DB 裡的 type
+                intent.putExtra("training_label", selectedItem.title);
+                startActivity(intent);
+
                 finish();
             }
         });
