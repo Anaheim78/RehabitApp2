@@ -226,7 +226,7 @@ public class TrainingDetailActivity extends AppCompatActivity {
                             Log.d("test_PlanDetail", "MATCH FOUND! Exercise count: " + exercises.size());
 
                             runOnUiThread(() -> {
-                                SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(exercises,true);
+                                SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(exercises,false);
                                 exercisesRecycler.setAdapter(adapter);
                                 Log.d("test_PlanDetail", "Adapter set successfully");
                             });
