@@ -64,7 +64,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 計時常數
     private static final int CALIBRATION_TIME = 5000;         // 5 秒校正
-    private static final int MAINTAIN_TIME_TOTAL = 10000;     // 先測試，10 秒維持
+    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 先測試，10 秒維持
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
 
     // ★★★ 頻率控制（可自行調整）★★★
@@ -951,6 +951,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
             @Override
             public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
+                Log.d(TAG, "✅ 測試傳數值到Vercel_");
+
                 Log.d(TAG, "✅ 儲存與分析完成，準備跳轉結果頁面");
                 Log.d(TAG, String.format("📊 分析結果 - 總峰值: %d", result.totalPeaks));
                 Intent intent = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);

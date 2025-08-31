@@ -42,7 +42,18 @@ public class TongueYoloDetector {
     private static final String MODEL_FILE = "tongue_yolo_fp16_320.tflite"; // or fp32
 
     private static final int CHANNEL_SIZE = 3;
-    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.2f;
+    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.82f;
+
+
+    // === ROI 對齊 Python 的參數 === 用來對應新版TONGUE模型的ROI
+    private static final float ROI_EMA_ALPHA  = 0.6f;  // 跟 Python 一樣的 EMA 強度
+    private static final float ROI_SIDE_SCALE = 1.6f;  // 正方形邊長 = 嘴角距離 * 1.6
+    private static final float ROI_MARGIN     = 0.12f; // 再外擴 12%
+    private static final int   ROI_SIDE_MIN_PX= 96;    // 最小邊長，避免太小
+
+    // === ROI 的 EMA 狀態（跨呼叫記住中心）===
+    private static Float sRoiEmaCx = null;
+    private static Float sRoiEmaCy = null;
 
 
     // 🔥 在這裡加入新的檢測結果類 ↓↓↓
@@ -195,7 +206,7 @@ public class TongueYoloDetector {
      * @return true 如果檢測到舌頭，false 反之
 
     public boolean detectTongue(Bitmap bitmap) {
-        return detectTongue(bitmap, DEFAULT_CONFIDENCE_THRESHOLD);
+    return detectTongue(bitmap, DEFAULT_CONFIDENCE_THRESHOLD);
     }     */
 
     /*
@@ -408,54 +419,132 @@ public class TongueYoloDetector {
      * @param imageHeight 圖片高度
      * @return 嘴部 ROI 矩形
      */
+//    public static Rect calculateMouthROI(float[][] landmarks, int imageWidth, int imageHeight) {
+//        try {
+//            // 🔥 MediaPipe 嘴部關鍵點索引（這些可能需要根據實際情況調整）
+//            int[] mouthIndices = {
+//                    61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318, // 嘴唇外圍
+//                    78, 95, 88, 178, 87, 14, 317, 402, 415, 310, 311, 312   // 嘴唇內圍
+//            };
+//
+//            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
+//            float maxX = Float.MIN_VALUE, maxY = Float.MIN_VALUE;
+//
+//            // 🔍 找出嘴部區域的邊界
+//            for (int index : mouthIndices) {
+//                if (index < landmarks.length && landmarks[index] != null) {
+//                    float x = landmarks[index][0];
+//                    float y = landmarks[index][1];
+//
+//                    minX = Math.min(minX, x);
+//                    maxX = Math.max(maxX, x);
+//                    minY = Math.min(minY, y);
+//                    maxY = Math.max(maxY, y);
+//                }
+//            }
+//
+//            // 📏 擴大 ROI 範圍（增加 30% 邊距，確保舌頭不被截斷）
+//            float margin = 0.3f;
+//            float width = maxX - minX;
+//            float height = maxY - minY;
+//
+//            minX -= width * margin;
+//            maxX += width * margin;
+//            minY -= height * margin;
+//            maxY += height * margin;
+//
+//            // 📐 確保在圖片邊界內
+//            int left = Math.max(0, (int) minX);
+//            int top = Math.max(0, (int) minY);
+//            int right = Math.min(imageWidth, (int) maxX);
+//            int bottom = Math.min(imageHeight, (int) maxY);
+//
+//            Rect roi = new Rect(left, top, right, bottom);
+//            Log.d(TAG, String.format("📐 計算嘴部 ROI: %s", roi.toString()));
+//
+//            return roi;
+//
+//        } catch (Exception e) {
+//            Log.e(TAG, "❌ 計算嘴部 ROI 失敗: " + e.getMessage());
+//            // 返回預設 ROI（圖片中央 1/4 區域）
+//            return new Rect(imageWidth / 4, imageHeight / 4,
+//                    imageWidth * 3 / 4, imageHeight * 3 / 4);
+//        }
+//    }
+    /**
+     * 📐 根據 MediaPipe landmarks 計算嘴部 ROI（對齊 Python：中心＋正方形＋EMA）
+     *
+     * @param landmarks 468 個點，每點為 {x_px, y_px}（像素座標！）
+     * @param imageWidth  影像寬
+     * @param imageHeight 影像高
+     * @return Rect(left, top, right, bottom) 皆為整張影像座標
+     */
     public static Rect calculateMouthROI(float[][] landmarks, int imageWidth, int imageHeight) {
         try {
-            // 🔥 MediaPipe 嘴部關鍵點索引（這些可能需要根據實際情況調整）
-            int[] mouthIndices = {
-                    61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318, // 嘴唇外圍
-                    78, 95, 88, 178, 87, 14, 317, 402, 415, 310, 311, 312   // 嘴唇內圍
-            };
-
-            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
-            float maxX = Float.MIN_VALUE, maxY = Float.MIN_VALUE;
-
-            // 🔍 找出嘴部區域的邊界
-            for (int index : mouthIndices) {
-                if (index < landmarks.length && landmarks[index] != null) {
-                    float x = landmarks[index][0];
-                    float y = landmarks[index][1];
-
-                    minX = Math.min(minX, x);
-                    maxX = Math.max(maxX, x);
-                    minY = Math.min(minY, y);
-                    maxY = Math.max(maxY, y);
-                }
+            // 檢查點數是否足夠（需要 291、13、14 等）
+            if (landmarks == null || landmarks.length <= 291
+                    || landmarks[61] == null || landmarks[291] == null
+                    || landmarks[13] == null || landmarks[14] == null) {
+                // 回傳預設 ROI（中央 1/4）
+                return new Rect(imageWidth / 4, imageHeight / 4,
+                        imageWidth * 3 / 4, imageHeight * 3 / 4);
             }
 
-            // 📏 擴大 ROI 範圍（增加 30% 邊距，確保舌頭不被截斷）
-            float margin = 0.3f;
-            float width = maxX - minX;
-            float height = maxY - minY;
+            // 1) 取嘴角與上下唇（像素座標；與 Python 一致）
+            float lx = landmarks[61][0], ly = landmarks[61][1];     // 左嘴角
+            float rx = landmarks[291][0], ry = landmarks[291][1];   // 右嘴角
+            float ux = landmarks[13][0],  uy = landmarks[13][1];    // 上唇
+            float dx = landmarks[14][0],  dy = landmarks[14][1];    // 下唇
 
-            minX -= width * margin;
-            maxX += width * margin;
-            minY -= height * margin;
-            maxY += height * margin;
+            // 2) 嘴中心（上下唇中點）與嘴角距離（像 Python 的 mouth_center_and_scale）
+            float cx = 0.5f * (ux + dx);
+            float cy = 0.5f * (uy + dy);
+            float mouthW = (float) Math.hypot(rx - lx, ry - ly);
 
-            // 📐 確保在圖片邊界內
-            int left = Math.max(0, (int) minX);
-            int top = Math.max(0, (int) minY);
-            int right = Math.min(imageWidth, (int) maxX);
-            int bottom = Math.min(imageHeight, (int) maxY);
+            // 3) EMA 平滑中心（跨呼叫維持在靜態欄位）
+            if (sRoiEmaCx == null || sRoiEmaCy == null) {
+                sRoiEmaCx = cx;
+                sRoiEmaCy = cy;
+            } else {
+                sRoiEmaCx = ROI_EMA_ALPHA * cx + (1f - ROI_EMA_ALPHA) * sRoiEmaCx;
+                sRoiEmaCy = ROI_EMA_ALPHA * cy + (1f - ROI_EMA_ALPHA) * sRoiEmaCy;
+            }
+
+            // 4) 正方形邊長 = 嘴角距離 * 1.6，再外擴 12%
+            int side = Math.max(ROI_SIDE_MIN_PX, Math.round(mouthW * ROI_SIDE_SCALE));
+            side = Math.round(side * (1f + ROI_MARGIN));
+
+            // 5) 以 EMA 中心生成正方形，並夾回影像邊界
+            int half  = side / 2;
+            int left  = Math.round(sRoiEmaCx) - half;
+            int top   = Math.round(sRoiEmaCy) - half;
+            int right = left + side;
+            int bottom= top  + side;
+
+            // 邊界處理：保持正方形盡量完整
+            if (left < 0) { right -= left; left = 0; }
+            if (top  < 0) { bottom -= top; top = 0; }
+            if (right > imageWidth) {
+                int diff = right - imageWidth;
+                right = imageWidth; left = Math.max(0, left - diff);
+            }
+            if (bottom > imageHeight) {
+                int diff = bottom - imageHeight;
+                bottom = imageHeight; top = Math.max(0, top - diff);
+            }
+
+            // 萬一出界導致無效，給預設
+            if (right <= left || bottom <= top) {
+                return new Rect(imageWidth / 4, imageHeight / 4,
+                        imageWidth * 3 / 4, imageHeight * 3 / 4);
+            }
 
             Rect roi = new Rect(left, top, right, bottom);
-            Log.d(TAG, String.format("📐 計算嘴部 ROI: %s", roi.toString()));
-
+            Log.d(TAG, "📐 PY 等價 ROI: " + roi.toShortString());
             return roi;
 
         } catch (Exception e) {
             Log.e(TAG, "❌ 計算嘴部 ROI 失敗: " + e.getMessage());
-            // 返回預設 ROI（圖片中央 1/4 區域）
             return new Rect(imageWidth / 4, imageHeight / 4,
                     imageWidth * 3 / 4, imageHeight * 3 / 4);
         }
@@ -542,15 +631,90 @@ public class TongueYoloDetector {
         }
     }
 
+    //    private DetectionResult postprocessWithRealCoordinates(Rect originalROI, LetterboxCtx ctx) {
+//        int bestIdx = -1;
+//        float bestProb = 0f;
+//
+//        // 1) 找舌頭最大機率的框（類別=舌頭，在你模型是 channel index 7）
+//        for (int i = 0; i < numDet; i++) {
+//            float prob = outputBuffer[0][7][i];
+//            float wN = outputBuffer[0][2][i];
+//            float hN = outputBuffer[0][3][i];
+//            if (prob > DEFAULT_CONFIDENCE_THRESHOLD && wN > 0.01f && hN > 0.01f && prob > bestProb) {
+//                bestProb = prob;
+//                bestIdx = i;
+//            }
+//        }
+//        if (bestIdx < 0) return new DetectionResult(false);
+//
+//        // 2) 讀出（0~1）正規化座標（以 INPUT_SIZE 正方形為基準）
+//        float cxN = outputBuffer[0][0][bestIdx];
+//        float cyN = outputBuffer[0][1][bestIdx];
+//        float wN  = outputBuffer[0][2][bestIdx];
+//        float hN  = outputBuffer[0][3][bestIdx];
+//
+//        // 3) 轉成「正方形像素座標」
+//        float cxS = cxN * ctx.inW;
+//        float cyS = cyN * ctx.inH;
+//        float wS  = wN  * ctx.inW;
+//        float hS  = hN  * ctx.inH;
+//
+//        // 4) 去 padding（回縮放後的 ROI）
+//        float cxNoPad = cxS - ctx.padX;
+//        float cyNoPad = cyS - ctx.padY;
+//
+//        // 5) 除以 scale（回原 ROI 大小，以像素計）
+//        float cxRoi = cxNoPad / ctx.scale;
+//        float cyRoi = cyNoPad / ctx.scale;
+//        float wRoi  = wS / ctx.scale;
+//        float hRoi  = hS / ctx.scale;
+//
+//        // 6) 映回整張 Bitmap：加上 ROI 起點
+//        int left   = Math.round(originalROI.left + (cxRoi - wRoi / 2f));
+//        int top    = Math.round(originalROI.top  + (cyRoi - hRoi / 2f));
+//        int right  = Math.round(left + wRoi);
+//        int bottom = Math.round(top  + hRoi);
+//
+//        // 7) 夾在 ROI 內，避免越界
+//        left   = Math.max(originalROI.left,   Math.min(left,   originalROI.right));
+//        top    = Math.max(originalROI.top,    Math.min(top,    originalROI.bottom));
+//        right  = Math.max(originalROI.left,   Math.min(right,  originalROI.right));
+//        bottom = Math.max(originalROI.top,    Math.min(bottom, originalROI.bottom));
+//        if (right <= left || bottom <= top) return new DetectionResult(false);
+//
+//        Rect realBox = new Rect(left, top, right, bottom);
+//        Log.d(TAG, String.format("🎯 舌頭真實位置(Bitmap): %s (conf=%.3f)", realBox, bestProb));
+//        return new DetectionResult(true, bestProb, realBox);
+//    }
     private DetectionResult postprocessWithRealCoordinates(Rect originalROI, LetterboxCtx ctx) {
+        // ---- 通道索引（維持局部定義，避免動到類別其他地方）----
+        final int CH_CX = 0, CH_CY = 1, CH_W = 2, CH_H = 3;
+        final int CH_TONGUE = 7; // 4框 + 4類 → 舌頭 = 7
+
         int bestIdx = -1;
         float bestProb = 0f;
 
-        // 1) 找舌頭最大機率的框（類別=舌頭，在你模型是 channel index 7）
+        // ---- 先判斷類別通道是否是 logits（非0..1就視為logits，需要sigmoid）----
+        float minV = Float.POSITIVE_INFINITY, maxV = Float.NEGATIVE_INFINITY;
+        int sample = Math.min(32, numDet);
+        for (int i = 0; i < sample; i++) {
+            float v = outputBuffer[0][CH_TONGUE][i];
+            if (v < minV) minV = v;
+            if (v > maxV) maxV = v;
+        }
+        final boolean needSigmoid = (minV < 0f || maxV > 1f);
+
+        // ---- 掃描所有候選，找舌頭機率最高的框 ----
         for (int i = 0; i < numDet; i++) {
-            float prob = outputBuffer[0][7][i];
-            float wN = outputBuffer[0][2][i];
-            float hN = outputBuffer[0][3][i];
+            float raw = outputBuffer[0][CH_TONGUE][i];
+            // clamp 再 sigmoid，避免 exp 溢位
+            float prob = needSigmoid
+                    ? (float) (1.0 / (1.0 + Math.exp(-Math.max(-20.0, Math.min(20.0, raw)))))
+                    : raw;
+
+            float wN = outputBuffer[0][CH_W][i];
+            float hN = outputBuffer[0][CH_H][i];
+
             if (prob > DEFAULT_CONFIDENCE_THRESHOLD && wN > 0.01f && hN > 0.01f && prob > bestProb) {
                 bestProb = prob;
                 bestIdx = i;
@@ -558,35 +722,34 @@ public class TongueYoloDetector {
         }
         if (bestIdx < 0) return new DetectionResult(false);
 
-        // 2) 讀出（0~1）正規化座標（以 INPUT_SIZE 正方形為基準）
-        float cxN = outputBuffer[0][0][bestIdx];
-        float cyN = outputBuffer[0][1][bestIdx];
-        float wN  = outputBuffer[0][2][bestIdx];
-        float hN  = outputBuffer[0][3][bestIdx];
+        // ---- 取出框座標（可能是 0..1，也可能已是像素；自動判斷）----
+        float cxN = outputBuffer[0][CH_CX][bestIdx];
+        float cyN = outputBuffer[0][CH_CY][bestIdx];
+        float wN  = outputBuffer[0][CH_W][bestIdx];
+        float hN  = outputBuffer[0][CH_H][bestIdx];
 
-        // 3) 轉成「正方形像素座標」
-        float cxS = cxN * ctx.inW;
-        float cyS = cyN * ctx.inH;
-        float wS  = wN  * ctx.inW;
-        float hS  = hN  * ctx.inH;
+        boolean coordsArePixels = (wN > 2f || hN > 2f || cxN > 2f || cyN > 2f);
+        float cxS = coordsArePixels ? cxN : cxN * ctx.inW; // 映回「輸入正方形」座標
+        float cyS = coordsArePixels ? cyN : cyN * ctx.inH;
+        float wS  = coordsArePixels ? wN  : wN  * ctx.inW;
+        float hS  = coordsArePixels ? hN  : hN  * ctx.inH;
 
-        // 4) 去 padding（回縮放後的 ROI）
+        // ---- 去掉 letterbox padding → 回 ROI 內像素座標 ----
         float cxNoPad = cxS - ctx.padX;
         float cyNoPad = cyS - ctx.padY;
 
-        // 5) 除以 scale（回原 ROI 大小，以像素計）
         float cxRoi = cxNoPad / ctx.scale;
         float cyRoi = cyNoPad / ctx.scale;
         float wRoi  = wS / ctx.scale;
         float hRoi  = hS / ctx.scale;
 
-        // 6) 映回整張 Bitmap：加上 ROI 起點
+        // ---- 投回整張位圖座標（ROI 偏移）----
         int left   = Math.round(originalROI.left + (cxRoi - wRoi / 2f));
         int top    = Math.round(originalROI.top  + (cyRoi - hRoi / 2f));
         int right  = Math.round(left + wRoi);
         int bottom = Math.round(top  + hRoi);
 
-        // 7) 夾在 ROI 內，避免越界
+        // ---- 夾在 ROI 界內，避免越界 ----
         left   = Math.max(originalROI.left,   Math.min(left,   originalROI.right));
         top    = Math.max(originalROI.top,    Math.min(top,    originalROI.bottom));
         right  = Math.max(originalROI.left,   Math.min(right,  originalROI.right));
@@ -594,7 +757,6 @@ public class TongueYoloDetector {
         if (right <= left || bottom <= top) return new DetectionResult(false);
 
         Rect realBox = new Rect(left, top, right, bottom);
-        Log.d(TAG, String.format("🎯 舌頭真實位置(Bitmap): %s (conf=%.3f)", realBox, bestProb));
         return new DetectionResult(true, bestProb, realBox);
     }
 
