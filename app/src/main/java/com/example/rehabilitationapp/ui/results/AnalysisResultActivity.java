@@ -1,286 +1,229 @@
 package com.example.rehabilitationapp.ui.results;
 
-import android.content.Intent;
-import android.os.Bundle;
-import android.util.Log;
-import android.widget.TextView;
-import android.widget.Button;
-import android.widget.ProgressBar;
-import android.widget.Toast;
-
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.example.rehabilitationapp.R;
 
+import android.content.Intent;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.LimitLine;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.button.MaterialButton;
+
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 public class AnalysisResultActivity extends AppCompatActivity {
-    private static final String TAG = "AnalysisResult";
 
-    // UI 元件
-    private TextView trainingTypeText;
-    private TextView actualCountText;
-    private TextView targetCountText;
-    private TextView durationText;
-    private TextView completionRateText;
-    private TextView feedbackText;
-    private ProgressBar completionProgress;
-    private Button saveResultButton;
-    private Button retryButton;
-    private Button shareLineButton;
-    private Button debugPeakButton; // 🔧 DEBUG: 峰值分析按鈕
-
-    // 數據變數
-    private String trainingLabel;
-    private int actualCount;
-    private int targetCount = 4; // 預設目標次數
-    private int trainingDuration;
-    private String csvFileName;
+    private TextView tvTitle;
+    private ImageView ivAvatar1;
+    private TextView tvMotionName1, tvCount1, tvPercent1, tvDuration1;
+    private TextView tvSystemTips;
+    private ImageButton btnBackArrow;
+    private MaterialButton btnRetryCircle, btnShareCircle, btnSave;
+    private BottomNavigationView bottomNav;
+    private LineChart lineChart;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_analysis_result);
 
-        Log.d(TAG, "📊 結果頁面啟動");
+        // 綁定 View（名稱需與 XML 完全一致）
+        tvTitle       = findViewById(R.id.tvTitle);
+        ivAvatar1     = findViewById(R.id.ivAvatar1);
+        tvMotionName1 = findViewById(R.id.tvMotionName1);
+        tvCount1      = findViewById(R.id.tvCount1);
+        tvPercent1    = findViewById(R.id.tvPercent1);
+        tvDuration1   = findViewById(R.id.tvDuration1);
+        tvSystemTips  = findViewById(R.id.tvSystemTips);
+        btnBackArrow  = findViewById(R.id.btnBackArrow);
+        btnRetryCircle= findViewById(R.id.btnRetryCircle);
+        btnShareCircle= findViewById(R.id.btnShareCircle);
+        btnSave       = findViewById(R.id.btnSave);
+        lineChart     = findViewById(R.id.lineChart);
 
-        // 初始化 UI
-        initViews();
+        // 讀取 Intent 資料
+        Intent i = getIntent();
+        String trainingLabel = i.getStringExtra("training_label");
+        int actualCount      = i.getIntExtra("actual_count", 0);
+        int targetCount      = i.getIntExtra("target_count", 4);
+        int durationSec      = i.getIntExtra("training_duration", 0);
+        String csvFileName   = i.getStringExtra("csv_file_name");
+        String apiJson       = i.getStringExtra("api_response_json"); // 可能為 null
+        double[] times       = i.getDoubleArrayExtra("ratio_times");
+        double[] ratios      = i.getDoubleArrayExtra("ratio_values");
 
-        // 取得傳入的數據
-        getIntentData();
+        // 若有 API JSON，優先覆寫可覆寫欄位
+        if (!TextUtils.isEmpty(apiJson)) {
+            try {
+                JSONObject obj = new JSONObject(apiJson);
+                if (obj.has("motion")) {
+                    trainingLabel = obj.optString("motion", trainingLabel);
+                }
+                if (obj.has("pout_count")) {
+                    actualCount = obj.optInt("pout_count", actualCount);
+                }
+                if (obj.has("total_hold_time")) {
+                    durationSec = (int) Math.round(obj.optDouble("total_hold_time", durationSec));
+                }
+                if (obj.has("message")) {
+                    tvSystemTips.setText(obj.optString("message", "系統提醒訊息"));
+                }
+            } catch (JSONException ignore) { /* 保底用 Intent 值 */ }
+        }
 
-        // 顯示結果
-        displayResults();
+        // 顯示數值
+        tvTitle.setText("訓練結果");
+        tvMotionName1.setText(toDisplayMotion(trainingLabel));
+        tvCount1.setText(String.format(Locale.getDefault(), "%02d/%02d", actualCount, targetCount));
 
-        // 設定按鈕事件
-        setupButtons();
+        int percent = (int) Math.round(100.0 * actualCount / Math.max(1, targetCount));
+        tvPercent1.setText(String.format(Locale.getDefault(), "%d%%", percent));
+        tvDuration1.setText(String.format(Locale.getDefault(), "%d秒", durationSec));
+
+        // === 這裡做「final 副本」→ 給 lambda 使用 ===
+        final String fLabel    = trainingLabel;
+        final int    fActual   = actualCount;
+        final int    fTarget   = targetCount;
+        final int    fDuration = durationSec;
+        final String fCsv      = csvFileName;
+        final int    fPercent  = percent;
+        final String fApiJson  = apiJson;
+
+        // 上一頁
+        btnBackArrow.setOnClickListener(v -> finish());
+
+        // 重新
+        btnRetryCircle.setOnClickListener(v -> {
+            Toast.makeText(this, "重新測量", Toast.LENGTH_SHORT).show();
+            finish();
+        });
+
+        // 分享
+        btnShareCircle.setOnClickListener(v -> {
+            String text = "訓練：" + toDisplayMotion(fLabel)
+                    + "；次數：" + fActual + "/" + fTarget
+                    + "；完成度：" + fPercent + "%"
+                    + "；持續：" + fDuration + "秒"
+                    + (TextUtils.isEmpty(fCsv) ? "" : "；CSV：" + fCsv);
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("text/plain");
+            share.putExtra(Intent.EXTRA_TEXT, text);
+            startActivity(Intent.createChooser(share, "分享訓練結果"));
+        });
+
+        // 儲存（示意）
+        btnSave.setOnClickListener(v ->
+                Toast.makeText(this, "已儲存結果（示意）", Toast.LENGTH_SHORT).show()
+        );
+
+        // 底部導覽（動態加 items）
+
+
+        // ===== 畫 Ratio 折線圖 + segments 區段 =====
+        setupChart(lineChart);
+        plotRatio(lineChart, times, ratios);
+        shadeSegmentsFromApi(lineChart, fApiJson);
+        lineChart.invalidate();
     }
 
-    private void initViews() {
-        trainingTypeText = findViewById(R.id.training_type_text);
-        actualCountText = findViewById(R.id.actual_count_text);
-        targetCountText = findViewById(R.id.target_count_text);
-        durationText = findViewById(R.id.duration_text);
-        completionRateText = findViewById(R.id.completion_rate_text);
-        feedbackText = findViewById(R.id.feedback_text);
-        completionProgress = findViewById(R.id.completion_progress);
-        saveResultButton = findViewById(R.id.save_result_button);
-        retryButton = findViewById(R.id.retry_button);
-        shareLineButton = findViewById(R.id.share_line_button);
+    private void setupChart(LineChart chart) {
+        if (chart == null) return;
+        chart.getDescription().setEnabled(false);
+        chart.getLegend().setEnabled(false);
 
-        // 🔧 DEBUG: 初始化峰值分析按鈕
-        debugPeakButton = findViewById(R.id.debug_peak_button);
+        XAxis xAxis = chart.getXAxis();
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setDrawGridLines(false);
 
-        Log.d(TAG, "✅ UI 元件初始化完成");
+        chart.getAxisLeft().setDrawGridLines(true);
+        chart.getAxisRight().setEnabled(false);
     }
 
-    private void getIntentData() {
-        Intent intent = getIntent();
-
-        trainingLabel = intent.getStringExtra("training_label");
-        actualCount = intent.getIntExtra("actual_count", 0);
-        targetCount = intent.getIntExtra("target_count", 4);
-        trainingDuration = intent.getIntExtra("training_duration", 0);
-        csvFileName = intent.getStringExtra("csv_file_name");
-
-        Log.d(TAG, String.format("📋 接收數據 - 類型: %s, 實際: %d, 目標: %d, 時間: %d秒",
-                trainingLabel, actualCount, targetCount, trainingDuration));
-    }
-
-    private void displayResults() {
-        // 設定訓練類型
-        if (trainingTypeText != null) {
-            trainingTypeText.setText(trainingLabel != null ? trainingLabel : "訓練");
-        }
-
-        // 設定實際次數
-        if (actualCountText != null) {
-            actualCountText.setText("實際次數：" + actualCount);
-        }
-
-        // 設定目標次數
-        if (targetCountText != null) {
-            targetCountText.setText("目標次數：" + targetCount);
-        }
-
-        // 設定持續時間
-        if (durationText != null) {
-            durationText.setText("持續時間：" + trainingDuration + " 秒");
-        }
-
-        // 計算完成率
-        int completionRate = targetCount > 0 ? (actualCount * 100 / targetCount) : 0;
-        completionRate = Math.min(completionRate, 100); // 限制最大100%
-
-        // 設定完成率文字
-        if (completionRateText != null) {
-            completionRateText.setText(completionRate + "%");
-        }
-
-        // 設定進度條
-        if (completionProgress != null) {
-            completionProgress.setProgress(completionRate);
-        }
-
-        // 設定反饋文字
-        displayFeedback(completionRate);
-
-        Log.d(TAG, String.format("📊 顯示結果 - 完成率: %d%%", completionRate));
-    }
-
-    private void displayFeedback(int completionRate) {
-        String feedback;
-
-        if (completionRate >= 90) {
-            feedback = "🎉 表現優秀！\n您已經完全掌握了這個動作。";
-        } else if (completionRate >= 75) {
-            feedback = "😊 您已完成過半次數！\n建議可進行更多練習以提升效果。";
-        } else if (completionRate >= 50) {
-            feedback = "💪 不錯的開始！\n繼續努力，您會越來越進步。";
-        } else {
-            feedback = "🌟 每一次練習都是進步！\n建議多加練習以達到更好效果。";
-        }
-
-        if (feedbackText != null) {
-            feedbackText.setText(feedback);
-        }
-    }
-
-    private void setupButtons() {
-        // 儲存結果按鈕
-        if (saveResultButton != null) {
-            saveResultButton.setOnClickListener(v -> {
-                Log.d(TAG, "💾 儲存結果");
-                saveResults();
-            });
-        }
-
-        // 重新測量按鈕
-        if (retryButton != null) {
-            retryButton.setOnClickListener(v -> {
-                Log.d(TAG, "🔄 重新測量");
-                retryTraining();
-            });
-        }
-
-        // 分享至 LINE 按鈕
-        if (shareLineButton != null) {
-            shareLineButton.setOnClickListener(v -> {
-                Log.d(TAG, "📤 分享至 LINE");
-                shareToLine();
-            });
-        }
-
-        // 🔧 DEBUG: 峰值分析按鈕
-        setupDEBUGPeakButtons();
-    }
-
-    /**
-     * 🔧 DEBUG: 設置峰值分析按鈕
-     */
-    private void setupDEBUGPeakButtons() {
-        if (debugPeakButton != null) {
-            debugPeakButton.setOnClickListener(v -> {
-                Log.d(TAG, "🔧 DEBUG: 點擊峰值分析按鈕");
-                openDEBUGPeakVisualization();
-            });
-        }
-    }
-
-    /**
-     * 🔧 DEBUG: 開啟峰值視覺化頁面
-     */
-    private void openDEBUGPeakVisualization() {
-        if (csvFileName == null || csvFileName.isEmpty()) {
-            Toast.makeText(this, "❌ 無法找到 CSV 檔案", Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "🔧 DEBUG: CSV 檔案名稱為空");
+    private void plotRatio(LineChart chart, double[] times, double[] ratios) {
+        if (chart == null) return;
+        if (times == null || ratios == null || times.length == 0 || times.length != ratios.length) {
+            chart.setData(null);
             return;
         }
 
+        List<Entry> entries = new ArrayList<>();
+        for (int i = 0; i < times.length; i++) {
+            entries.add(new Entry((float) times[i], (float) ratios[i]));
+        }
+        LineDataSet ds = new LineDataSet(entries, "Height/Width Ratio");
+        ds.setColor(Color.BLUE);
+        ds.setDrawValues(false);
+        ds.setDrawCircles(false);
+        ds.setLineWidth(1.7f);
+
+        // 底色區塊（使用 setFillColor；顏色字串含透明度 #AARRGGBB）
+        ds.setDrawFilled(true);
+        ds.setFillColor(Color.parseColor("#335A87FF")); // 33=~20%透明的藍
+
+        chart.setData(new LineData(ds));
+    }
+
+    private void shadeSegmentsFromApi(LineChart chart, String apiJson) {
+        if (chart == null || TextUtils.isEmpty(apiJson)) return;
         try {
-            Intent intent = new Intent(this, com.example.rehabilitationapp.ui.debug.DebugPeakVisualizationActivity.class);
-            intent.putExtra("csv_file_name", csvFileName);
-            intent.putExtra("training_label", trainingLabel);
-            intent.putExtra("actual_count", actualCount);
-            intent.putExtra("target_count", targetCount);
+            JSONObject obj = new JSONObject(apiJson);
+            JSONArray segs = obj.optJSONArray("segments");
+            if (segs == null) return;
 
-            Log.d(TAG, "🔧 DEBUG: 準備跳轉峰值視覺化頁面");
-            Log.d(TAG, "🔧 DEBUG: CSV檔案 = " + csvFileName);
-            Log.d(TAG, "🔧 DEBUG: 訓練標籤 = " + trainingLabel);
+            // 用 LimitLine 當邊界線；若要整塊底色效果需客製 renderer
+            for (int k = 0; k < segs.length(); k++) {
+                JSONObject seg = segs.getJSONObject(k);
+                float start = (float) seg.optDouble("start_time", Float.NaN);
+                float end   = (float) seg.optDouble("end_time",   Float.NaN);
+                if (Float.isNaN(start) || Float.isNaN(end)) continue;
 
-            startActivity(intent);
+                LimitLine llStart = new LimitLine(start);
+                llStart.setLineColor(Color.RED);
+                llStart.setLineWidth(0.8f);
+                chart.getXAxis().addLimitLine(llStart);
 
-        } catch (Exception e) {
-            Log.e(TAG, "🔧 DEBUG: 開啟峰值視覺化失敗", e);
-            Toast.makeText(this, "❌ 開啟分析頁面失敗: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                LimitLine llEnd = new LimitLine(end);
+                llEnd.setLineColor(Color.GREEN);
+                llEnd.setLineWidth(0.8f);
+                chart.getXAxis().addLimitLine(llEnd);
+            }
+        } catch (Exception ignore) { }
+    }
+
+    private String toDisplayMotion(String codeOrName) {
+        if (TextUtils.isEmpty(codeOrName)) return "訓練";
+        switch (codeOrName) {
+            case "poutLip":
+            case "POUT_LIPS":
+                return "噘嘴";
+            case "SIP_LIPS":
+                return "抿嘴";
+            case "PUFF_CHEEK":
+                return "鼓頰";
+            default:
+                return codeOrName;
         }
-    }
-
-    private void saveResults() {
-        // 使用 ReportGenerator 生成報告
-        ReportGenerator reportGenerator = new ReportGenerator();
-
-        ReportGenerator.TrainingReport report = new ReportGenerator.TrainingReport();
-        report.trainingType = trainingLabel;
-        report.actualCount = actualCount;
-        report.targetCount = targetCount;
-        report.duration = trainingDuration;
-        report.completionRate = targetCount > 0 ? (actualCount * 100 / targetCount) : 0;
-        report.csvFileName = csvFileName;
-
-        boolean success = reportGenerator.saveReport(this, report);
-
-        if (success) {
-            Log.d(TAG, "✅ 報告儲存成功");
-            // 可以顯示 Toast 或 Snackbar
-        } else {
-            Log.e(TAG, "❌ 報告儲存失敗");
-        }
-    }
-
-    private void retryTraining() {
-        // 返回訓練頁面
-        finish(); // 關閉結果頁面，返回上一頁
-    }
-
-    private void shareToLine() {
-        String shareText = generateShareText();
-
-        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType("text/plain");
-        shareIntent.putExtra(Intent.EXTRA_TEXT, shareText);
-        shareIntent.setPackage("jp.naver.line.android"); // LINE 的 package name
-
-        try {
-            startActivity(shareIntent);
-            Log.d(TAG, "📤 啟動 LINE 分享");
-        } catch (Exception e) {
-            Log.e(TAG, "❌ LINE 分享失敗，使用一般分享", e);
-
-            // 如果 LINE 不存在，使用一般分享
-            Intent generalShareIntent = new Intent(Intent.ACTION_SEND);
-            generalShareIntent.setType("text/plain");
-            generalShareIntent.putExtra(Intent.EXTRA_TEXT, shareText);
-            startActivity(Intent.createChooser(generalShareIntent, "分享訓練結果"));
-        }
-    }
-
-    private String generateShareText() {
-        int completionRate = targetCount > 0 ? (actualCount * 100 / targetCount) : 0;
-
-        return String.format(
-                "🎯 復健訓練結果 🎯\n" +
-                        "訓練項目：%s\n" +
-                        "完成次數：%d/%d\n" +
-                        "完成率：%d%%\n" +
-                        "訓練時間：%d 秒\n" +
-                        "\n#復健 #訓練成果",
-                trainingLabel, actualCount, targetCount, completionRate, trainingDuration
-        );
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        Log.d(TAG, "🔚 結果頁面銷毀");
     }
 }

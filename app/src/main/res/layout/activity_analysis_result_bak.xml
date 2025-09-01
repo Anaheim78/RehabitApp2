@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF4CAF50"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 標題區域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="@android:color/white"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="結果顯示"
+                android:textSize="20sp"
+                android:textColor="@android:color/white"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- 訓練類型選擇 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+
+            <Spinner
+                android:id="@+id/training_type_spinner"
+                android:layout_width="120dp"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_background"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/training_type_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="嘟嘴"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- 頭像區域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="24dp">
+
+            <ImageView
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:src="@drawable/cheeksbak"
+                android:layout_marginEnd="8dp" />
+
+            <ImageView
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:src="@drawable/cheeksbak"
+                android:layout_marginEnd="8dp" />
+
+            <ImageView
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:src="@drawable/cheeksbak"
+                android:layout_marginEnd="8dp" />
+
+            <ImageView
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:src="@drawable/cheeksbak" />
+
+        </LinearLayout>
+
+        <!-- 結果卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="8dp"
+            android:background="#FF2196F3">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="24dp"
+                android:background="#FF2196F3"
+                android:gravity="center_vertical">
+
+                <!-- 進度圓圈 -->
+                <RelativeLayout
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    android:layout_marginEnd="24dp">
+
+                    <ProgressBar
+                        android:id="@+id/completion_progress"
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:progressDrawable="@drawable/circular_progress"
+                        android:max="100"
+                        android:progress="75" />
+
+                    <TextView
+                        android:id="@+id/completion_rate_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerInParent="true"
+                        android:text="75%"
+                        android:textSize="24sp"
+                        android:textColor="@android:color/white"
+                        android:textStyle="bold" />
+
+                </RelativeLayout>
+
+                <!-- 統計資訊 -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/actual_count_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="實際次數：3"
+                        android:textSize="16sp"
+                        android:textColor="@android:color/white"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/target_count_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="目標次數：4"
+                        android:textSize="16sp"
+                        android:textColor="@android:color/white"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/duration_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="持續時間：8 秒"
+                        android:textSize="16sp"
+                        android:textColor="@android:color/white" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- 反饋訊息 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp">
+
+            <TextView
+                android:id="@+id/feedback_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="20dp"
+                android:text="😊 您已完成過半次數！\n建議可進行更多練習以提升效果。"
+                android:textSize="16sp"
+                android:textColor="#FF333333"
+                android:lineSpacingExtra="4dp"
+                android:gravity="center" />
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- 按鈕區域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:paddingBottom="24dp">
+
+            <Button
+                android:id="@+id/save_result_button"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="儲存結果"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:background="@drawable/button_rounded_gray"
+                android:layout_marginBottom="12dp" />
+
+            <Button
+                android:id="@+id/retry_button"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="重新測量"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:background="@drawable/button_rounded_gray"
+                android:layout_marginBottom="12dp" />
+
+            <Button
+                android:id="@+id/share_line_button"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="分享至LINE"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:background="@drawable/button_rounded_cyan"
+                android:layout_marginBottom="12dp" />
+
+            <!-- 🔧 DEBUG: 峰值分析按鈕 -->
+            <Button
+                android:id="@+id/debug_peak_button"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="🔍 查看峰值分析 (DEBUG)"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:background="@drawable/button_rounded_gray" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>

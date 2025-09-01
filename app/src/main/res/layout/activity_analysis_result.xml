@@ -1,255 +1,247 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FF4CAF50"
-    android:fillViewport="true">
+    android:background="#FFF6EBD7"
+    tools:context=".ui.results.AnalysisResultActivity">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:paddingBottom="72dp">
 
-        <!-- 標題區域 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="24dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@drawable/ic_arrow_back"
-                android:tint="@android:color/white"
-                android:layout_marginEnd="12dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="結果顯示"
-                android:textSize="20sp"
-                android:textColor="@android:color/white"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <!-- 訓練類型選擇 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="16dp">
-
-            <Spinner
-                android:id="@+id/training_type_spinner"
-                android:layout_width="120dp"
-                android:layout_height="40dp"
-                android:background="@drawable/spinner_background"
-                android:layout_marginEnd="8dp" />
-
-            <TextView
-                android:id="@+id/training_type_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="嘟嘴"
-                android:textSize="16sp"
-                android:textColor="@android:color/white"
-                android:visibility="gone" />
-
-        </LinearLayout>
-
-        <!-- 頭像區域 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="24dp">
-
-            <ImageView
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:src="@drawable/cheeksbak"
-                android:layout_marginEnd="8dp" />
-
-            <ImageView
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:src="@drawable/cheeksbak"
-                android:layout_marginEnd="8dp" />
-
-            <ImageView
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:src="@drawable/cheeksbak"
-                android:layout_marginEnd="8dp" />
-
-            <ImageView
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:src="@drawable/cheeksbak" />
-
-        </LinearLayout>
-
-        <!-- 結果卡片 -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="8dp"
-            android:background="#FF2196F3">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="24dp"
-                android:background="#FF2196F3"
-                android:gravity="center_vertical">
-
-                <!-- 進度圓圈 -->
-                <RelativeLayout
-                    android:layout_width="120dp"
-                    android:layout_height="120dp"
-                    android:layout_marginEnd="24dp">
-
-                    <ProgressBar
-                        android:id="@+id/completion_progress"
-                        android:layout_width="120dp"
-                        android:layout_height="120dp"
-                        style="?android:attr/progressBarStyleHorizontal"
-                        android:progressDrawable="@drawable/circular_progress"
-                        android:max="100"
-                        android:progress="75" />
-
-                    <TextView
-                        android:id="@+id/completion_rate_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_centerInParent="true"
-                        android:text="75%"
-                        android:textSize="24sp"
-                        android:textColor="@android:color/white"
-                        android:textStyle="bold" />
-
-                </RelativeLayout>
-
-                <!-- 統計資訊 -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/actual_count_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="實際次數：3"
-                        android:textSize="16sp"
-                        android:textColor="@android:color/white"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:id="@+id/target_count_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="目標次數：4"
-                        android:textSize="16sp"
-                        android:textColor="@android:color/white"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:id="@+id/duration_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="持續時間：8 秒"
-                        android:textSize="16sp"
-                        android:textColor="@android:color/white" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- 反饋訊息 -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp">
-
-            <TextView
-                android:id="@+id/feedback_text"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="20dp"
-                android:text="😊 您已完成過半次數！\n建議可進行更多練習以提升效果。"
-                android:textSize="16sp"
-                android:textColor="#FF333333"
-                android:lineSpacingExtra="4dp"
-                android:gravity="center" />
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- 按鈕區域 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="8dp"
-            android:paddingBottom="24dp">
+            android:padding="16dp">
 
-            <Button
-                android:id="@+id/save_result_button"
+            <!-- 頂部工具列（返回＋標題） -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="儲存結果"
-                android:textSize="16sp"
-                android:textColor="@android:color/white"
-                android:background="@drawable/button_rounded_gray"
-                android:layout_marginBottom="12dp" />
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp">
 
-            <Button
-                android:id="@+id/retry_button"
+                <ImageButton
+                    android:id="@+id/btnBackArrow"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_media_previous"
+                    android:contentDescription="返回" />
+
+                <TextView
+                    android:id="@+id/tvTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="訓練結果"
+                    android:textColor="#333333"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 卡片1 -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="重新測量"
-                android:textSize="16sp"
-                android:textColor="@android:color/white"
-                android:background="@drawable/button_rounded_gray"
-                android:layout_marginBottom="12dp" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="3dp">
 
-            <Button
-                android:id="@+id/share_line_button"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="12dp">
+
+                    <!-- 左：頭像＋訓練名稱 -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical">
+
+                        <ImageView
+                            android:id="@+id/ivAvatar1"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/sym_def_app_icon"
+                            android:contentDescription="icon" />
+
+                        <TextView
+                            android:id="@+id/tvMotionName1"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="訓練"
+                            android:textColor="#666666"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- 右：數據 -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvCount1"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="03/04"
+                            android:textColor="#333333"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <!-- 標籤列 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="達成"
+                                android:textColor="#888888"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="  目標完成度"
+                                android:textColor="#888888"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="  持續"
+                                android:textColor="#888888"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <!-- 數值列 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="試做"
+                                android:textColor="#333333"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/tvPercent1"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="  75%"
+                                android:textColor="#333333"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/tvDuration1"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="  8秒"
+                                android:textColor="#333333"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 系統提醒卡片 -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="分享至LINE"
-                android:textSize="16sp"
-                android:textColor="@android:color/white"
-                android:background="@drawable/button_rounded_cyan"
-                android:layout_marginBottom="12dp" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
 
-            <!-- 🔧 DEBUG: 峰值分析按鈕 -->
-            <Button
-                android:id="@+id/debug_peak_button"
+                <TextView
+                    android:id="@+id/tvSystemTips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    android:text="系統提醒訊息"
+                    android:textColor="#666666"
+                    android:textSize="13sp"
+                    android:visibility="gone"/>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 圓形兩顆 + 主按鈕 -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="🔍 查看峰值分析 (DEBUG)"
-                android:textSize="16sp"
-                android:textColor="@android:color/white"
-                android:background="@drawable/button_rounded_gray" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRetryCircle"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    app:cornerRadius="22dp"
+                    app:icon="@android:drawable/ic_popup_sync"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="20dp"
+                    android:contentDescription="重新" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnShareCircle"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="10dp"
+                    app:cornerRadius="22dp"
+                    app:icon="@android:drawable/ic_menu_share"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="20dp"
+                    android:contentDescription="分享" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSave"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:text="儲存結果"
+                    android:textAllCaps="false"
+                    android:textStyle="bold"
+                    app:cornerRadius="22dp" />
+            </LinearLayout>
+
+            <!-- Ratio 折線圖 -->
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/lineChart"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="16dp" />
+
+            <!-- 讓上面區塊和底部導覽有距離 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="24dp" />
         </LinearLayout>
+    </ScrollView>
 
-    </LinearLayout>
 
-</ScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

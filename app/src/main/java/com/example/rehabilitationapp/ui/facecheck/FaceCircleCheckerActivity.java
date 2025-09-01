@@ -44,7 +44,11 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 //光流
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Point;
@@ -953,17 +957,51 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
                 Log.d(TAG, "✅ 測試傳數值到Vercel_");
 
-                Log.d(TAG, "✅ 儲存與分析完成，準備跳轉結果頁面");
-                Log.d(TAG, String.format("📊 分析結果 - 總峰值: %d", result.totalPeaks));
-                Intent intent = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
-                intent.putExtra("training_label", trainingLabel);
-                intent.putExtra("actual_count", result.totalPeaks);
-                intent.putExtra("target_count", 4);
-                intent.putExtra("training_duration", MAINTAIN_TIME_TOTAL / 1000);
-                intent.putExtra("csv_file_name", dataRecorder.getFileName());
-                startActivity(intent);
-                finish();
+                final String payload = dataRecorder.exportLinesAsJson();
+                final String csv = dataRecorder.getFileName();
+                final String label0 = trainingLabel;
+                final int target = 4;
+                final int duration0 = MAINTAIN_TIME_TOTAL / 1000;
+
+                // 送到 API，等回應後再跳頁；失敗就用本地結果
+                OkHttpClient client = new OkHttpClient();
+                Request req = new Request.Builder()
+                        .url(API_URL) // 你上面已經定義好的常數
+                        .post(RequestBody.create(payload, MediaType.parse("application/json; charset=utf-8")))
+                        .build();
+
+                client.newCall(req).enqueue(new okhttp3.Callback() {
+                    @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
+                        Log.e("API_RES", "❌ API 失敗，改用本地結果", e);
+                        runOnUiThread(() -> go(label0, result.totalPeaks, target, duration0, csv, null));
+                    }
+
+                    @Override public void onResponse(okhttp3.Call call, okhttp3.Response response) throws java.io.IOException {
+                        String body = (response.body() != null) ? response.body().string() : "";
+                        Log.d("API_RES", "✅ API 回應: " + body);
+
+                        // 先用本地值，若回應含欄位就覆寫
+                        String label = label0;
+                        int actual = result.totalPeaks;
+                        int duration = duration0;
+
+                        try {
+                            org.json.JSONObject obj = new org.json.JSONObject(body);
+                            label = obj.optString("motion", label);
+                            actual = obj.optInt("pout_count", actual);
+                            duration = (int) Math.round(obj.optDouble("total_hold_time", duration));
+                        } catch (Exception ignore) { /* 回應不是 JSON 就忽略 */ }
+
+                        final String fLabel = label;
+                        final int fActual = actual;
+                        final int fDuration = duration;
+                        final String apiJson = body;
+
+                        runOnUiThread(() -> go(fLabel, fActual, target, fDuration, csv, apiJson));
+                    }
+                });
             }
+
 
             @Override
             public void onError(String error) {
@@ -1046,6 +1084,73 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         } catch (InterruptedException ignored) {
         }
     }
+
+    // FaceCircleCheckerActivity.java 裡面新增
+
+    /**
+     * 把 JSON 傳到 Vercel API
+     * @param json 你要送出的 JSON 字串
+     */
+    private static final String API_URL = "https://wavecut-production.up.railway.app/"; // Railway 根路徑
+
+    private void sendJsonToApi(String json) {
+        new Thread(() -> {
+            try {
+                // 給自己看的：Payload 大小（KB）
+                int bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                android.util.Log.d("APITEST", "payloadSize=" + (bytes / 1024f) + " KB");
+
+                okhttp3.MediaType JSON
+                        = okhttp3.MediaType.get("application/json; charset=utf-8");
+                okhttp3.RequestBody body
+                        = okhttp3.RequestBody.create(json, JSON);
+
+                okhttp3.Request request = new okhttp3.Request.Builder()
+                        .url(API_URL)                    // ★ 改成 Railway
+                        .addHeader("Accept", "application/json")
+                        .addHeader("Content-Type", "application/json; charset=utf-8")
+                        .post(body)
+                        .build();
+
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                        .callTimeout(java.time.Duration.ofSeconds(30))
+                        .connectTimeout(java.time.Duration.ofSeconds(10))
+                        .readTimeout(java.time.Duration.ofSeconds(25))
+                        .build();
+
+                // 用 try-with-resources 確保釋放連線資源
+                try (okhttp3.Response resp = client.newCall(request).execute()) {
+                    String respBody = (resp.body() != null) ? resp.body().string() : "";
+                    android.util.Log.d("APITEST", "status=" + resp.code() + " body=" + respBody);
+                }
+            } catch (Exception e) {
+                android.util.Log.e("APITEST", "post failed", e);
+            }
+        }).start();
+    }
+
+    // 2) 簡單的跳頁方法（共 10 行）
+    private void go(String label, int actual, int target, int durationSec, String csv,  String apiJson) {
+        double[] times = dataRecorder.getTimeSecondsArrayForRatio();
+        double[] ratios = dataRecorder.getHeightWidthRatioArray();
+
+        Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
+        it.putExtra("training_label", label);
+        it.putExtra("actual_count", actual);
+        it.putExtra("target_count", target);
+        it.putExtra("training_duration", durationSec);
+        it.putExtra("csv_file_name", csv);
+        // 傳給下一頁
+        it.putExtra("ratio_times", times);
+        it.putExtra("ratio_values", ratios);
+
+        if (apiJson != null && !apiJson.isEmpty()) it.putExtra("api_response_json", apiJson);
+        startActivity(it);
+        finish();
+    }
+
+
+
     @Override
     protected void onDestroy() {
         super.onDestroy();

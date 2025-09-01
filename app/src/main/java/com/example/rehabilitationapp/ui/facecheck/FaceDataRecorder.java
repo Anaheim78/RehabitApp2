@@ -529,11 +529,6 @@ public class FaceDataRecorder {
     }
 
 
-    public void clearData() {
-        dataLines.clear();
-        initializeCSV();
-        Log.d(TAG, "清空數據");
-    }
 
     public int getDataCount() {
         return Math.max(0, dataLines.size() - 1); // 扣除標題行
@@ -543,4 +538,91 @@ public class FaceDataRecorder {
     public String getFileName() {
         return fileName;
     }
+
+    //提供VERCEL分析動作
+    public String exportLinesAsJson() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"lines\":[");
+        for (int i = 0; i < dataLines.size(); i++) {
+            if (i > 0) sb.append(',');
+            // 轉義雙引號
+            sb.append('\"')
+                    .append(dataLines.get(i).replace("\"","\\\""))
+                    .append('\"');
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    /**
+     * 🔹 取得時間軸 (time_seconds)，若找不到欄位則回傳空陣列 （供外部使用）
+     */
+    public double[] getTimeSecondsArrayForRatio() {
+        try {
+            if (dataLines.size() <= 1) return new double[0]; // 沒有資料
+            String header = dataLines.get(0);
+            String[] cols = header.split(",");
+            int timeIndex = -1;
+            for (int i = 0; i < cols.length; i++) {
+                if ("time_seconds".equals(cols[i].trim())) {
+                    timeIndex = i;
+                    break;
+                }
+            }
+            if (timeIndex == -1) return new double[0];
+
+            List<Double> values = new ArrayList<>();
+            for (int i = 1; i < dataLines.size(); i++) {
+                String[] parts = dataLines.get(i).split(",");
+                if (parts.length > timeIndex) {
+                    try {
+                        values.add(Double.parseDouble(parts[timeIndex]));
+                    } catch (NumberFormatException ignore) {}
+                }
+            }
+            double[] arr = new double[values.size()];
+            for (int i = 0; i < values.size(); i++) arr[i] = values.get(i);
+            return arr;
+        } catch (Exception e) {
+            Log.e(TAG, "getTimeSecondsArrayForRatio error", e);
+            return new double[0];
+        }
+    }
+
+    /**
+     * 🔹 取得 height_width_ratio (僅 POUT_LIPS 有)，若不存在則回傳空陣列 （供外部使用）
+     */
+    public double[] getHeightWidthRatioArray() {
+        try {
+            if (dataLines.size() <= 1) return new double[0];
+            String header = dataLines.get(0);
+            String[] cols = header.split(",");
+            int ratioIndex = -1;
+            for (int i = 0; i < cols.length; i++) {
+                if ("height_width_ratio".equals(cols[i].trim())) {
+                    ratioIndex = i;
+                    break;
+                }
+            }
+            if (ratioIndex == -1) return new double[0];
+
+            List<Double> values = new ArrayList<>();
+            for (int i = 1; i < dataLines.size(); i++) {
+                String[] parts = dataLines.get(i).split(",");
+                if (parts.length > ratioIndex) {
+                    try {
+                        values.add(Double.parseDouble(parts[ratioIndex]));
+                    } catch (NumberFormatException ignore) {}
+                }
+            }
+            double[] arr = new double[values.size()];
+            for (int i = 0; i < values.size(); i++) arr[i] = values.get(i);
+            return arr;
+        } catch (Exception e) {
+            Log.e(TAG, "getHeightWidthRatioArray error", e);
+            return new double[0];
+        }
+    }
+
+
 }
