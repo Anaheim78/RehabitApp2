@@ -34,7 +34,8 @@
                     android:layout_height="36dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@android:drawable/ic_media_previous"
-                    android:contentDescription="返回" />
+                    android:contentDescription="返回"
+                    android:visibility="gone"/>
 
                 <TextView
                     android:id="@+id/tvTitle"
