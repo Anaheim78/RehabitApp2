@@ -41,6 +41,7 @@ import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,6 +66,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 讓提交任務前都能守門，例如在 handleCheeksMode() / 影格處理入口：
     private boolean shouldAcceptNewFrames() { return !isStopping; }
 
+    // =======【導引提示：只新增、不改你的原碼】=======
+    // 可調：每段秒數（預設 3 秒；改這個就好）
+    public int CUE_SEGMENT_SEC = 3;
+
+    // 導引疊字與循環控制（不影響你原本 Handler/Timer）
+    private android.os.Handler cueHandler;
+    private java.lang.Runnable cueRunnable;
+    private boolean cueRunning = false;
+    private int cueStep = 0; // 0:動作(第1次) → 1:放鬆(第1次) → 2:動作(第2次) → 3:放鬆(第2次) → 0 循環
+    private android.widget.TextView cueTextView; // 疊在畫面上的提示
+    private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成好讀字
+// ===============================================
 
     // 計時常數
     private static final int CALIBRATION_TIME = 5000;         // 5 秒校正
@@ -86,6 +99,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // UI
     private CircleOverlayView overlayView;
     private TextView statusText;
+    private TextView cueText; // 新增：導引專用 TextView
     private TextView timerText;
     private ProgressBar progressBar;
 
@@ -180,6 +194,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         statusText = findViewById(R.id.status_text);
         timerText = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
+        cueText = findViewById(R.id.cue_text);
 
         if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
@@ -837,6 +852,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             currentState = AppState.MAINTAINING;
             maintainStartTime = System.currentTimeMillis();
             overlayView.setStatus(CircleOverlayView.Status.OK);
+
+            // ★★★ 啟動 2 秒導引（依 trainingLabel 換字）
+            startSimpleCue();
             startMaintainTimer();
             updateStatusDisplay();
             updateTimerDisplay();
@@ -942,7 +960,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     private void completedTraining() {
-        Log.d(TAG, "🎉🎉🎉 === 訓練完成！開始儲存資料 === 🎉🎉🎉");
+        stopSimpleCue();
+        Log.d(TAG, " === 訓練完成！開始儲存資料 ");
         isTrainingCompleted = true;
         cancelTimers();
 
@@ -950,7 +969,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateStatusDisplay();
         updateTimerDisplay();
 
-        Toast.makeText(this, "🎉 訓練完成！\n正在儲存檔案並進行峰值分析...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, " 訓練完成！\n正在儲存檔案並進行分析...", Toast.LENGTH_LONG).show();
 
         dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
             @Override
@@ -962,7 +981,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 final String label0 = trainingLabel;
                 final int target = 4;
                 final int duration0 = MAINTAIN_TIME_TOTAL / 1000;
-
+                Log.d("API_SEND", "✅ 上傳CSV內容::"+payload);
                 // 送到 API，等回應後再跳頁；失敗就用本地結果
                 OkHttpClient client = new OkHttpClient();
                 Request req = new Request.Builder()
@@ -981,16 +1000,24 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         Log.d("API_RES", "✅ API 回應: " + body);
 
                         // 先用本地值，若回應含欄位就覆寫
+                        // ★ 先用本地值；有回應就按動作類型覆寫
                         String label = label0;
-                        int actual = result.totalPeaks;
+                        int actual   = result.totalPeaks;
                         int duration = duration0;
 
                         try {
                             org.json.JSONObject obj = new org.json.JSONObject(body);
-                            label = obj.optString("motion", label);
-                            actual = obj.optInt("pout_count", actual);
-                            duration = (int) Math.round(obj.optDouble("total_hold_time", duration));
-                        } catch (Exception ignore) { /* 回應不是 JSON 就忽略 */ }
+                            label = canonicalMotion(obj.optString("motion", label)); // 正規化
+
+                            if ("poutLip".equals(label)) {
+                                actual   = obj.optInt("pout_count", actual);
+                                duration = (int) Math.round(obj.optDouble("total_hold_time", duration));
+                            } else if ("closeLip".equals(label)) {
+                                actual   = obj.optInt("close_count", actual);
+                                duration = (int) Math.round(obj.optDouble("total_close_time", duration));
+                            }
+                        } catch (Exception ignore) { /* 非 JSON 就保留本地值 */ }
+
 
                         final String fLabel = label;
                         final int fActual = actual;
@@ -1011,6 +1038,76 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             }
         });
     }
+
+//區域_提醒放鬆與動作導引
+    private String getReadableLabel() {
+        if (trainingLabel == null) return "訓練";
+        switch (trainingLabel) {
+            case "TONGUE_LEFT":   return "舌頭左移";
+            case "TONGUE_RIGHT":  return "舌頭右移";
+            case "TONGUE_FOWARD": // 你原程式拼的是 FOWARD
+            case "TONGUE_FORWARD":return "舌頭前伸";
+            case "TONGUE_BACK":   return "舌頭後縮";
+            case "TONGUE_UP":     return "舌頭上抬";
+            case "TONGUE_DOWN":   return "舌頭下壓";
+            case "PUFF_CHEEK":    return "鼓起臉頰";
+            case "REDUCE_CHEEK":  return "放鬆臉頰";
+            case "JAW_LEFT":      return "下顎左移";
+            case "JAW_RIGHT":     return "下顎右移";
+            default:              return trainingLabel; // 保底：直接顯示原字
+        }
+    }
+    // 開始 2 秒導引：動作 → 放鬆 → 動作 → 放鬆（循環）
+    private void startSimpleCue() {
+        stopSimpleCue();      // 保險清理
+        cueRunning = true;
+        cueStep = 0;
+        postNextCue(0);       // 立刻進第一段
+    }
+
+    // 停止導引：只移除我們自己的 runnable，不影響其他計時器
+    private void stopSimpleCue() {
+        cueRunning = false;
+        if (cueRunnable != null && mainHandler != null) {
+            mainHandler.removeCallbacks(cueRunnable);
+            cueRunnable = null;
+        }
+    }
+
+    // 安排下一步（用 if/else 寫死 2 秒），並根據 trainingLabel 換字
+    private void postNextCue(long delayMs) {
+        if (mainHandler == null) return;
+        final int segMs = Math.max(1, CUE_SEGMENT_SEC) * 1000;
+        String tail = (currentState == AppState.MAINTAINING) ? "" : "--";
+
+        cueRunnable = () -> {
+            if (!cueRunning) return;
+
+            // ★ 依 trainingLabel 轉成中文口令
+            String zh = motionLabelZh(trainingLabel);
+
+            if (cueStep == 0) {
+                if (cueText != null) cueText.setText("請" + zh + tail);     // 例：請噘嘴
+                mainHandler.postDelayed(() -> { cueStep = 1; postNextCue(0); }, segMs);
+
+            } else if (cueStep == 1) {
+                if (cueText != null) cueText.setText("放輕鬆" + tail);   // 例：噘嘴放鬆
+                mainHandler.postDelayed(() -> { cueStep = 2; postNextCue(0); }, segMs);
+
+            } else if (cueStep == 2) {
+                if (cueText != null) cueText.setText("請" +zh +  tail); // 例：噘嘴｜動作
+                mainHandler.postDelayed(() -> { cueStep = 3; postNextCue(0); }, segMs);
+
+            } else { // cueStep == 3
+                if (cueText != null) cueText.setText("放輕鬆" + tail); // 例：噘嘴｜放鬆
+                mainHandler.postDelayed(() -> { cueStep = 0; postNextCue(0); }, segMs);
+            }
+        };
+        mainHandler.postDelayed(cueRunnable, delayMs);
+    }
+
+
+
 
     private void updateStatusDisplay() {
         if (statusText == null) return;
@@ -1085,6 +1182,24 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
+    // 2) 把代號變中文顯示文字
+    private String motionLabelZh(String label) {
+        String c = canonicalMotion(label);
+        if ("poutLip".equals(c))          return "噘嘴";
+        if ("closeLip".equals(c))         return "抿嘴唇";
+        if ("TONGUE_LEFT".equals(c))      return "舌頭往左";
+        return "動作";
+    }
+    // ★ 新增：把各種寫法歸一成 poutLip / closeLip
+    private String canonicalMotion(String s) {
+        if (s == null) return "";
+        String x = s.trim().toLowerCase(java.util.Locale.ROOT);
+        if (x.contains("pout"))  return "poutLip";
+        if (x.contains("close") || x.contains("sip") || x.contains("slip") || x.contains("抿"))
+            return "closeLip";
+        return s;
+    }
+
     // FaceCircleCheckerActivity.java 裡面新增
 
     /**
@@ -1130,31 +1245,44 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     // 2) 簡單的跳頁方法（共 10 行）
-    private void go(String label, int actual, int target, int durationSec, String csv,  String apiJson) {
-        double[] times = dataRecorder.getTimeSecondsArrayForRatio();
-        double[] ratios = dataRecorder.getHeightWidthRatioArray();
-
+    // ★ 用正規化後的名稱決定要塞哪組陣列到 Intent
+    private void go(String label, int actual, int target, int durationSec, String csv, String apiJson) {
+        String canon = canonicalMotion(label);
         Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
-        it.putExtra("training_label", label);
+        it.putExtra("training_label", canon);
         it.putExtra("actual_count", actual);
-        it.putExtra("target_count", target);
+        it.putExtra("target_count", 5);
         it.putExtra("training_duration", durationSec);
         it.putExtra("csv_file_name", csv);
-        // 傳給下一頁
-        it.putExtra("ratio_times", times);
-        it.putExtra("ratio_values", ratios);
-
         if (apiJson != null && !apiJson.isEmpty()) it.putExtra("api_response_json", apiJson);
+
+        if ("poutLip".equals(canon)) {
+            double[] times  = dataRecorder.getTimeSecondsArrayForRatio();
+            double[] ratios = dataRecorder.getHeightWidthRatioArray();
+            it.putExtra("ratio_times", times);
+            it.putExtra("ratio_values", ratios);
+            android.util.Log.d("GO", "poutLip ratio_times=" + java.util.Arrays.toString(times));
+            android.util.Log.d("GO", "poutLip ratio_values=" + java.util.Arrays.toString(ratios));
+
+        } else if ("closeLip".equals(canon)) {
+            double[][] tv = dataRecorder.exportLipTimeAndTotal();
+            it.putExtra("lip_times",  tv[0]);
+            it.putExtra("lip_totals", tv[1]);
+            android.util.Log.d("GO", "closeLip lip_times=" + java.util.Arrays.toString(tv[0]));
+            android.util.Log.d("GO", "closeLip lip_totals=" + java.util.Arrays.toString(tv[1]));
+        }
+
         startActivity(it);
         finish();
     }
 
 
 
+
     @Override
     protected void onDestroy() {
+        stopSimpleCue();
         super.onDestroy();
-
         // 1) 停入口：之後不要再提交任何新任務
         isStopping = true;
 

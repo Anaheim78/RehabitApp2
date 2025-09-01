@@ -37,7 +37,7 @@ public class FaceDataRecorder {
     //CSV Header
     private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
     private static final String Lip_Prot_HEADER =  "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
-    private static final String Lip_Closure_HEADER = "time_seconds,state,total_lip_area";
+    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area";
     private static final String TONGUE_HEADER =
             "time_seconds,state," +
                     "tongue_detected," +
@@ -623,6 +623,27 @@ public class FaceDataRecorder {
             return new double[0];
         }
     }
+
+    // ★ 新增：給 closeLip(=抿嘴) 畫圖用的時間軸與總面積
+    public double[][] exportLipTimeAndTotal() {
+        List<Double> t = new ArrayList<>();
+        List<Double> v = new ArrayList<>();
+        // 假設你寫 CSV 時有把每一行暫存到 dataLines（和原本寫檔同一套）
+        for (String line : dataLines) {
+            if (line == null || line.isEmpty()) continue;
+            if (line.startsWith("time_seconds")) continue; // 跳過表頭
+            String[] p = line.split(",");
+            if (p.length < 5) continue; // time, state, upper, lower, total
+            try {
+                t.add(Double.parseDouble(p[0])); // time_seconds
+                v.add(Double.parseDouble(p[4])); // total_lip_area
+            } catch (Exception ignore) {}
+        }
+        double[] times  = t.stream().mapToDouble(Double::doubleValue).toArray();
+        double[] totals = v.stream().mapToDouble(Double::doubleValue).toArray();
+        return new double[][]{ times, totals };
+    }
+
 
 
 }

@@ -6,8 +6,6 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -44,12 +42,21 @@ public class AnalysisResultActivity extends AppCompatActivity {
     private BottomNavigationView bottomNav;
     private LineChart lineChart;
 
+    // === 名稱正規化：把所有寫法統一成 poutLip / closeLip ===
+    private String canonicalMotion(String s) {
+        if (s == null) return "";
+        String x = s.trim().toLowerCase(Locale.ROOT);
+        if (x.contains("pout")) return "poutLip";
+        if (x.contains("close") || x.contains("sip") || x.contains("slip") || x.contains("抿")) return "closeLip";
+        return s;
+    }
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_analysis_result);
 
-        // 綁定 View（名稱需與 XML 完全一致）
+        // 綁定 View
         tvTitle       = findViewById(R.id.tvTitle);
         ivAvatar1     = findViewById(R.id.ivAvatar1);
         tvMotionName1 = findViewById(R.id.tvMotionName1);
@@ -63,55 +70,67 @@ public class AnalysisResultActivity extends AppCompatActivity {
         btnSave       = findViewById(R.id.btnSave);
         lineChart     = findViewById(R.id.lineChart);
 
-        // 讀取 Intent 資料
+        // 讀取 Intent
         Intent i = getIntent();
         String trainingLabel = i.getStringExtra("training_label");
         int actualCount      = i.getIntExtra("actual_count", 0);
         int targetCount      = i.getIntExtra("target_count", 4);
         int durationSec      = i.getIntExtra("training_duration", 0);
         String csvFileName   = i.getStringExtra("csv_file_name");
-        String apiJson       = i.getStringExtra("api_response_json"); // 可能為 null
+        String apiJson       = i.getStringExtra("api_response_json");
+
+        // 嘟嘴用
         double[] times       = i.getDoubleArrayExtra("ratio_times");
         double[] ratios      = i.getDoubleArrayExtra("ratio_values");
 
-        // 若有 API JSON，優先覆寫可覆寫欄位
+        // 抿嘴用
+        double[] lipTimes    = i.getDoubleArrayExtra("lip_times");
+        double[] lipTotals   = i.getDoubleArrayExtra("lip_totals");
+
+        // 若有 API JSON，覆寫顯示數值（同時正規化 motion 名稱）
         if (!TextUtils.isEmpty(apiJson)) {
             try {
                 JSONObject obj = new JSONObject(apiJson);
                 if (obj.has("motion")) {
-                    trainingLabel = obj.optString("motion", trainingLabel);
+                    trainingLabel = canonicalMotion(obj.optString("motion", trainingLabel));
+                } else {
+                    trainingLabel = canonicalMotion(trainingLabel);
                 }
+                // 嘟嘴/抿嘴各自的欄位都試著讀，沒有就保留原值
                 if (obj.has("pout_count")) {
                     actualCount = obj.optInt("pout_count", actualCount);
+                }
+                if (obj.has("close_count")) {
+                    actualCount = obj.optInt("close_count", actualCount);
                 }
                 if (obj.has("total_hold_time")) {
                     durationSec = (int) Math.round(obj.optDouble("total_hold_time", durationSec));
                 }
+                if (obj.has("total_close_time")) {
+                    durationSec = (int) Math.round(obj.optDouble("total_close_time", durationSec));
+                }
                 if (obj.has("message")) {
                     tvSystemTips.setText(obj.optString("message", "系統提醒訊息"));
                 }
-            } catch (JSONException ignore) { /* 保底用 Intent 值 */ }
+            } catch (JSONException ignore) {
+                trainingLabel = canonicalMotion(trainingLabel);
+            }
+        } else {
+            trainingLabel = canonicalMotion(trainingLabel);
         }
 
         // 顯示數值
         tvTitle.setText("訓練結果");
         tvMotionName1.setText(toDisplayMotion(trainingLabel));
         tvCount1.setText(String.format(Locale.getDefault(), "%02d/%02d", actualCount, targetCount));
-
         int percent = (int) Math.round(100.0 * actualCount / Math.max(1, targetCount));
         tvPercent1.setText(String.format(Locale.getDefault(), "%d%%", percent));
         tvDuration1.setText(String.format(Locale.getDefault(), "%d秒", durationSec));
 
-        // === 這裡做「final 副本」→ 給 lambda 使用 ===
-        final String fLabel    = trainingLabel;
-        final int    fActual   = actualCount;
-        final int    fTarget   = targetCount;
-        final int    fDuration = durationSec;
-        final String fCsv      = csvFileName;
-        final int    fPercent  = percent;
-        final String fApiJson  = apiJson;
+        // ★ 根據動作顯示圖示
+        setMotionIcon(trainingLabel);
 
-        // 上一頁
+        // 返回
         btnBackArrow.setOnClickListener(v -> finish());
 
         // 重新
@@ -122,15 +141,7 @@ public class AnalysisResultActivity extends AppCompatActivity {
 
         // 分享
         btnShareCircle.setOnClickListener(v -> {
-            String text = "訓練：" + toDisplayMotion(fLabel)
-                    + "；次數：" + fActual + "/" + fTarget
-                    + "；完成度：" + fPercent + "%"
-                    + "；持續：" + fDuration + "秒"
-                    + (TextUtils.isEmpty(fCsv) ? "" : "；CSV：" + fCsv);
-            Intent share = new Intent(Intent.ACTION_SEND);
-            share.setType("text/plain");
-            share.putExtra(Intent.EXTRA_TEXT, text);
-            startActivity(Intent.createChooser(share, "分享訓練結果"));
+            // TODO: 加入分享邏輯
         });
 
         // 儲存（示意）
@@ -138,14 +149,38 @@ public class AnalysisResultActivity extends AppCompatActivity {
                 Toast.makeText(this, "已儲存結果（示意）", Toast.LENGTH_SHORT).show()
         );
 
-        // 底部導覽（動態加 items）
-
-
-        // ===== 畫 Ratio 折線圖 + segments 區段 =====
+        // ===== 畫圖 =====
         setupChart(lineChart);
-        plotRatio(lineChart, times, ratios);
-        shadeSegmentsFromApi(lineChart, fApiJson);
+
+        if ("poutLip".equalsIgnoreCase(trainingLabel)) {
+            plotRatio(lineChart, times, ratios);            // 嘟嘴 → 比值
+        } else if ("closeLip".equalsIgnoreCase(trainingLabel)) {
+            plotLipArea(lineChart, lipTimes, lipTotals);    // 抿嘴 → 總面積
+        }
+
+        shadeSegmentsFromApi(lineChart, apiJson);
         lineChart.invalidate();
+    }
+
+    // 依動作顯示對應 ICON
+    private void setMotionIcon(String label) {
+        String canon = canonicalMotion(label);
+        int resId;
+        CharSequence desc;
+
+        if ("poutLip".equalsIgnoreCase(canon)) {
+            resId = R.drawable.ic_home_lippout;
+            desc  = "噘嘴圖示";
+        } else if ("closeLip".equalsIgnoreCase(canon)) {
+            resId = R.drawable.ic_home_lipsip;
+            desc  = "抿嘴圖示";
+        } else {
+            resId = android.R.drawable.sym_def_app_icon;
+            desc  = "訓練圖示";
+        }
+
+        ivAvatar1.setImageResource(resId);
+        ivAvatar1.setContentDescription(desc);
     }
 
     private void setupChart(LineChart chart) {
@@ -167,7 +202,6 @@ public class AnalysisResultActivity extends AppCompatActivity {
             chart.setData(null);
             return;
         }
-
         List<Entry> entries = new ArrayList<>();
         for (int i = 0; i < times.length; i++) {
             entries.add(new Entry((float) times[i], (float) ratios[i]));
@@ -177,11 +211,29 @@ public class AnalysisResultActivity extends AppCompatActivity {
         ds.setDrawValues(false);
         ds.setDrawCircles(false);
         ds.setLineWidth(1.7f);
-
-        // 底色區塊（使用 setFillColor；顏色字串含透明度 #AARRGGBB）
         ds.setDrawFilled(true);
-        ds.setFillColor(Color.parseColor("#335A87FF")); // 33=~20%透明的藍
+        ds.setFillColor(Color.parseColor("#335A87FF")); // 藍色透明底
+        chart.setData(new LineData(ds));
+    }
 
+    // 抿嘴（closeLip）用 total_lip_area 畫折線，底色改和嘟嘴一樣
+    private void plotLipArea(LineChart chart, double[] times, double[] totals) {
+        if (chart == null) return;
+        if (times == null || totals == null || times.length == 0 || times.length != totals.length) {
+            chart.setData(null);
+            return;
+        }
+        List<Entry> entries = new ArrayList<>();
+        for (int i = 0; i < times.length; i++) {
+            entries.add(new Entry((float) times[i], (float) totals[i]));
+        }
+        LineDataSet ds = new LineDataSet(entries, "Total Lip Area");
+        ds.setColor(Color.BLUE);
+        ds.setDrawValues(false);
+        ds.setDrawCircles(false);
+        ds.setLineWidth(1.7f);
+        ds.setDrawFilled(true);
+        ds.setFillColor(Color.parseColor("#335A87FF")); // 藍色透明底，和嘟嘴一致
         chart.setData(new LineData(ds));
     }
 
@@ -191,19 +243,15 @@ public class AnalysisResultActivity extends AppCompatActivity {
             JSONObject obj = new JSONObject(apiJson);
             JSONArray segs = obj.optJSONArray("segments");
             if (segs == null) return;
-
-            // 用 LimitLine 當邊界線；若要整塊底色效果需客製 renderer
             for (int k = 0; k < segs.length(); k++) {
                 JSONObject seg = segs.getJSONObject(k);
                 float start = (float) seg.optDouble("start_time", Float.NaN);
                 float end   = (float) seg.optDouble("end_time",   Float.NaN);
                 if (Float.isNaN(start) || Float.isNaN(end)) continue;
-
                 LimitLine llStart = new LimitLine(start);
                 llStart.setLineColor(Color.RED);
                 llStart.setLineWidth(0.8f);
                 chart.getXAxis().addLimitLine(llStart);
-
                 LimitLine llEnd = new LimitLine(end);
                 llEnd.setLineColor(Color.GREEN);
                 llEnd.setLineWidth(0.8f);
@@ -214,14 +262,12 @@ public class AnalysisResultActivity extends AppCompatActivity {
 
     private String toDisplayMotion(String codeOrName) {
         if (TextUtils.isEmpty(codeOrName)) return "訓練";
-        switch (codeOrName) {
+        String c = canonicalMotion(codeOrName);
+        switch (c) {
             case "poutLip":
-            case "POUT_LIPS":
                 return "噘嘴";
-            case "SIP_LIPS":
+            case "closeLip":
                 return "抿嘴";
-            case "PUFF_CHEEK":
-                return "鼓頰";
             default:
                 return codeOrName;
         }

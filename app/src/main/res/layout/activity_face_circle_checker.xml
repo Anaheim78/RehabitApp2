@@ -9,7 +9,21 @@
         android:id="@+id/camera_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center" />
+        android:layout_gravity="center" >
+
+        <TextView
+            android:id="@+id/cue_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="80dp"
+            android:background="#66000000"
+            android:gravity="center"
+            android:padding="12dp"
+            android:text=""
+            android:textColor="@android:color/white"
+            android:textSize="18sp" />
+    </androidx.camera.view.PreviewView>
 
     <!-- 圓圈覆蓋層 -->
     <com.example.rehabilitationapp.ui.facecheck.CircleOverlayView
@@ -30,6 +44,7 @@
         android:textColor="@android:color/white"
         android:textSize="18sp"
         android:gravity="center" />
+    <!-- 導引提示（新增加） -->
 
     <!-- 进度条 -->
     <ProgressBar
