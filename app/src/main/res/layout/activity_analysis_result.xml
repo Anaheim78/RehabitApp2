@@ -186,7 +186,14 @@
                     android:visibility="gone"/>
             </androidx.cardview.widget.CardView>
 
-            <!-- 圓形兩顆 + 主按鈕 -->
+            <!-- Ratio 折線圖 -->
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/lineChart"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="16dp" />
+
+            <!-- 圓形兩顆 + 主按鈕（搬到圖表下面） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -231,19 +238,11 @@
                     app:cornerRadius="22dp" />
             </LinearLayout>
 
-            <!-- Ratio 折線圖 -->
-            <com.github.mikephil.charting.charts.LineChart
-                android:id="@+id/lineChart"
-                android:layout_width="match_parent"
-                android:layout_height="220dp"
-                android:layout_marginTop="16dp" />
-
             <!-- 讓上面區塊和底部導覽有距離 -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="24dp" />
         </LinearLayout>
     </ScrollView>
-
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

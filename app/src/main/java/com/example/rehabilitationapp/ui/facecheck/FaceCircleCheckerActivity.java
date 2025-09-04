@@ -66,6 +66,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 讓提交任務前都能守門，例如在 handleCheeksMode() / 影格處理入口：
     private boolean shouldAcceptNewFrames() { return !isStopping; }
 
+
+    private static final boolean SHOW_GUIDE = false; // ← 全域：要不要教學
     // =======【導引提示：只新增、不改你的原碼】=======
     // 可調：每段秒數（預設 3 秒；改這個就好）
     public int CUE_SEGMENT_SEC = 3;
@@ -92,6 +94,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private PreviewView cameraView;
     private FaceLandmarker faceLandmarker;
     private ProcessCameraProvider cameraProvider;
+    private boolean trainingStarted = false; // 避免重複啟動
 
     // 執行緒
     private ExecutorService cameraExecutor;
@@ -136,7 +139,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // ROI 快取（Overlay/Bitmap 兩套座標系）
     private Rect lastOverlayRoi = null;
     private Rect lastBitmapRoi  = null;
-
+    // 防止重複開始；簡單計時器用
+    private int elapsedSeconds = 0;
+    private Runnable timerRunnable;
     // 狀態管理
     private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
     private AppState currentState = AppState.CALIBRATING;
@@ -153,25 +158,27 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private long maintainTotalTime = 0;
     private boolean isTrainingCompleted = false;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);
 
-        //臉頰光流使用
+        // OpenCV 初始化
         if (!OpenCVLoader.initDebug()) {
             Log.e(TAG, "❌ OpenCVLoader.initDebug() 失敗");
         } else {
             Log.d(TAG, "✅ OpenCV 初始化成功");
         }
 
-        trainingType = getIntent().getIntExtra("training_type", -1);
-        //trainingLabel = getIntent().getStringExtra("training_label");
-        //改動作，拿到DB的anlaystType
+        // 讀取參數
+        trainingType  = getIntent().getIntExtra("training_type", -1);
+        // 你現有程式把中文/代號都放在這個 key，維持不動
         trainingLabel = getIntent().getStringExtra("training_type");
         if (trainingLabel == null) trainingLabel = "訓練";
         Log.d(TAG, "接收到訓練類型: " + trainingType + ", 標籤: " + trainingLabel);
 
+        // 模式選擇
         if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -181,21 +188,23 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 "TONGUE_DOWN".equals(trainingLabel)) {
             initializeTongueDetector();
             Log.d(TAG, "✅ 舌頭模式：使用 MediaPipe 關鍵點顯示與啟用 YOLO 檢測 + YOLO 顯示");
-        }
-        else {
-            Log.d(TAG, "✅ 非頭模式：使用 MediaPipe 關鍵點顯示");
+        } else {
+            Log.d(TAG, "✅ 非舌頭模式：使用 MediaPipe 關鍵點顯示");
         }
 
+        // Recorder
         dataRecorder = new FaceDataRecorder(this, trainingLabel, trainingType);
         Log.d(TAG, "資料記錄器初始化完成");
 
-        cameraView = findViewById(R.id.camera_view);
+        // 綁定 UI
+        cameraView  = findViewById(R.id.camera_view);
         overlayView = findViewById(R.id.overlay_view);
-        statusText = findViewById(R.id.status_text);
-        timerText = findViewById(R.id.timer_text);
+        statusText  = findViewById(R.id.status_text);
+        timerText   = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
-        cueText = findViewById(R.id.cue_text);
+        cueText     = findViewById(R.id.cue_text);
 
+        // 覆蓋層顯示模式
         if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -207,21 +216,28 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         } else {
             overlayView.setDisplayMode(CircleOverlayView.DisplayMode.LANDMARKS);
         }
-        //Thread控制器初始化
-        cameraExecutor = Executors.newSingleThreadExecutor();//處理圖像
-        yoloExecutor = Executors.newSingleThreadExecutor(); //處理YOLO
-        mainHandler = new Handler(Looper.getMainLooper());
 
+        // 執行緒與 Handler
+        cameraExecutor = Executors.newSingleThreadExecutor();
+        yoloExecutor   = Executors.newSingleThreadExecutor();
+        mainHandler    = new Handler(Looper.getMainLooper());
+
+        // 偵測/UI初始化
         testCameraPermission();
         setupFaceLandmarker();
         initializeUI();
 
+        // 相機權限處理：有就開預覽，沒有就請求。但「教學」一律先彈，按開始才真正啟動訓練。
         if (checkCameraPermission()) {
             startCamera();
         } else {
             requestCameraPermission();
         }
+
+        // 進來就顯示教學（BottomSheet）
+        new Handler(Looper.getMainLooper()).post(this::maybeShowGuideAndStart);
     }
+
 
     // 初始化舌頭檢測器
     private void initializeTongueDetector() {
@@ -1039,7 +1055,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         });
     }
 
-//區域_提醒放鬆與動作導引
+    //區域_提醒放鬆與動作導引
     private String getReadableLabel() {
         if (trainingLabel == null) return "訓練";
         switch (trainingLabel) {
@@ -1087,23 +1103,85 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             String zh = motionLabelZh(trainingLabel);
 
             if (cueStep == 0) {
-                if (cueText != null) cueText.setText("請" + zh + tail);     // 例：請噘嘴
+                if (cueText != null) cueText.setText("保持" +zh +  tail);     // 例：請噘嘴
                 mainHandler.postDelayed(() -> { cueStep = 1; postNextCue(0); }, segMs);
 
             } else if (cueStep == 1) {
-                if (cueText != null) cueText.setText("放輕鬆" + tail);   // 例：噘嘴放鬆
+                if (cueText != null) cueText.setText("回到放鬆" + tail);   // 例：噘嘴放鬆
                 mainHandler.postDelayed(() -> { cueStep = 2; postNextCue(0); }, segMs);
 
             } else if (cueStep == 2) {
-                if (cueText != null) cueText.setText("請" +zh +  tail); // 例：噘嘴｜動作
+                if (cueText != null) cueText.setText("保持" +zh +  tail); // 例：噘嘴｜動作
                 mainHandler.postDelayed(() -> { cueStep = 3; postNextCue(0); }, segMs);
 
             } else { // cueStep == 3
-                if (cueText != null) cueText.setText("放輕鬆" + tail); // 例：噘嘴｜放鬆
+                if (cueText != null) cueText.setText("回到放鬆" + tail); // 例：噘嘴｜放鬆
                 mainHandler.postDelayed(() -> { cueStep = 0; postNextCue(0); }, segMs);
             }
         };
         mainHandler.postDelayed(cueRunnable, delayMs);
+    }
+
+    private void maybeShowGuideAndStart() {
+        if (!SHOW_GUIDE) {           // ← 關掉就直接開始
+            onStartTraining();
+            return;
+        }
+        // 若使用者之前勾「不再顯示」，就直接開始
+        if (!com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet
+                .shouldShow(this, trainingLabel)) {
+            onStartTraining();
+            return;
+        }
+
+        com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet sheet =
+                com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet
+                        .newInstance(trainingLabel, /* 若有 DB 中文名稱就塞這裡 */ null);
+        sheet.setOnStartListener(this::onStartTraining);
+        sheet.show(getSupportFragmentManager(), "motion_guide");
+    }
+
+
+    private void onStartTraining() {
+        if (trainingStarted) return;
+        trainingStarted = true;
+
+        Log.d(TAG, "✅ 開始訓練流程");
+
+        // 狀態提示
+        if (statusText != null) statusText.setText("訓練中...");
+
+        // 1) 開始口令循環（動作提示）
+        cueRunning = true;
+        cueStep = 0;
+        postNextCue(0);
+
+        // 2) 簡易計時器（每秒 +1）
+//        elapsedSeconds = 0;
+//        if (timerText != null) timerText.setText("⏱ 0秒");
+//        if (progressBar != null) progressBar.setProgress(0);
+//
+//        timerRunnable = new Runnable() {
+//            @Override public void run() {
+//                elapsedSeconds += 1;
+//                if (timerText != null) {
+//                    timerText.setText("⏱ " + elapsedSeconds + "秒");
+//                }
+//                // 如果要用進度條，這裡可以依你的總秒數換算百分比
+//                // 例如：progressBar.setProgress(elapsedSeconds * 100 / TOTAL_SEC);
+//                if (mainHandler != null) {
+//                    mainHandler.postDelayed(this, 1000);
+//                }
+//            }
+//        };
+//        if (mainHandler != null) mainHandler.postDelayed(timerRunnable, 1000);
+
+        // 3) （可選）如果你想確保是全新紀錄，可以重新建立一個 Recorder 實例
+        //    不會呼叫不存在的方法，也不會動你原本的 API。
+        // dataRecorder = new FaceDataRecorder(this, trainingLabel, trainingType);
+
+        // 4) 如需啟動自訂擷取/分析流程（若你有寫），在這裡呼叫即可
+        // startCapture();  // 如果你真的有這個方法才打開
     }
 
 
@@ -1185,7 +1263,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 2) 把代號變中文顯示文字
     private String motionLabelZh(String label) {
         String c = canonicalMotion(label);
-        if ("poutLip".equals(c))          return "噘嘴";
+        if ("poutLip".equals(c))          return "嘟嘴";
         if ("closeLip".equals(c))         return "抿嘴唇";
         if ("TONGUE_LEFT".equals(c))      return "舌頭往左";
         return "動作";
@@ -1208,41 +1286,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
      */
     private static final String API_URL = "https://wavecut-production.up.railway.app/"; // Railway 根路徑
 
-    private void sendJsonToApi(String json) {
-        new Thread(() -> {
-            try {
-                // 給自己看的：Payload 大小（KB）
-                int bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                android.util.Log.d("APITEST", "payloadSize=" + (bytes / 1024f) + " KB");
 
-                okhttp3.MediaType JSON
-                        = okhttp3.MediaType.get("application/json; charset=utf-8");
-                okhttp3.RequestBody body
-                        = okhttp3.RequestBody.create(json, JSON);
-
-                okhttp3.Request request = new okhttp3.Request.Builder()
-                        .url(API_URL)                    // ★ 改成 Railway
-                        .addHeader("Accept", "application/json")
-                        .addHeader("Content-Type", "application/json; charset=utf-8")
-                        .post(body)
-                        .build();
-
-                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
-                        .callTimeout(java.time.Duration.ofSeconds(30))
-                        .connectTimeout(java.time.Duration.ofSeconds(10))
-                        .readTimeout(java.time.Duration.ofSeconds(25))
-                        .build();
-
-                // 用 try-with-resources 確保釋放連線資源
-                try (okhttp3.Response resp = client.newCall(request).execute()) {
-                    String respBody = (resp.body() != null) ? resp.body().string() : "";
-                    android.util.Log.d("APITEST", "status=" + resp.code() + " body=" + respBody);
-                }
-            } catch (Exception e) {
-                android.util.Log.e("APITEST", "post failed", e);
-            }
-        }).start();
-    }
 
     // 2) 簡單的跳頁方法（共 10 行）
     // ★ 用正規化後的名稱決定要塞哪組陣列到 Intent

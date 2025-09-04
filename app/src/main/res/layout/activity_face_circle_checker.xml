@@ -9,21 +9,7 @@
         android:id="@+id/camera_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center" >
-
-        <TextView
-            android:id="@+id/cue_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|center_horizontal"
-            android:layout_marginTop="80dp"
-            android:background="#66000000"
-            android:gravity="center"
-            android:padding="12dp"
-            android:text=""
-            android:textColor="@android:color/white"
-            android:textSize="18sp" />
-    </androidx.camera.view.PreviewView>
+        android:layout_gravity="center" />
 
     <!-- 圓圈覆蓋層 -->
     <com.example.rehabilitationapp.ui.facecheck.CircleOverlayView
@@ -45,6 +31,18 @@
         android:textSize="18sp"
         android:gravity="center" />
     <!-- 導引提示（新增加） -->
+    <TextView
+        android:id="@+id/cue_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="100dp"
+        android:background="#66000000"
+        android:padding="12dp"
+        android:text=""
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
+        android:gravity="center" />
 
     <!-- 进度条 -->
     <ProgressBar
@@ -53,7 +51,7 @@
         android:layout_width="200dp"
         android:layout_height="8dp"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="150dp"
+        android:layout_marginTop="170dp"
         android:progressTint="@android:color/holo_blue_bright"
         android:progressBackgroundTint="#40FFFFFF" />
 
@@ -63,7 +61,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="170dp"
+        android:layout_marginTop="180dp"
         android:text="⏱ 5秒"
         android:textColor="@android:color/white"
         android:textSize="24sp"
