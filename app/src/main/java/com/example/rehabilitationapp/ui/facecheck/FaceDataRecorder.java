@@ -67,7 +67,7 @@ public class FaceDataRecorder {
     }
 
     /*
-     * CSV建檔並給定檔名/標頭，根據每種動作不同。
+     * 數字存儲物件，CSV建檔並給定檔名/標頭，根據每種動作不同。
     */
     public FaceDataRecorder(Context context, String trainingLabel, int trainingType) {
         this.context = context;

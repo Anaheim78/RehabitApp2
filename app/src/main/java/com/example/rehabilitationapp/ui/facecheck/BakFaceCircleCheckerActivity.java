@@ -29,8 +29,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
-import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
+import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
@@ -39,24 +39,24 @@ import com.google.mediapipe.tasks.vision.core.RunningMode;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult;
 
+import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Point;
+
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
-//光流
-import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Point;
 
-public class FaceCircleCheckerActivity extends AppCompatActivity {
+public class BakFaceCircleCheckerActivity extends AppCompatActivity {
 
-    //=========【相機權限用】==========
     // 相機權限用
     private static final int PERMISSION_REQUEST_CODE = 123;
     // LOG 的 Tag
@@ -64,104 +64,100 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // final處理執行緒，待現有Thread自行完成後再關閉
     private volatile boolean isStopping = false;
+    // 讓提交任務前都能守門，例如在 handleCheeksMode() / 影格處理入口：
+    private boolean shouldAcceptNewFrames() { return !isStopping; }
 
-    // android.camera.core 相機管理
+
+    private static final boolean SHOW_GUIDE = false; // ← 全域：要不要教學
+    // =======【導引提示：只新增、不改你的原碼】=======
+    // 可調：每段秒數（預設 3 秒；改這個就好）
+    public int CUE_SEGMENT_SEC = 3;
+
+    // 導引疊字與循環控制（不影響你原本 Handler/Timer）
+    private Handler cueHandler;
+    private Runnable cueRunnable;
+    private boolean cueRunning = false;
+    private int cueStep = 0; // 0:動作(第1次) → 1:放鬆(第1次) → 2:動作(第2次) → 3:放鬆(第2次) → 0 循環
+    private TextView cueTextView; // 疊在畫面上的提示
+    private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成好讀字
+// ===============================================
+
+    // 計時常數
+    private static final int CALIBRATION_TIME = 5000;         // 5 秒校正
+    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 先測試，10 秒維持
+    private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
+
+    // ★★★ 頻率控制（可自行調整）★★★
+    private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
+    private static final int YOLO_EVERY      = 3;  // 每 3 幀跑一次 YOLO
+
+    // android.camera.core
     private PreviewView cameraView;
     private FaceLandmarker faceLandmarker;
     private ProcessCameraProvider cameraProvider;
     private boolean trainingStarted = false; // 避免重複啟動
-    //=========【相機權限用】==========
 
-    //========【攝影畫面調試】========
+    // 執行緒
+    private ExecutorService cameraExecutor;
+    private ExecutorService yoloExecutor;
+    // UI
+    private CircleOverlayView overlayView;
+    private TextView statusText;
+    private TextView cueText; // 新增：導引專用 TextView
+    private TextView timerText;
+    private ProgressBar progressBar;
+
+    // 訓練資訊
+    private String trainingLabel = "訓練";
+    private int trainingType = -1;
+
+    // 記錄器
+    private FaceDataRecorder dataRecorder;
+
+    // YOLO
+    private TongueYoloDetector tongueDetector;
+    private boolean isYoloEnabled = false;
+
+    // 臉頰光流
+    private CheekFlowEngine cheekEngine;
+
+    private void ensureCheekEngine() {
+        if (cheekEngine == null) {
+            CheekFlowEngine.Params pp = new CheekFlowEngine.Params();
+            pp.targetWidth = 360;              // 0 = 不降採樣；建議先 360
+            pp.flowEvery = 2;                  // 每 2 幀算一次
+            pp.landmarksAreNormalized01 = true;
+            pp.enableRigidCompensation = true; // 方案A：補償後寫入同欄位
+            pp.smoothAlpha = 0.25f;            // 0.2~0.4 建議
+            cheekEngine = new CheekFlowEngine(pp);
+        }
+    }
+
+    // 幀計數與統計
+    private int frameId = 0;
+    private long firstMetricTime = 0;
+
     // ROI 快取（Overlay/Bitmap 兩套座標系）
     private Rect lastOverlayRoi = null;
     private Rect lastBitmapRoi  = null;
-    //========================
 
-    //=========【執行緒管理】==========
-    private ExecutorService cameraExecutor;
-    private ExecutorService yoloExecutor;
+    // 狀態管理
+    private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
+    private AppState currentState = AppState.CALIBRATING;
 
     // 主執行緒 handler 與計時任務
     private Handler mainHandler;
     private Runnable calibrationTimer;
     private Runnable maintainTimer;
     private Runnable progressUpdater;
-    //===============================
 
-
-    //========【偵測區塊】==========================
-    //===【共用變數】========
-    //周邊物件
-    private FaceDataRecorder dataRecorder;
-    //訓練資訊變數(Intent接收)）
-    private String trainingLabel = "訓練";
-    private int trainingType = -1;
-    // 讓提交任務前都能守門，例如在 handleCheeksMode() / 影格處理入口：
-    private boolean shouldAcceptNewFrames() { return !isStopping; }
-    //====================================
-
-    //===【舌頭】 推論頻率控制（可自行調整）========
-    private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
-    private static final int YOLO_EVERY      = 3;  // 每 3 幀跑一次 YOLO
-    // 周邊物件
-    private TongueYoloDetector tongueDetector;
-    private boolean isYoloEnabled = false;
-    //====================================
-
-    //========【臉頰】========
-    // 周邊物件
-    private CheekFlowEngine cheekEngine;
-    //================
-    //==========================================
-
-
-    //=========【UX顯示區塊】==========================
-    //臉部圓框
-    private CircleOverlayView overlayView;
-    //文字顯示
-    private TextView statusText;
-    private TextView cueText; // 新增：導引專用 TextView
-    private TextView timerText;
-    //進度條
-    private ProgressBar progressBar;
-    //圓框狀態管理
-    private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
-    private AppState currentState = AppState.CALIBRATING;
-
-
-    // =======【導引提示】==========================
-    private static final boolean SHOW_GUIDE = false; // ← 全域：要不要教學
-    // 導引疊字與循環控制（不影響你原本 Handler/Timer）
-    private android.os.Handler cueHandler;
-    private java.lang.Runnable cueRunnable;
-    private boolean cueRunning = false;
-    private int cueStep = 0; // 循環，根據餘數顯示
-    public int CUE_SEGMENT_SEC = 3; // 可調：導引文字間隔秒數（預設 3 秒）
-    private android.widget.TextView cueTextView; // 畫面上的導引提示文字
-    private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成相對指引內文
-    //===============================================
-
-    // ==============計時常數==============
-    private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 維持時間(毫秒)
-    private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
-    // 計時變數
+    // 計時
     private long calibrationStartTime = 0;
     private long maintainStartTime = 0;
     private long maintainTotalTime = 0;
     private boolean isTrainingCompleted = false;
-    //============================
-    //===========================================
 
 
-    //===========【Debug&Log】========
-    // 幀計數與統計
-    private int frameId = 0;
-    private long firstMetricTime = 0;
-    //================
-
-    //===========01【生命週期】========================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -174,12 +170,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG, "✅ OpenCV 初始化成功");
         }
 
-        // 讀取前一頁選擇的運動類型
+        // 讀取參數
         trainingType  = getIntent().getIntExtra("training_type", -1);
+        // 你現有程式把中文/代號都放在這個 key，維持不動
         trainingLabel = getIntent().getStringExtra("training_type");
         if (trainingLabel == null) trainingLabel = "訓練";
         Log.d(TAG, "接收到訓練類型: " + trainingType + ", 標籤: " + trainingLabel);
-        // 舌頭模式時 : 額外初始化Yolo偵測器
+
+        // 模式選擇
         if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -193,11 +191,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG, "✅ 非舌頭模式：使用 MediaPipe 關鍵點顯示");
         }
 
-        // 初始化資料記錄器
+        // Recorder
         dataRecorder = new FaceDataRecorder(this, trainingLabel, trainingType);
         Log.d(TAG, "資料記錄器初始化完成");
 
-        // 綁定UI控件
+        // 綁定 UI
         cameraView  = findViewById(R.id.camera_view);
         overlayView = findViewById(R.id.overlay_view);
         statusText  = findViewById(R.id.status_text);
@@ -205,7 +203,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progress_bar);
         cueText     = findViewById(R.id.cue_text);
 
-        // 初始化追蹤示意模式 : 舌頭顯示BBox，其他顯示Landmark
+        // 覆蓋層顯示模式
         if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -223,93 +221,23 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         yoloExecutor   = Executors.newSingleThreadExecutor();
         mainHandler    = new Handler(Looper.getMainLooper());
 
-        // /偵測/UI初始化
+        // 偵測/UI初始化
         testCameraPermission();
         setupFaceLandmarker();
         initializeUI();
 
-        // 相機權限處理：有就打開，沒有就請求。
+        // 相機權限處理：有就開預覽，沒有就請求。但「教學」一律先彈，按開始才真正啟動訓練。
         if (checkCameraPermission()) {
             startCamera();
         } else {
             requestCameraPermission();
         }
-        // 進來就顯示教學（BottomSheet） 註解掉，說明不在此_20250905
-        //new Handler(Looper.getMainLooper()).post(this::maybeShowGuideAndStart);
+
+        // 進來就顯示教學（BottomSheet）
+        new Handler(Looper.getMainLooper()).post(this::maybeShowGuideAndStart);
     }
 
-    @Override
-    protected void onDestroy() {
-        stopSimpleCue();
-        super.onDestroy();
-        // 1) 停入口：之後不要再提交任何新任務
-        isStopping = true;
 
-        // 2) 先把 UI/Timer callback 停掉，避免又排新任務
-        cancelTimers();
-        if (progressUpdater != null) {
-            mainHandler.removeCallbacks(progressUpdater);
-            progressUpdater = null;
-        }
-
-        // 3) 先停相機資料源，避免還有新影格湧入（很關鍵）
-        try {
-            if (cameraProvider != null) {
-                cameraProvider.unbindAll();
-            }
-        } catch (Exception ignore) { }
-
-        // 4) 停掉背景執行緒並「等它停乾淨」
-        awaitShutdown(cameraExecutor);
-        awaitShutdown(yoloExecutor);
-
-        // 5) 執行緒都停了，現在才安全釋放各引擎/偵測器
-        if (cheekEngine != null) {
-            try {
-                cheekEngine.release();
-            } catch (Throwable ignore) { }
-            cheekEngine = null;
-        }
-
-        if (tongueDetector != null) {
-            try {
-                tongueDetector.release();
-            } catch (Throwable ignore) { }
-            tongueDetector = null;
-            Log.d(TAG, "✅ YOLO 檢測器資源已清理");
-        }
-
-        if (faceLandmarker != null) {
-            try {
-                faceLandmarker.close();
-            } catch (Throwable ignore) { }
-            faceLandmarker = null;
-        }
-
-        // 6) 千萬不要在 onDestroy 清 CSV，否則結果頁會拿到空資料
-        // if (dataRecorder != null) { dataRecorder.clearData(); }  // ← 移除這行
-    }
-    //===========01【生命週期】========================
-
-
-
-    // 初始化 FaceLandmarker
-    private void setupFaceLandmarker() {
-        try {
-            Log.d(TAG, "try to FaceLandmarker 初始化");
-            FaceLandmarker.FaceLandmarkerOptions options = FaceLandmarker.FaceLandmarkerOptions.builder()
-                    .setBaseOptions(BaseOptions.builder()
-                            .setModelAssetPath("face_landmarker.task")
-                            .build())
-                    .setRunningMode(RunningMode.IMAGE)
-                    .setNumFaces(1)
-                    .build();
-            faceLandmarker = FaceLandmarker.createFromOptions(this, options);
-            Log.d(TAG, "FaceLandmarker 初始化成功");
-        } catch (Exception e) {
-            Log.e(TAG, "FaceLandmarker 初始化錯誤: " + e.getMessage());
-        }
-    }
     // 初始化舌頭檢測器
     private void initializeTongueDetector() {
         try {
@@ -333,34 +261,36 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateTimerDisplay();
         startProgressUpdater();
     }
-    //  自我檢查相機權限
-    private void testCameraPermission() {
-        Log.d(TAG, "開始檢查相機權限");
-        int cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
-        Log.d(TAG, "相機權限狀態: " + cameraPermission);
-        Log.d(TAG, "PERMISSION_GRANTED 常數: " + PackageManager.PERMISSION_GRANTED);
-        Log.d(TAG, "PERMISSION_DENIED 常數: " + PackageManager.PERMISSION_DENIED);
 
-        PackageManager pm = getPackageManager();
-        boolean hasCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA);
-        boolean hasFrontCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT);
-
-        Log.d(TAG, "系統支援相機: " + hasCamera);
-        Log.d(TAG, "系統支援前置相機: " + hasFrontCamera);
+    // 初始化 FaceLandmarker
+    private void setupFaceLandmarker() {
+        try {
+            Log.d(TAG, "try to FaceLandmarker 初始化");
+            FaceLandmarker.FaceLandmarkerOptions options = FaceLandmarker.FaceLandmarkerOptions.builder()
+                    .setBaseOptions(BaseOptions.builder()
+                            .setModelAssetPath("face_landmarker.task")
+                            .build())
+                    .setRunningMode(RunningMode.IMAGE)
+                    .setNumFaces(1)
+                    .build();
+            faceLandmarker = FaceLandmarker.createFromOptions(this, options);
+            Log.d(TAG, "FaceLandmarker 初始化成功");
+        } catch (Exception e) {
+            Log.e(TAG, "FaceLandmarker 初始化錯誤: " + e.getMessage());
+        }
     }
 
     private boolean checkCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED;
     }
-    //請求User給相機權限
+
     private void requestCameraPermission() {
         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, PERMISSION_REQUEST_CODE);
         Log.d("FaceCircleCheckerActivity","in to requestCameraPermission");
     }
 
-
-    //專案內沒有用到
+    //若無權限跳出提示
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -373,7 +303,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             }
         }
     }
-    //直接開啟相機(需要先請求好權限)
+
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         cameraProviderFuture.addListener(() -> {
@@ -733,7 +663,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int imgH = mirroredBitmap.getHeight();
 
                         // 2) YOLO bbox（Bitmap 像素；無偵測→null）
-                        final android.graphics.Rect bboxImg = bboxImgFinal;
+                        final Rect bboxImg = bboxImgFinal;
 
                         // 3) 將 allPointsFinal 統一到「Bitmap 像素」
                         float[][] ptsPx = toBitmapPixels(allPointsFinal, imgW, imgH, overlayView.getWidth(), overlayView.getHeight());
@@ -898,11 +828,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING) &&
                         r.computedThisFrame) {
                     //補償
-                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
-                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+                    Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
+                    Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
                     //原始
-                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
-                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+                    Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
+                    Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
                     // 取得狀態字串（跟你嘴唇/舌頭一致）
                     String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
 
@@ -928,17 +858,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
-    private void ensureCheekEngine() {
-        if (cheekEngine == null) {
-            CheekFlowEngine.Params pp = new CheekFlowEngine.Params();
-            pp.targetWidth = 360;              // 0 = 不降採樣；建議先 360
-            pp.flowEvery = 2;                  // 每 2 幀算一次
-            pp.landmarksAreNormalized01 = true;
-            pp.enableRigidCompensation = true; // 方案A：補償後寫入同欄位
-            pp.smoothAlpha = 0.25f;            // 0.2~0.4 建議
-            cheekEngine = new CheekFlowEngine(pp);
-        }
-    }
 
     private void startCalibrationTimer() {
         cancelTimers();
@@ -1092,7 +1011,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         runOnUiThread(() -> go(label0, result.totalPeaks, target, duration0, csv, null));
                     }
 
-                    @Override public void onResponse(okhttp3.Call call, okhttp3.Response response) throws java.io.IOException {
+                    @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
                         String body = (response.body() != null) ? response.body().string() : "";
                         Log.d("API_RES", "✅ API 回應: " + body);
 
@@ -1130,7 +1049,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 Log.e(TAG, "❌ 儲存或分析失敗: " + error);
-                Toast.makeText(FaceCircleCheckerActivity.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
+                Toast.makeText(BakFaceCircleCheckerActivity.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
                 new Handler(Looper.getMainLooper()).postDelayed(() -> finish(), 3000);
             }
         });
@@ -1209,14 +1128,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             return;
         }
         // 若使用者之前勾「不再顯示」，就直接開始
-        if (!com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet
+        if (!MotionGuideBottomSheet
                 .shouldShow(this, trainingLabel)) {
             onStartTraining();
             return;
         }
 
-        com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet sheet =
-                com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet
+        MotionGuideBottomSheet sheet =
+                MotionGuideBottomSheet
                         .newInstance(trainingLabel, /* 若有 DB 中文名稱就塞這裡 */ null);
         sheet.setOnStartListener(this::onStartTraining);
         sheet.show(getSupportFragmentManager(), "motion_guide");
@@ -1242,7 +1161,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
 
-    //置頂狀態說明文字
+
     private void updateStatusDisplay() {
         if (statusText == null) return;
 
@@ -1307,7 +1226,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     // 幫手：關閉 ExecutorService（可重用）
-    private void awaitShutdown(java.util.concurrent.ExecutorService exec) {
+    private void awaitShutdown(ExecutorService exec) {
         if (exec == null) return;
         try {
             exec.shutdownNow(); // 立刻中斷尚未開始的與可中斷的任務
@@ -1348,7 +1267,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // ★ 用正規化後的名稱決定要塞哪組陣列到 Intent
     private void go(String label, int actual, int target, int durationSec, String csv, String apiJson) {
         String canon = canonicalMotion(label);
-        Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
+        Intent it = new Intent(BakFaceCircleCheckerActivity.this, AnalysisResultActivity.class);
         it.putExtra("training_label", canon);
         it.putExtra("actual_count", actual);
         it.putExtra("target_count", 5);
@@ -1361,15 +1280,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             double[] ratios = dataRecorder.getHeightWidthRatioArray();
             it.putExtra("ratio_times", times);
             it.putExtra("ratio_values", ratios);
-            android.util.Log.d("GO", "poutLip ratio_times=" + java.util.Arrays.toString(times));
-            android.util.Log.d("GO", "poutLip ratio_values=" + java.util.Arrays.toString(ratios));
+            Log.d("GO", "poutLip ratio_times=" + Arrays.toString(times));
+            Log.d("GO", "poutLip ratio_values=" + Arrays.toString(ratios));
 
         } else if ("closeLip".equals(canon)) {
             double[][] tv = dataRecorder.exportLipTimeAndTotal();
             it.putExtra("lip_times",  tv[0]);
             it.putExtra("lip_totals", tv[1]);
-            android.util.Log.d("GO", "closeLip lip_times=" + java.util.Arrays.toString(tv[0]));
-            android.util.Log.d("GO", "closeLip lip_totals=" + java.util.Arrays.toString(tv[1]));
+            Log.d("GO", "closeLip lip_times=" + Arrays.toString(tv[0]));
+            Log.d("GO", "closeLip lip_totals=" + Arrays.toString(tv[1]));
         }
 
         startActivity(it);
@@ -1379,4 +1298,71 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
 
+    @Override
+    protected void onDestroy() {
+        stopSimpleCue();
+        super.onDestroy();
+        // 1) 停入口：之後不要再提交任何新任務
+        isStopping = true;
+
+        // 2) 先把 UI/Timer callback 停掉，避免又排新任務
+        cancelTimers();
+        if (progressUpdater != null) {
+            mainHandler.removeCallbacks(progressUpdater);
+            progressUpdater = null;
+        }
+
+        // 3) 先停相機資料源，避免還有新影格湧入（很關鍵）
+        try {
+            if (cameraProvider != null) {
+                cameraProvider.unbindAll();
+            }
+        } catch (Exception ignore) { }
+
+        // 4) 停掉背景執行緒並「等它停乾淨」
+        awaitShutdown(cameraExecutor);
+        awaitShutdown(yoloExecutor);
+
+        // 5) 執行緒都停了，現在才安全釋放各引擎/偵測器
+        if (cheekEngine != null) {
+            try {
+                cheekEngine.release();
+            } catch (Throwable ignore) { }
+            cheekEngine = null;
+        }
+
+        if (tongueDetector != null) {
+            try {
+                tongueDetector.release();
+            } catch (Throwable ignore) { }
+            tongueDetector = null;
+            Log.d(TAG, "✅ YOLO 檢測器資源已清理");
+        }
+
+        if (faceLandmarker != null) {
+            try {
+                faceLandmarker.close();
+            } catch (Throwable ignore) { }
+            faceLandmarker = null;
+        }
+
+        // 6) 千萬不要在 onDestroy 清 CSV，否則結果頁會拿到空資料
+        // if (dataRecorder != null) { dataRecorder.clearData(); }  // ← 移除這行
+    }
+
+
+    private void testCameraPermission() {
+        Log.d(TAG, "開始檢查相機權限");
+        int cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
+        Log.d(TAG, "相機權限狀態: " + cameraPermission);
+        Log.d(TAG, "PERMISSION_GRANTED 常數: " + PackageManager.PERMISSION_GRANTED);
+        Log.d(TAG, "PERMISSION_DENIED 常數: " + PackageManager.PERMISSION_DENIED);
+
+        PackageManager pm = getPackageManager();
+        boolean hasCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA);
+        boolean hasFrontCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT);
+
+        Log.d(TAG, "系統支援相機: " + hasCamera);
+        Log.d(TAG, "系統支援前置相機: " + hasFrontCamera);
+    }
 }
