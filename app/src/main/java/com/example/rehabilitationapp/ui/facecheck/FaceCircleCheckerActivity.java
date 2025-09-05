@@ -53,7 +53,7 @@ import okhttp3.Response;
 //光流
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Point;
-
+//本物件WorkFlow可分為偵側流與顯示(時間讀秒)流
 public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     //=========【相機權限用】==========
@@ -428,6 +428,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 if (result != null && !result.faceLandmarks().isEmpty()) {
                     Log.d(TAG, "檢測到人臉，關鍵點數量: " + result.faceLandmarks().get(0).size());
                 }
+                //checkFacePosition進入後會根據動作分流
                 checkFacePosition(result, mirroredBitmap.getWidth(), mirroredBitmap.getHeight(), mirroredBitmap);
 
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -569,7 +570,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             allPoints[i][0] = x * overlayWidth;
                             allPoints[i][1] = y * overlayHeight;
                         }
-
+                        //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
                         if (("舌頭".equals(trainingLabel) ||
                                 "TONGUE_LEFT".equals(trainingLabel) ||
                                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -836,6 +837,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
+    //處理時間顯示
     private void handleFacePosition(boolean faceInside) {
         if (isTrainingCompleted) return;
 
@@ -940,6 +942,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
+    //確認時間顯示文字
     private void startCalibrationTimer() {
         cancelTimers();
         Log.d(TAG, "🟡 開始校正階段計時器");
