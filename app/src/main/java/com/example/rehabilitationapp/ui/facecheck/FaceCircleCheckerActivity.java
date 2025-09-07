@@ -31,6 +31,7 @@ import androidx.core.content.ContextCompat;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
+import com.example.rehabilitationapp.ui.results.TrainingResultActivity;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
@@ -1349,9 +1350,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 2) 簡單的跳頁方法（共 10 行）
     // ★ 用正規化後的名稱決定要塞哪組陣列到 Intent
+    //To do ... DEBUG CSV要去弄後端看DEBIG分析跟濾波怎麼做，般去railway API
     private void go(String label, int actual, int target, int durationSec, String csv, String apiJson) {
         String canon = canonicalMotion(label);
-        Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
+        //原本的先改FIGMA的看看
+        //Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
+        Intent it = new Intent(FaceCircleCheckerActivity.this, TrainingResultActivity.class);
         it.putExtra("training_label", canon);
         it.putExtra("actual_count", actual);
         it.putExtra("target_count", 5);
