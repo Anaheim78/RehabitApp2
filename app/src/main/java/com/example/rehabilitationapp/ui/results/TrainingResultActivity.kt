@@ -635,23 +635,13 @@ fun TrainingResultCard(data: TrainingHistory) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 左側頭像區域
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .background(
-                        Color(0xFFE8F5E8),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                // 頭像圖片 (這裡用Icon代替，實際可換成Image)
-                Icon(
-                    painter = painterResource(id = iconRes),
-                    contentDescription =  data.trainingLabel,
-                    tint = Color(0xFF4CAF50),
-                    modifier = Modifier.size(30.dp)
-                )
-            }
+            // 頭像圖片 (這裡用Icon代替，實際可換成Image)
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription =  data.trainingLabel,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(60.dp)
+            )
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -712,7 +702,7 @@ fun TrainingResultCard(data: TrainingHistory) {
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
-                            text = "準確率",
+                            text = "完成率",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray,
                             fontSize = 10.sp

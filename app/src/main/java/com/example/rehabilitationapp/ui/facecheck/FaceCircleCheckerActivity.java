@@ -108,6 +108,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //訓練資訊變數(Intent接收)）
     private String trainingLabel = "訓練";
     private int trainingType = -1;
+    public String trainingLabel_String;
     // 讓提交任務前都能守門，例如在 handleCheeksMode() / 影格處理入口：
     private boolean shouldAcceptNewFrames() { return !isStopping; }
     //====================================
@@ -191,6 +192,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         // 讀取前一頁選擇的運動類型
         trainingType  = getIntent().getIntExtra("training_type", -1);
         trainingLabel = getIntent().getStringExtra("training_type");
+        // 替trainingLabel備份，不可編輯
+        trainingLabel_String = getIntent().getStringExtra("training_type");
+
         if (trainingLabel == null) trainingLabel = "訓練";
         Log.d(TAG, "接收到訓練類型: " + trainingType + ", 標籤: " + trainingLabel);
         // 舌頭模式時 : 額外初始化Yolo偵測器
@@ -1140,9 +1144,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int fDuration = duration;
                         final String apiJson = body;
                         // 在這裡呼叫插入資料庫
-                        insertTrainingRecord(fLabel, fActual, target, fDuration, csv);
+                        insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv);
                         // 接著跳轉頁面
-                        runOnUiThread(() -> go(fLabel, fActual, target, fDuration, csv, apiJson));
+                        runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
                     }
                 });
             }
