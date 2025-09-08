@@ -1140,7 +1140,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int fDuration = duration;
                         final String apiJson = body;
                         // 在這裡呼叫插入資料庫
-                        //insertTrainingRecord(fLabel, fActual, target, fDuration, csv);
+                        insertTrainingRecord(fLabel, fActual, target, fDuration, csv);
                         // 接著跳轉頁面
                         runOnUiThread(() -> go(fLabel, fActual, target, fDuration, csv, apiJson));
                     }
