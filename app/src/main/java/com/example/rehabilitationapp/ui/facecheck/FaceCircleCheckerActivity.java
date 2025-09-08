@@ -144,14 +144,17 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===============================================
 
     // ==============計時常數==============
-    private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 維持時間(毫秒)
+    private static final int CALIBRATION_TIME = 3000;         // 校正時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 12000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
     private long maintainStartTime = 0;
     private long maintainTotalTime = 0;
     private boolean isTrainingCompleted = false;
+    // 開始結束時間
+    private long TraingStartTime;
+    private long TraingEndTime;
     //============================
     //===========================================
 
@@ -863,6 +866,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 if (faceInside) {
                     if (maintainStartTime == 0) {
                         maintainStartTime = currentTime;
+                        //底下是紀錄給DB的完整訓練開始時間
+                        TraingStartTime = maintainStartTime;
                     }
                     overlayView.setStatus(CircleOverlayView.Status.OK);
                 } else {

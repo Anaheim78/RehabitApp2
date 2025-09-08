@@ -22,6 +22,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import androidx.compose.foundation.lazy.items
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 
 class TrainingResultActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,8 +45,10 @@ class TrainingResultActivity : ComponentActivity() {
 @Preview
 @Composable
 fun AndroidPreview_訓練結果頁() {
-    Box(Modifier.size(360.dp, 640.dp)) {
-        訓練結果頁()
+    MaterialTheme {  // 必須加這個
+        Box(Modifier.size(360.dp, 640.dp)) {
+            訓練結果頁()
+        }
     }
 }
 
@@ -52,308 +64,22 @@ fun 訓練結果頁() {
             Frame_275, Group_191, Frame_1, Frame_206, Frame_283, Group_252, Group_255
         ) = createRefs()
 
-        /* raw vector Rectangle 2 should have an export setting */
-        Column(
-            Modifier
-                .width(352.dp)
+        LazyColumn(
+            modifier = Modifier
+                //.background(Color(0xFFF0F0F0))
                 .constrainAs(Frame_247) {
-                    start.linkTo(parent.start, 30.dp)
-                    top.linkTo(parent.top, 143.dp)
-                    width = Dimension.value(352.dp)
-                    height = Dimension.value(128.dp)
-                },
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.Start
+                start.linkTo(parent.start, 30.dp)
+                top.linkTo(parent.top, 143.dp)
+                end.linkTo(parent.end, 30.dp)        // 必須加這行
+                bottom.linkTo(Frame_206.top, 16.dp)  // 必須加這行
+                width = Dimension.fillToConstraints
+                height = Dimension.fillToConstraints
+            },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "8秒",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(26.dp, 24.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
-                )
-            )
-            Text(
-                "75%",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(32.dp, 24.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
-                )
-            )
-            Box {
-                Box(Modifier.size(96.dp, 96.dp)) {}
-                Text(
-                    "舌尖上抬",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 14.sp
-                    )
-                )
+            item { // 顯示3張卡片
+                TrainingResultCard()
             }
-            Text(
-                "持續",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(20.dp, 15.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Left,
-                    fontSize = 10.sp
-                )
-            )
-            Text(
-                "完成率",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(30.dp, 15.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Left,
-                    fontSize = 10.sp
-                )
-            )
-            Box {
-                Text(
-                    "03/04",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 32.sp
-                    )
-                )
-                Text(
-                    "達成",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 10.sp
-                    )
-                )
-                Text(
-                    "目標次數",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 10.sp
-                    )
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-
-        Column(
-            Modifier
-                .width(352.dp)
-                .constrainAs(Frame_277) {
-                    start.linkTo(parent.start, 28.dp)
-                    top.linkTo(parent.top, 435.dp)
-                    width = Dimension.value(352.dp)
-                    height = Dimension.value(128.dp)
-                },
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "8秒",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(26.dp, 24.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
-                )
-            )
-            Text(
-                "75%",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(32.dp, 24.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
-                )
-            )
-            Box {
-                Box(Modifier.size(96.dp, 96.dp)) {}
-                Text(
-                    "舌尖上抬",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 14.sp
-                    )
-                )
-            }
-            Text(
-                "持續",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(20.dp, 15.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Left,
-                    fontSize = 10.sp
-                )
-            )
-            Text(
-                "完成率",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(30.dp, 15.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Left,
-                    fontSize = 10.sp
-                )
-            )
-            Box {
-                Text(
-                    "03/04",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 32.sp
-                    )
-                )
-                Text(
-                    "達成",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 10.sp
-                    )
-                )
-                Text(
-                    "目標次數",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 10.sp
-                    )
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-
-        Column(
-            Modifier
-                .width(352.dp)
-                .constrainAs(Frame_276) {
-                    start.linkTo(parent.start, 30.dp)
-                    top.linkTo(parent.top, 289.dp)
-                    width = Dimension.value(352.dp)
-                    height = Dimension.value(128.dp)
-                },
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "10秒",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(34.dp, 24.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
-                )
-            )
-            Text(
-                "50%",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(33.dp, 24.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
-                )
-            )
-            Box {
-                Box(Modifier.size(96.dp, 97.dp)) {}
-                Text(
-                    "舌尖下壓",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 14.sp
-                    )
-                )
-            }
-            Text(
-                "持續",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(20.dp, 15.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Left,
-                    fontSize = 10.sp
-                )
-            )
-            Text(
-                "完成率",
-                Modifier
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .size(30.dp, 15.dp),
-                style = LocalTextStyle.current.copy(
-                    color = Color(0f, 0f, 0f, 1f),
-                    textAlign = TextAlign.Left,
-                    fontSize = 10.sp
-                )
-            )
-            Box {
-                Text(
-                    "02/04",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 32.sp
-                    )
-                )
-                Text(
-                    "達成",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 10.sp
-                    )
-                )
-                Text(
-                    "目標次數",
-                    Modifier.wrapContentHeight(Alignment.CenterVertically),
-                    style = LocalTextStyle.current.copy(
-                        color = Color(0f, 0f, 0f, 1f),
-                        textAlign = TextAlign.Left,
-                        fontSize = 10.sp
-                    )
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
         }
 
         Row(
@@ -839,6 +565,118 @@ fun 訓練結果頁() {
                 /* raw vector Vector 5 should have an export setting */
                 Box {
                     /* raw vector Arrow 2 should have an export setting */
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TrainingResultCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左側頭像區域
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .background(
+                        Color(0xFFE8F5E8),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                // 頭像圖片 (這裡用Icon代替，實際可換成Image)
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_dialog_info),
+                    contentDescription = "頭像",
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // 右側資訊區域
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center,  // 加這行
+            ) {
+                // 第一行：達成率 和 百分比+時間
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "03/04",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "75%",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "8秒",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 第二行：標籤說明
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "達成    目標次數",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        fontSize = 10.sp
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "準確率",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "持續",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
         }
