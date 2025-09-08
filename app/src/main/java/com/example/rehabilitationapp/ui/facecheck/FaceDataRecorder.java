@@ -74,7 +74,8 @@ public class FaceDataRecorder {
         this.trainingLabel = trainingLabel;
         this.trainingType = trainingType;
         this.dataLines = new ArrayList<>();
-
+        // 寫入Log
+        Log.d(TAG, "確認參數 trainingLabel=> " + trainingLabel + ", trainingType=>: " + trainingType);
         // 🔥 記錄開始時間
         this.startTime = System.currentTimeMillis();
         // 建立檔案名稱
@@ -133,8 +134,8 @@ public class FaceDataRecorder {
                 dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
                         relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea);
 
-                Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
-                        relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
+//                Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
+//                        relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
 
             } else if ("POUT_LIPS".equals(trainingLabel)) {
                 // 🔥 改用外緣點計算嘴巴高度和寬度
@@ -146,8 +147,8 @@ public class FaceDataRecorder {
                 dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
                         relativeTimeSeconds, state, height, width, heightWidthRatio);
 
-                Log.d(TAG, String.format("嘟嘴數據 [%.3fs] - 高度: %.3f, 寬度: %.3f, 比值: %.3f",
-                        relativeTimeSeconds, height, width, heightWidthRatio));
+//                Log.d(TAG, String.format("嘟嘴數據 [%.3fs] - 高度: %.3f, 寬度: %.3f, 比值: %.3f",
+//                        relativeTimeSeconds, height, width, heightWidthRatio));
             }
             else if ("JAW_LEFT".equals(trainingLabel)||"JAW_RIGHT".equals(trainingLabel)) {
                 // 🔥 改用三點平均計算下顎水平位移
@@ -392,8 +393,8 @@ public class FaceDataRecorder {
 
             float mouthHeight = Math.abs(lowestY - highestY);
 
-            Log.d(TAG, String.format("嘴巴尺寸 - 寬度: %.3f (左%.1f → 右%.1f), 高度: %.3f (上%.1f → 下%.1f)",
-                    mouthWidth, leftCornerX, rightCornerX, mouthHeight, highestY, lowestY));
+//            Log.d(TAG, String.format("嘴巴尺寸 - 寬度: %.3f (左%.1f → 右%.1f), 高度: %.3f (上%.1f → 下%.1f)",
+//                    mouthWidth, leftCornerX, rightCornerX, mouthHeight, highestY, lowestY));
 
             return new float[]{mouthHeight, mouthWidth};
 

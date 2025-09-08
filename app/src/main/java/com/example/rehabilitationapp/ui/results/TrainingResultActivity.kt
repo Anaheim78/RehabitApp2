@@ -23,15 +23,27 @@ import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.compose.foundation.lazy.items
-
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.rehabilitationapp.R
+import com.example.rehabilitationapp.data.AppDatabase
+import com.example.rehabilitationapp.data.dao.TrainingHistoryDao
+import com.example.rehabilitationapp.data.model.TrainingHistory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 
 class TrainingResultActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +66,15 @@ fun AndroidPreview_訓練結果頁() {
 
 @Composable
 fun 訓練結果頁() {
+    val dao = AppDatabase.getInstance(LocalContext.current).trainingHistoryDao()
+    var list by remember { mutableStateOf(emptyList<TrainingHistory>()) }
+    // 一行搞定資料查詢
+    // 修正：加上 withContext(Dispatchers.IO)
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            list = dao.getTodayRecords()
+        }
+    }
     ConstraintLayout(
         modifier = Modifier
             .background(Color(1f, 1f, 1f, 1f))
@@ -77,8 +98,9 @@ fun 訓練結果頁() {
             },
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { // 顯示3張卡片
-                TrainingResultCard()
+            items(list) { // 顯示3張卡片
+                    data ->
+                TrainingResultCard(data)
             }
         }
 
@@ -572,7 +594,32 @@ fun 訓練結果頁() {
 }
 
 @Composable
-fun TrainingResultCard() {
+fun TrainingResultCard(data: TrainingHistory) {
+    // =============宣告方法區============
+    // 計算達成率
+    val percentage = if (data.targetTimes > 0) {
+        (data.achievedTimes * 100 / data.targetTimes)
+    } else {
+        0
+    }
+    //
+    val iconRes = when (data.trainingLabel) {
+        "PUFF_CHEEK" -> R.drawable.ic_home_cheekpuff
+        "REDUCE_CHEEK" -> R.drawable.ic_home_cheekreduce
+        "POUT_LIPS" -> R.drawable.ic_home_lippout
+        "SIP_LIPS" -> R.drawable.ic_home_lipsip
+        "TONGUE_LEFT" -> R.drawable.ic_home_tongueleft
+        "TONGUE_RIGHT" -> R.drawable.ic_home_tongueright
+        "TONGUE_FOWARD" -> R.drawable.ic_home_tonguefoward
+        "TONGUE_BACK" -> R.drawable.ic_home_tongueback
+        "TONGUE_UP" -> R.drawable.ic_home_tongueup
+        "TONGUE_DOWN" -> R.drawable.ic_home_tonguedown
+        "JAW_LEFT" -> R.drawable.ic_home_jawleft
+        "JAW_RIGHT" -> R.drawable.ic_home_jawright
+        else -> android.R.drawable.ic_dialog_info
+    }
+
+    //卡片區
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -599,8 +646,8 @@ fun TrainingResultCard() {
             ) {
                 // 頭像圖片 (這裡用Icon代替，實際可換成Image)
                 Icon(
-                    painter = painterResource(id = android.R.drawable.ic_dialog_info),
-                    contentDescription = "頭像",
+                    painter = painterResource(id = iconRes),
+                    contentDescription =  data.trainingLabel,
                     tint = Color(0xFF4CAF50),
                     modifier = Modifier.size(30.dp)
                 )
@@ -620,7 +667,7 @@ fun TrainingResultCard() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "03/04",
+                        text = "${data.achievedTimes}/${data.targetTimes}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -631,14 +678,14 @@ fun TrainingResultCard() {
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "75%",
+                            text = "${percentage}%",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = Color.Black,
                             fontSize = 16.sp
                         )
                         Text(
-                            text = "8秒",
+                            text = "${data.durationTime}秒",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = Color.Black,

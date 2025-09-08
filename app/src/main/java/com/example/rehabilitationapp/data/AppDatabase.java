@@ -40,7 +40,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract TrainingItemDao trainingItemDao();
     public abstract TrainingPlanDao trainingPlanDao();
     public abstract UserDao userDao();
-    public abstract TrainingHistoryDao TrainingHistoryDao();
+    public abstract TrainingHistoryDao trainingHistoryDao();
 
     // ★ Migration: 2 -> 3（新增 6 欄位）
     public static final Migration MIGRATION_2_3 = new Migration(2, 3) {

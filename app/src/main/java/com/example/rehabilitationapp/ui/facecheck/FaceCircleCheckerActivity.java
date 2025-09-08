@@ -154,8 +154,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===============================================
 
     // ==============計時常數==============
-    private static final int CALIBRATION_TIME = 3000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 12000;     // 維持時間(毫秒)
+    private static final int CALIBRATION_TIME = 1000;         // 校正時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 6000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -1395,7 +1395,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 duration
         );
         new Thread(() -> {
-            AppDatabase.getInstance(this).TrainingHistoryDao().insert(history);
+            AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
             Log.d(TAG, "✅ 訓練記錄已寫入資料庫");
         }).start();
     }
