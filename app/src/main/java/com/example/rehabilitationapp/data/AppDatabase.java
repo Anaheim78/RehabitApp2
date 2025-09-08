@@ -14,20 +14,23 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import com.example.rehabilitationapp.data.dao.TrainingItemDao;
 import com.example.rehabilitationapp.data.dao.TrainingPlanDao;
 import com.example.rehabilitationapp.data.dao.UserDao;
+import com.example.rehabilitationapp.data.dao.TrainingHistoryDao;
 import com.example.rehabilitationapp.data.model.PlanItemCrossRef;
 import com.example.rehabilitationapp.data.model.Preload;
 import com.example.rehabilitationapp.data.model.TrainingItem;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
 import com.example.rehabilitationapp.data.model.User;
+import com.example.rehabilitationapp.data.model.TrainingHistory;
 
 @Database(
         entities = {
                 TrainingItem.class,
                 TrainingPlan.class,
                 PlanItemCrossRef.class,
-                User.class
+                User.class,
+                TrainingHistory.class
         },
-        version = 3,              // ★ 版本 +1（原本是 2）
+        version = 4,              // ★ 版本 +1（原本是 2）
         exportSchema = true
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -37,6 +40,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract TrainingItemDao trainingItemDao();
     public abstract TrainingPlanDao trainingPlanDao();
     public abstract UserDao userDao();
+    public abstract TrainingHistoryDao TrainingHistoryDao();
 
     // ★ Migration: 2 -> 3（新增 6 欄位）
     public static final Migration MIGRATION_2_3 = new Migration(2, 3) {
@@ -48,6 +52,21 @@ public abstract class AppDatabase extends RoomDatabase {
             db.execSQL("ALTER TABLE users ADD COLUMN name TEXT");
             db.execSQL("ALTER TABLE users ADD COLUMN gender TEXT");
             db.execSQL("ALTER TABLE users ADD COLUMN ui_style TEXT");
+        }
+    };
+    // 新增 Migration: 3 -> 4（加入 trainingHistroy 表）
+    public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `trainingHistory` (" +
+                    "`trainingID` TEXT NOT NULL, " +
+                    "`trainingLabel` TEXT, " +
+                    "`createAt` INTEGER NOT NULL, " +
+                    "`finishAt` INTEGER NOT NULL, " +
+                    "`targetTimes` INTEGER NOT NULL, " +
+                    "`achievedTimes` INTEGER NOT NULL, " +
+                    "`durationTime` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`trainingID`))");
         }
     };
 
@@ -63,7 +82,7 @@ public abstract class AppDatabase extends RoomDatabase {
                                     "rehab_db_2"
                             )
                             // ★ 不要用 fallbackToDestructiveMigration()，會清庫
-                            .addMigrations(MIGRATION_2_3) // ★ 加上 Migration
+                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4) // ★ 加上 Migration
                             .build();
 
                     // ===== 下面是你原本的預載資料邏輯，維持不動 =====

@@ -29,6 +29,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
+import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
 import com.example.rehabilitationapp.ui.results.TrainingResultActivity;
@@ -42,7 +43,9 @@ import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,6 +54,13 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+
+import com.example.rehabilitationapp.data.model.User;
+import com.example.rehabilitationapp.data.dao.UserDao;
+import com.example.rehabilitationapp.data.dao.TrainingHistoryDao;
+import com.example.rehabilitationapp.data.model.TrainingHistory;
+
+
 //光流
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Point;
@@ -1129,7 +1139,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int fActual = actual;
                         final int fDuration = duration;
                         final String apiJson = body;
-
+                        // 在這裡呼叫插入資料庫
+                        //insertTrainingRecord(fLabel, fActual, target, fDuration, csv);
+                        // 接著跳轉頁面
                         runOnUiThread(() -> go(fLabel, fActual, target, fDuration, csv, apiJson));
                     }
                 });
@@ -1343,7 +1355,51 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         return s;
     }
 
-    // FaceCircleCheckerActivity.java 裡面新增
+    // 新增訓練結果到DB
+    private void insertTrainingRecord(String label, int achieved, int target, int duration, String csv) {
+        long currentTime = System.currentTimeMillis();
+
+        User loggedInUser = AppDatabase.getInstance(this).userDao().findLoggedInOne();
+        String username = (loggedInUser != null)?loggedInUser.userId : "guest";
+        long createAt = maintainStartTime;
+        long finishAt = maintainStartTime + maintainTotalTime;
+        long targetTimes = MAINTAIN_TIME_TOTAL/1000/CUE_SEGMENT_SEC/2;
+        int achievedTimes = achieved;
+        long durationTime = duration;
+        String analysisType = label;
+
+        //先由毫秒轉成"yyyy-MM-dd HH:mm:ss"
+        Date date = new Date(createAt);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String readableTime = sdf.format(date);
+
+        String trainingID = username+"_"+label+"_"+readableTime;
+        Log.e("寫入運動紀錄中看參數", "==========================================");
+        Log.e("寫入運動紀錄中看參數", "username: " + username);
+        Log.e("寫入運動紀錄中看參數", "createAt: " + createAt + " (" + sdf.format(new Date(createAt)) + ")");
+        Log.e("寫入運動紀錄中看參數", "finishAt: " + finishAt + " (" + sdf.format(new Date(finishAt)) + ")");
+        Log.e("寫入運動紀錄中看參數", "targetTimes: " + targetTimes);
+        Log.e("寫入運動紀錄中看參數", "achievedTimes: " + achievedTimes);
+        Log.e("寫入運動紀錄中看參數", "durationTime: " + durationTime);
+        Log.e("寫入運動紀錄中看參數", "analysisType: " + analysisType);
+        Log.e("寫入運動紀錄中看參數", "trainingID: " + trainingID);
+        Log.e("寫入運動紀錄中看參數", "readableTime: " + readableTime);
+        Log.e("寫入運動紀錄中看參數", "==========================================");
+        TrainingHistory history = new TrainingHistory(
+                trainingID,
+                label,
+                maintainStartTime,  // createAt
+                currentTime,        // finishAt
+                target,
+                achieved,
+                duration
+        );
+        new Thread(() -> {
+            AppDatabase.getInstance(this).TrainingHistoryDao().insert(history);
+            Log.d(TAG, "✅ 訓練記錄已寫入資料庫");
+        }).start();
+    }
+
 
     /**
      * 把 JSON 傳到 Vercel API
@@ -1358,6 +1414,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //To do ... DEBUG CSV要去弄後端看DEBIG分析跟濾波怎麼做，般去railway API
     private void go(String label, int actual, int target, int durationSec, String csv, String apiJson) {
         String canon = canonicalMotion(label);
+        Log.e("GO METHOD", "在GO方法跳轉頁面中..");
         //原本的先改FIGMA的看看
         //Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
         Intent it = new Intent(FaceCircleCheckerActivity.this, TrainingResultActivity.class);
