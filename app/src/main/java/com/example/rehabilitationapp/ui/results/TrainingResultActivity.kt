@@ -3,6 +3,7 @@ package com.example.rehabilitationapp.ui.results
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -88,125 +91,165 @@ fun 訓練結果頁() {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .padding(start = 8.dp, end = 8.dp, top = 24.dp)
-       // verticalArrangement = Arrangement.spacedBy(12.dp)
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        // 首頁
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_arrow_back),
-                contentDescription = "返回",
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { }
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Text(
-                text = "首頁",
-                fontSize = 18.sp,
-                color = Color.Black,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable { }
-            )
-        }
-
-//        Spacer(modifier = Modifier.height(0.dp))  // 手動控制間距
-        //訓練結果
+        // 背景圖片
+        // 用 Compose 漸變替代 XML shape
         Box(
-            modifier = Modifier
-                .fillMaxWidth(),
-//                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ){
-            Text(
-                text = "訓練結果",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        // 卡片列表
-        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(list) { data ->
-                TrainingResultCard(data)
-            }
-        }
-        Box(
-            //To Do..
-            modifier = Modifier.width(boxWidth).height(boxHeight)
                 .background(
-                    Color.White,
-                    shape = RoundedCornerShape(26.dp))
-                .align(Alignment.CenterHorizontally)
-        ){
-            Text(
-            text = "框內文字",
-            modifier = Modifier.align(Alignment.Center)
-                .offset(y=(-8).dp)
-            )
-        }
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFFFD17C), // startColor
+                            Color(0xFFFFFBEA)  // endColor
+                        ),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
+                    )
+                )
+        )
 
-        Row(
-            Modifier.width(boxWidth).height(boxHeight)
-                .offset(y=(-30).dp).align(Alignment.CenterHorizontally),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+//                .background(Color.White)
+                .padding(start = 8.dp, end = 8.dp, top = 30.dp)
+            // verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 首頁
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_arrow_back),
+                    contentDescription = "返回",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { }
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Text(
+                    text = "首頁",
+                    fontSize = 18.sp,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { }
+                )
+            }
+
+//        Spacer(modifier = Modifier.height(0.dp))  // 手動控制間距
+            //訓練結果
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(),
+//                .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "訓練結果",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            // 卡片列表
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(list) { data ->
+                    TrainingResultCard(data)
+                }
+            }
+            Box(
+                //To Do..
+                modifier = Modifier.width(boxWidth).height(boxHeight)
+                    .background(
+                        Color.White,
+                        shape = RoundedCornerShape(26.dp)
+                    )
+                    .align(Alignment.CenterHorizontally)
+            ) {
+                Text(
+                    text = "系統編輯訊息",
+                    modifier = Modifier.align(Alignment.Center)
+                        .offset(y = (-8).dp)
+                )
+            }
+
+            Row(
+                Modifier.width(boxWidth).height(boxHeight)
+                    .offset(y = (-30).dp).align(Alignment.CenterHorizontally),
 //            horizontalArrangement =  Arrangement.SpaceEvenly ,
-            verticalAlignment = Alignment.CenterVertically
-        ){
-            Spacer(modifier = Modifier.width(6.dp)) // 左右間隔 16dp
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
-                    .border(2.dp,Color(0xFFEEA752),RoundedCornerShape(8.dp))
-            ){
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.width(6.dp)) // 左右間隔 16dp
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_result_redo),
+                        contentDescription = "分享",
+                        tint = Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp)) // 左右間隔 16dp
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_result_share),
+                        contentDescription = "分享",
+                        tint = Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(51.dp)) //
+                Box(
+                    modifier = Modifier
+                        .weight(1.54f)
+                        .height(44.dp) // 保持高度
+                        .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center // 這行很重要！讓內容在 Box 中居中
+                ) {
+                    Text(
+                        text = "儲存結果",
+                        fontSize = 14.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center // 文字本身也要居中
+                    )
 
+                }
             }
-            Spacer(modifier = Modifier.width(16.dp)) // 左右間隔 16dp
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
-                    .border(2.dp,Color(0xFFEEA752),RoundedCornerShape(8.dp))
-            ){
 
-            }
-            Spacer(modifier = Modifier.width(51.dp)) //
-            Box(
-                modifier = Modifier
-                    .weight(1.54f)
-                    .height(44.dp) // 保持高度
-                    .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
-                    .border(2.dp,Color(0xFFEEA752),RoundedCornerShape(8.dp))
-            ){
+            Spacer(modifier = Modifier.height(120.dp))
 
-            }
+
         }
-
-        Spacer(modifier = Modifier.height(120.dp))
-
-
     }
 }
-
 @Composable
 fun TrainingResultCard(data: TrainingHistory) {
     // =============宣告方法區============
