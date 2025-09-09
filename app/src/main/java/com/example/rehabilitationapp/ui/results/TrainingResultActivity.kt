@@ -45,6 +45,9 @@ import com.example.rehabilitationapp.data.dao.TrainingHistoryDao
 import com.example.rehabilitationapp.data.model.TrainingHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.platform.LocalConfiguration
+
+
 
 
 class TrainingResultActivity : ComponentActivity() {
@@ -69,9 +72,16 @@ fun AndroidPreview_訓練結果頁() {
 
 @Composable
 fun 訓練結果頁() {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+
+    val boxWidth = (screenWidth * 0.7f).dp  // 螢幕寬度的 70%
+    val boxHeight = 60.dp
+
+
     val dao = AppDatabase.getInstance(LocalContext.current).trainingHistoryDao()
     var list by remember { mutableStateOf(emptyList<TrainingHistory>()) }
-
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             list = dao.getTodayRecords()
@@ -82,7 +92,7 @@ fun 訓練結果頁() {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(16.dp),
+            .padding(start = 8.dp, end = 8.dp, top = 24.dp)
        // verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // 首頁
@@ -126,18 +136,74 @@ fun 訓練結果頁() {
                 color = Color.Black
             )
         }
+
         Spacer(modifier = Modifier.height(12.dp))
         // 卡片列表
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(list) { data ->
                 TrainingResultCard(data)
             }
         }
+        Box(
+            //To Do..
+            modifier = Modifier.width(boxWidth).height(boxHeight)
+                .background(
+                    Color.White,
+                    shape = RoundedCornerShape(26.dp))
+                .align(Alignment.CenterHorizontally)
+        ){
+            Text(
+            text = "框內文字",
+            modifier = Modifier.align(Alignment.Center)
+                .offset(y=(-8).dp)
+            )
+        }
+
+        Row(
+            Modifier.width(boxWidth).height(boxHeight)
+                .offset(y=(-30).dp).align(Alignment.CenterHorizontally),
+//            horizontalArrangement =  Arrangement.SpaceEvenly ,
+            verticalAlignment = Alignment.CenterVertically
+        ){
+            Spacer(modifier = Modifier.width(6.dp)) // 左右間隔 16dp
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                    .border(2.dp,Color(0xFFEEA752),RoundedCornerShape(8.dp))
+            ){
+
+            }
+            Spacer(modifier = Modifier.width(16.dp)) // 左右間隔 16dp
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                    .border(2.dp,Color(0xFFEEA752),RoundedCornerShape(8.dp))
+            ){
+
+            }
+            Spacer(modifier = Modifier.width(51.dp)) //
+            Box(
+                modifier = Modifier
+                    .weight(1.54f)
+                    .height(44.dp) // 保持高度
+                    .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                    .border(2.dp,Color(0xFFEEA752),RoundedCornerShape(8.dp))
+            ){
+
+            }
+        }
+
+        Spacer(modifier = Modifier.height(120.dp))
+
+
     }
 }
 
