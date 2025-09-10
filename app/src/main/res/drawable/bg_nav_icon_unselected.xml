@@ -1,5 +1,9 @@
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <size android:width="32dp" android:height="32dp"/>
-    <corners android:radius="10dp"/>
-    <solid android:color="#EEA752"/> <!-- ✅ 未選：橘色 -->
-</shape>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+
+    <path android:fillColor="#EEA752"
+        android:pathData="M10,0 L22,0 Q32,0 32,10 L32,22 Q32,32 22,32 L10,32 Q0,32 0,22 L0,10 Q0,0 10,0 Z"/>
+</vector>

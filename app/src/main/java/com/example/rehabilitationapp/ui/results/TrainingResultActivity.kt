@@ -164,8 +164,9 @@ fun 訓練結果頁() {
             // 卡片列表
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(horizontal = 16.dp)
+//                    .height(400.dp)
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -173,6 +174,8 @@ fun 訓練結果頁() {
                     TrainingResultCard(data)
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
             Box(
                 //To Do..
                 modifier = Modifier.width(boxWidth).height(boxHeight)
@@ -181,6 +184,7 @@ fun 訓練結果頁() {
                         shape = RoundedCornerShape(26.dp)
                     )
                     .align(Alignment.CenterHorizontally)
+                    .padding(vertical = 16.dp)
             ) {
                 Text(
                     text = "系統編輯訊息",
@@ -244,7 +248,7 @@ fun 訓練結果頁() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(120.dp))
+            Spacer(modifier = Modifier.height(80.dp))
 
 
         }
@@ -386,53 +390,98 @@ fun TrainingResultCard(data: TrainingHistory) {
 @Composable
 fun CustomBottomNavigation(
     modifier: Modifier = Modifier,
-    selectTab: Int = 0
+    selectTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {}
 ) {
     Log.d("BottomNav", "CustomBottomNavigation 開始執行, selectedTab = $selectTab")
+
     Box(
-        modifier = modifier.fillMaxWidth().height(109.dp)
-    ){
+        modifier = modifier
+            .fillMaxWidth()
+            .height(109.dp)
+    ) {
+        // 你原本的橢圓背景：保留
         Image(
-            painter = painterResource(id= R.drawable.bg_nav_circle_bar_nav),
-            contentDescription  = null,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth()
+            painter = painterResource(id = R.drawable.bg_nav_circle_bar_nav),
+            contentDescription = null,
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier.
+            fillMaxWidth()
+                .height(109.dp)
+                .align(Alignment.BottomCenter)
         )
+
+        // 按鈕列：疊在背景上方、靠底置中
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 55.dp, end = 30.dp, top = 35.dp, bottom = 14.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ){
-            NavItem("首頁", R.drawable.nav_home_icon_selector, selectTab == 0) {
-                // 跳轉首頁
-            }
-            NavItem("計畫", R.drawable.nav_plan_icon_selector, selectTab == 1) {
-                // 跳轉計畫
-            }
-            NavItem("紀錄", R.drawable.nav_record_icon_selector, selectTab == 2) {
-                // 當前頁面
-            }
-            NavItem("設定", R.drawable.nav_record_icon_selector, selectTab == 3) {
-                // 跳轉設定
-            }
+                .align(Alignment.BottomCenter)
+                .padding(start = 40.dp, end = 40.dp, top = 35.dp, bottom = 14.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            NavItem(
+                text = "首頁",
+                isSelected = selectTab == 0,
+                glyphRes = R.drawable.ic_home_glyph_white
+            ) { onTabSelected(0) }
+
+            NavItem(
+                text = "計畫",
+                isSelected = selectTab == 1,
+                glyphRes = R.drawable.ic_plan_glyph_white   // 先共用，之後再換各自的 glyph
+            ) { onTabSelected(1) }
+
+            NavItem(
+                text = "紀錄",
+                isSelected = selectTab == 2,
+                glyphRes = R.drawable.ic_plan_glyph_white
+            ) { onTabSelected(2) }
+
+            NavItem(
+                text = "設定",
+                isSelected = selectTab == 3,
+                glyphRes = R.drawable.ic_setting_glyph_white
+            ) { onTabSelected(3) }
         }
     }
 }
 
+
+
 @Composable
-fun NavItem(text:String ,icon:Int , isSelected : Boolean , onclick : ()-> Unit){
+fun NavItem(
+    text: String,
+    isSelected: Boolean,
+    glyphRes: Int,            // 這顆白色 icon 圖（向量或 PNG/JPG）
+    onClick: () -> Unit
+) {
+    val bgRes = if (isSelected) R.drawable.bg_nav_icon_selected
+    else R.drawable.bg_nav_icon_unselected
+
     Column(
-        horizontalAlignment =  Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onclick() }
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
             .padding(8.dp)
-    ){
-        Icon(
-            painter = painterResource(id = icon),
-            contentDescription = text,
-            tint = Color.Unspecified,
-            modifier = Modifier.size(32.dp)
-        )
+    ) {
+        Box(
+            modifier = Modifier.size(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // 背景：選中 / 未選中
+            Image(
+                painter = painterResource(id = bgRes),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize()
+            )
+            // 前景：白色 glyph（你現有的 ic_home_glyph_white）
+            Image(
+                painter = painterResource(id = glyphRes),
+                contentDescription = text,
+                modifier = Modifier.size(32.dp)
+            )
+        }
         Text(
             text = text,
             fontSize = 12.sp,
