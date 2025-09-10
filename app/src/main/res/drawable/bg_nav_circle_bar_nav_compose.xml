@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="412dp"
+    android:height="96dp"
+    android:viewportWidth="412"
+    android:viewportHeight="109">
+
+    <!-- 這段會把「曲線以下」封起來並填白色；上面保持透明 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M0,61.73
+            L0,109
+            L412,109
+            L412,61.73
+            C412,19.57 284.23,0 203.74,0
+            C123.25,0 0,14.05 0,61.73
+            Z"/>
+</vector>

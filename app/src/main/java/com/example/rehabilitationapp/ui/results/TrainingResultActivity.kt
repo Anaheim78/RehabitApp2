@@ -49,7 +49,7 @@ import com.example.rehabilitationapp.data.model.TrainingHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
-
+import android.util.Log
 
 
 
@@ -248,6 +248,12 @@ fun 訓練結果頁() {
 
 
         }
+        CustomBottomNavigation(
+
+            modifier = Modifier.align(Alignment.BottomCenter),
+            selectTab = 2 // 2 = 紀錄頁面
+
+        )
     }
 }
 @Composable
@@ -374,5 +380,63 @@ fun TrainingResultCard(data: TrainingHistory) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CustomBottomNavigation(
+    modifier: Modifier = Modifier,
+    selectTab: Int = 0
+) {
+    Log.d("BottomNav", "CustomBottomNavigation 開始執行, selectedTab = $selectTab")
+    Box(
+        modifier = modifier.fillMaxWidth().height(109.dp)
+    ){
+        Image(
+            painter = painterResource(id= R.drawable.bg_nav_circle_bar_nav),
+            contentDescription  = null,
+            contentScale = ContentScale.FillWidth,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 55.dp, end = 30.dp, top = 35.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ){
+            NavItem("首頁", R.drawable.nav_home_icon_selector, selectTab == 0) {
+                // 跳轉首頁
+            }
+            NavItem("計畫", R.drawable.nav_plan_icon_selector, selectTab == 1) {
+                // 跳轉計畫
+            }
+            NavItem("紀錄", R.drawable.nav_record_icon_selector, selectTab == 2) {
+                // 當前頁面
+            }
+            NavItem("設定", R.drawable.nav_record_icon_selector, selectTab == 3) {
+                // 跳轉設定
+            }
+        }
+    }
+}
+
+@Composable
+fun NavItem(text:String ,icon:Int , isSelected : Boolean , onclick : ()-> Unit){
+    Column(
+        horizontalAlignment =  Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onclick() }
+            .padding(8.dp)
+    ){
+        Icon(
+            painter = painterResource(id = icon),
+            contentDescription = text,
+            tint = Color.Unspecified,
+            modifier = Modifier.size(32.dp)
+        )
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = if (isSelected) Color.Black else Color.Gray
+        )
     }
 }
