@@ -3,7 +3,7 @@ package com.example.rehabilitationapp;
 import android.os.Bundle;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-
+import android.content.Intent;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
@@ -44,9 +44,9 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 if (!loggedIn) {
                     switchFragment(new LoginFragment());
-                } else {
-                    switchFragment(new HomeFragment());
-                    selectTab(R.id.tab_home);
+                }
+                else {
+                    handleStartTabIntent(getIntent());
                 }
             });
         }).start();
@@ -88,5 +88,41 @@ public class MainActivity extends AppCompatActivity {
         else if (tabId == R.id.tab_plan)  iconPlan.setSelected(true);
         else if (tabId == R.id.tab_record)iconRecord.setSelected(true);
         else if (tabId == R.id.tab_setting) iconSetting.setSelected(true);
+    }
+
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleStartTabIntent(intent);
+    }
+    //這方法用來接收自建NAV發過來的跳轉
+    private void handleStartTabIntent(Intent intent) {
+        String startTab = intent.getStringExtra("start_tab");
+        if (startTab != null) {
+            switch (startTab) {
+                case "home":
+                    switchFragment(new HomeFragment());
+                    selectTab(R.id.tab_home);
+                    break;
+                case "plan":
+                    switchFragment(new PlanFragment());
+                    selectTab(R.id.tab_plan);
+                    break;
+                case "record":
+                    switchFragment(new NotificationsFragment());
+                    selectTab(R.id.tab_record);
+                    break;
+                case "setting":
+                    switchFragment(new SettingFragment());
+                    selectTab(R.id.tab_setting);
+                    break;
+            }
+        } else {
+            // 預設開首頁（原有邏輯）
+            switchFragment(new HomeFragment());
+            selectTab(R.id.tab_home);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp.ui.results
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,7 +51,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
 import android.util.Log
-
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import com.example.rehabilitationapp.MainActivity
 
 
 class TrainingResultActivity : ComponentActivity() {
@@ -255,7 +258,7 @@ fun 訓練結果頁() {
         CustomBottomNavigation(
 
             modifier = Modifier.align(Alignment.BottomCenter),
-            selectTab = 2 // 2 = 紀錄頁面
+            selectTab = 1 // 1 = 計畫頁面
 
         )
     }
@@ -394,7 +397,8 @@ fun CustomBottomNavigation(
     onTabSelected: (Int) -> Unit = {}
 ) {
     Log.d("BottomNav", "CustomBottomNavigation 開始執行, selectedTab = $selectTab")
-
+    //context跳轉用
+    val context = LocalContext.current
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -424,25 +428,57 @@ fun CustomBottomNavigation(
                 text = "首頁",
                 isSelected = selectTab == 0,
                 glyphRes = R.drawable.ic_home_glyph_white
-            ) { onTabSelected(0) }
+            ) {
+                onTabSelected(0)
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    putExtra("start_tab", "home")
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(intent)
+                (context as? Activity)?.finish()
+            }
 
             NavItem(
                 text = "計畫",
                 isSelected = selectTab == 1,
                 glyphRes = R.drawable.ic_plan_glyph_white   // 先共用，之後再換各自的 glyph
-            ) { onTabSelected(1) }
+            ) {
+                onTabSelected(1)
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    putExtra("start_tab", "plan")
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(intent)
+                (context as? Activity)?.finish()
+            }
 
             NavItem(
                 text = "紀錄",
                 isSelected = selectTab == 2,
                 glyphRes = R.drawable.ic_record_glyph_white
-            ) { onTabSelected(2) }
+            ) {
+                onTabSelected(2)
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    putExtra("start_tab", "record")
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(intent)
+                (context as? Activity)?.finish()
+            }
 
             NavItem(
                 text = "設定",
                 isSelected = selectTab == 3,
                 glyphRes = R.drawable.ic_setting_glyph_white
-            ) { onTabSelected(3) }
+            ) {
+                onTabSelected(3)
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    putExtra("start_tab", "setting")
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(intent)
+                (context as? Activity)?.finish()
+            }
         }
     }
 }
