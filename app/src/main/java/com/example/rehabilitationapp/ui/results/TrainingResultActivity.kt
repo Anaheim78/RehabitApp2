@@ -415,7 +415,7 @@ fun CustomBottomNavigation(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(start = 40.dp, end = 40.dp, top = 35.dp, bottom = 14.dp)
+                .padding(start = 50.dp, end = 50.dp, top = 35.dp, bottom = 0.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -435,7 +435,7 @@ fun CustomBottomNavigation(
             NavItem(
                 text = "紀錄",
                 isSelected = selectTab == 2,
-                glyphRes = R.drawable.ic_plan_glyph_white
+                glyphRes = R.drawable.ic_record_glyph_white
             ) { onTabSelected(2) }
 
             NavItem(
@@ -464,6 +464,7 @@ fun NavItem(
         modifier = Modifier
             .clickable { onClick() }
             .padding(8.dp)
+            .offset(y=-12.dp)
     ) {
         Box(
             modifier = Modifier.size(32.dp),
