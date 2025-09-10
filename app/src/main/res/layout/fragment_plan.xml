@@ -24,7 +24,7 @@
             android:text="訓練計畫"
             android:textAlignment="center"
             android:textColor="@color/text_primary"
-            android:textSize="24sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -35,7 +35,7 @@
             android:text="點選復健項目開始你的訓練"
             android:textAlignment="center"
             android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:textSize="14sp" />
 
 
         <!-- ✅ 保留 id，不動 PlanFragment / Adapter  -->
