@@ -4,63 +4,97 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:background="@drawable/bg_login_gradient">
 
-    <!-- 內容區：上方標題 + 副標 + 列表 -->
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/title_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:layout_marginTop="30dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="20dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
 
-        <!-- 標題（可留可拿掉，若你已有 Toolbar 就刪這兩個 TextView） -->
-        <TextView
-            android:id="@+id/tvPageTitle"
-            android:layout_width="match_parent"
+        <!-- 上方：返回 + 首頁 -->
+        <LinearLayout
+            android:id="@+id/topBar"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="訓練計畫"
-            android:textAlignment="center"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal"
+            android:paddingTop="12dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
 
-        <TextView
-            android:id="@+id/title_hint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="1dp"
-            android:text="點選復健項目開始你的訓練"
-            android:textAlignment="center"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
+            <ImageView
+                android:id="@+id/back_btn"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="@android:color/black"/>
 
+            <TextView
+                android:id="@+id/home_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="首頁"
+                android:textColor="@android:color/black"
+                android:textSize="16sp"
+                android:gravity="center_vertical"/>
+        </LinearLayout>
 
-        <!-- ✅ 保留 id，不動 PlanFragment / Adapter  -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvPlans"
-            android:layout_width="match_parent"
+        <!-- 下方整塊內容：被固定在 topBar 之下，延伸到底部 -->
+        <LinearLayout
+            android:id="@+id/content_container"
+            android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:paddingBottom="16dp"/>
-        <!-- 底部預留空間避免被 FAB / 底部導覽擋住 -->
-    </LinearLayout>
+            android:orientation="vertical"
+            app:layout_constraintTop_toBottomOf="@id/topBar"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- 右下黃圓加號 FAB（若要用 Button 就把這段改成 Button） -->
+            <TextView
+                android:id="@+id/tvPageTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="訓練計畫"
+                android:textAlignment="center"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/title_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="點選復健項目開始你的訓練"
+                android:textAlignment="center"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvPlans"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="96dp"/>
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- 右下角 FAB，錨定在整個內容區 -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabAddPlan"
         android:layout_width="64dp"
         android:layout_height="64dp"
         android:layout_margin="20dp"
+        app:layout_anchor="@id/content_container"
         app:layout_anchorGravity="bottom|end"
-        app:layout_anchor="@id/rvPlans"
         app:backgroundTint="#FFC107"
         app:tint="@android:color/black"
         app:borderWidth="0dp"
         app:srcCompat="@drawable/ic_add_24"
         android:contentDescription="新增"/>
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
