@@ -1,18 +1,49 @@
-<!-- res/layout/item_training_card.xml -->
+<!-- 小卡：三排文字：序號 / 名稱 / 時:分 -->
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="120dp"
-    android:layout_height="match_parent"
-    android:layout_margin="8dp"
-    app:cardUseCompatPadding="true"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="4dp">
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="#79DDB8">
 
-    <TextView
-        android:id="@+id/txt"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="100dp"
+        android:orientation="vertical"
         android:gravity="center"
-        android:text="項目"
-        android:textSize="16sp"/>
+        android:paddingTop="6dp">
+
+        <!-- ① 序號（位置從 1 開始、兩位數） -->
+        <TextView
+            android:id="@+id/tvOrder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="01"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:textColor="@android:color/black"/>
+
+        <!-- ② 名稱（最多 4 個中文字，超出省略） -->
+        <TextView
+            android:id="@+id/tvName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:maxEms="4"
+            android:ellipsize="end"
+            android:text="練習紀錄"
+            android:textSize="14sp"
+            android:textColor="@android:color/black"/>
+
+        <!-- ③ 開始時間 HH:mm -->
+        <TextView
+            android:id="@+id/tvTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="08:02"
+            android:textSize="12sp"
+            android:textColor="@android:color/black"/>
+    </LinearLayout>
 </androidx.cardview.widget.CardView>

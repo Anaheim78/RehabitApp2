@@ -3,40 +3,119 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:background="@drawable/bg_login_gradient">
 
-    <com.google.android.material.card.MaterialCardView
+    <!-- TopBar -->
+    <LinearLayout
+        android:id="@+id/topBar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:gravity="center_vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/back_btn"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="@android:color/black"
+            android:contentDescription="返回"/>
+
+        <TextView
+            android:id="@+id/home_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="首頁"
+            android:textColor="@android:color/black"
+            android:textSize="16sp"/>
+    </LinearLayout>
+
+    <!-- 置中大標題 -->
+    <TextView
+        android:id="@+id/page_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="訓練記錄"
+        android:textSize="18sp"
+        android:textColor="@android:color/black"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <TextView
+        android:id="@+id/title_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:text="點選你的訓練日期檢視當天紀錄"
+        android:textAlignment="center"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        app:layout_constraintTop_toBottomOf="@id/page_title"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Calendar 卡片 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/calendar_card"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_margin="8dp"
         app:cardCornerRadius="12dp"
         app:cardElevation="8dp"
-        app:cardBackgroundColor="#FFFFFF">
+        app:cardBackgroundColor="#FFFFFF"
+        app:layout_constraintTop_toBottomOf="@id/title_hint"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintDimensionRatio="H,1:0.9"
+        app:layout_constraintHeight_max="330dp">
 
         <CalendarView
             android:id="@+id/calendar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="16dp"
+            android:layout_height="match_parent"
+            android:padding="2dp"
             android:selectedWeekBackgroundColor="#4CAF50"
-            android:focusedMonthDateColor="#2E7D32" />
-
+            android:focusedMonthDateColor="#2E7D32"/>
     </com.google.android.material.card.MaterialCardView>
 
+
+    <TextView
+        android:id="@+id/his_record"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="歷次紀錄"
+        android:textAlignment="center"
+        android:layout_marginTop="4dp"
+        app:layout_constraintTop_toBottomOf="@id/calendar_card"
+        android:textColor="@android:color/black"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:textSize="16sp"/>
+
+    <!-- 訓練紀錄列表：4 columns，垂直滾動 -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/listRow1"
+        android:id="@+id/training_records_list"
         android:layout_width="0dp"
-        android:layout_height="100dp"
-        app:layout_constraintTop_toBottomOf="@id/calendar"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:padding="2dp"
+        android:layout_marginTop="4dp"
+        app:layout_constraintTop_toBottomOf="@id/his_record"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/listRow2"
-        android:layout_width="0dp"
-        android:layout_height="100dp"
-        app:layout_constraintTop_toBottomOf="@id/listRow1"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
 </androidx.constraintlayout.widget.ConstraintLayout>

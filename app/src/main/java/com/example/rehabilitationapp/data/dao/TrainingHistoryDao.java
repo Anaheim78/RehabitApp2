@@ -5,6 +5,7 @@ import androidx.room.Insert;
 import androidx.room.Query;
 
 import com.example.rehabilitationapp.data.model.TrainingHistory;
+import com.example.rehabilitationapp.data.model.TrainingHistoryWithTitle;
 import com.example.rehabilitationapp.data.model.TrainingItem;
 
 import java.util.List;
@@ -22,4 +23,9 @@ public interface TrainingHistoryDao {
     // 在 TrainingHistoryDao.java 中添加
     @Query("SELECT * FROM TrainingHistory WHERE date(createAt/1000,'unixepoch','localtime') = date('now','localtime') ORDER BY createAt DESC")
     List<TrainingHistory> getTodayRecords();
+
+
+    //給歷史紀錄底下的圖卡
+    @Query(" SELECT h.createAt    AS createAt, i.title AS title , h.trainingLabel AS trainingLabel FROM   trainingHistory h LEFT JOIN training_items i ON UPPER(i.analysisType) = UPPER(h.trainingLabel) WHERE  h.createAt BETWEEN :startMs AND :endMs ORDER BY h.createAt ASC")
+    List<TrainingHistoryWithTitle> getHistoryWithTitleForDay(long startMs, long endMs);
 }
