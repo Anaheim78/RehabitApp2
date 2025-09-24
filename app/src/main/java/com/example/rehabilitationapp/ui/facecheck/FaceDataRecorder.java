@@ -543,7 +543,11 @@ public class FaceDataRecorder {
     //提供VERCEL分析動作
     public String exportLinesAsJson() {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"lines\":[");
+        sb.append("{\"trainingType\":\"")
+                .append(trainingLabel.replace("\"", "\\\"")) // 保險：避免有雙引號
+                .append("\",\"lines\":[");
+
+
         for (int i = 0; i < dataLines.size(); i++) {
             if (i > 0) sb.append(',');
             // 轉義雙引號
