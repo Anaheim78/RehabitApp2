@@ -35,7 +35,50 @@ public class FaceDataRecorder {
     private static final int[] LOWER_LIP_INDICES = {78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415};
 
     //CSV Header
-    private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
+//    private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
+    // 臉頰 26 個點的 header，直接展開成 CSV 欄位名稱
+    private static final String CHEEKS_HEADER =
+            "time_seconds,state" +
+                    ",point117_x,point117_y,point117_z" +
+                    ",point118_x,point118_y,point118_z" +
+                    ",point101_x,point101_y,point101_z" +
+                    ",point36_x,point36_y,point36_z" +
+                    ",point203_x,point203_y,point203_z" +
+                    ",point212_x,point212_y,point212_z" +
+                    ",point214_x,point214_y,point214_z" +
+                    ",point192_x,point192_y,point192_z" +
+                    ",point147_x,point147_y,point147_z" +
+                    ",point123_x,point123_y,point123_z" +
+                    ",point98_x,point98_y,point98_z" +
+                    ",point97_x,point97_y,point97_z" +
+                    ",point164_x,point164_y,point164_z" +
+                    ",point0_x,point0_y,point0_z" +
+                    ",point37_x,point37_y,point37_z" +
+                    ",point39_x,point39_y,point39_z" +
+                    ",point40_x,point40_y,point40_z" +
+                    ",point186_x,point186_y,point186_z" +
+                    ",point164_x,point164_y,point164_z" +
+                    ",point0_x,point0_y,point0_z" +
+                    ",point267_x,point267_y,point267_z" +
+                    ",point269_x,point269_y,point269_z" +
+                    ",point270_x,point270_y,point270_z" +
+                    ",point410_x,point410_y,point410_z" +
+                    ",point423_x,point423_y,point423_z" +
+                    ",point327_x,point327_y,point327_z" +
+                    ",point326_x,point326_y,point326_z" +
+                    ",point432_x,point432_y,point432_z" +
+                    ",point434_x,point434_y,point434_z" +
+                    ",point416_x,point416_y,point416_z" +
+                    ",point376_x,point376_y,point376_z" +
+                    ",point352_x,point352_y,point352_z" +
+                    ",point346_x,point346_y,point346_z" +
+                    ",point347_x,point347_y,point347_z" +
+                    ",point330_x,point330_y,point330_z" +
+                    ",point266_x,point266_y,point266_z" +
+                    ",img_w,img_h";
+
+
+
     private static final String Lip_Prot_HEADER =  "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
     private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area";
     private static final String TONGUE_HEADER =
@@ -171,6 +214,52 @@ public class FaceDataRecorder {
             Log.e(TAG, "記錄數據時發生錯誤", e);
         }
     }
+
+    //多載:臉頰曲率
+    public void recordLandmarkData(String state, float[][] landmarks, int img_w, int img_h) {
+        try {
+            // 臉頰 index
+            int[] LEFT_CHEEK_IDXS = {117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186};
+            int[] RIGHT_CHEEK_IDXS = {164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266};
+
+            Log.d(TAG, "臉頰曲率參數 img_w=" + img_w + ",img_h=" + img_h);
+
+            long now = System.currentTimeMillis();
+            double t = (now - startTime) / 1000.0;
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format(Locale.getDefault(), "%.3f,%s", t, state));
+
+            // 拼接左臉頰
+            for (int idx : LEFT_CHEEK_IDXS) {
+                float x = landmarks[idx][0] * img_w;
+                float y = landmarks[idx][1] * img_h;
+                float z = landmarks[idx][2]; // z 不縮放
+                sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f", x, y, z));
+            }
+
+            // 拼接右臉頰
+            for (int idx : RIGHT_CHEEK_IDXS) {
+                float x = landmarks[idx][0] * img_w;
+                float y = landmarks[idx][1] * img_h;
+                float z = landmarks[idx][2];
+                sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f", x, y, z));
+            }
+
+            sb.append(String.format(Locale.getDefault(), ",%d,%d", img_w, img_h));
+
+            String line = sb.toString();
+
+            Log.d(TAG, "臉頰曲率_CSV " + line);
+
+            dataLines.add(line);
+
+        } catch (Exception e) {
+            Log.e(TAG, "recordLandmarkData error", e);
+        }
+    }
+
+
     //多載:臉頰
     public void recordLandmarkData(String state, Float liX, Float liY, Float riX, Float riY, Float liRawX, Float liRawY, Float riRawX, Float riRawY) {
         try {

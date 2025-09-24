@@ -50,6 +50,11 @@ public class CircleOverlayView extends View {
     private Rect mouthROI = null;           // 嘴部 ROI 框
     private float tongueConfidence = 0.0f;   // 檢測信心度
 
+    // 參考線相關變數
+    private float eyeLx, eyeLy, eyeRx, eyeRy, noseX, noseY, browX, browY;
+    private boolean showReferenceLines = false;
+    private Paint referenceLinePaint;
+
     // 特殊关键点的索引（用不同颜色标出）
     private int[] specialPoints = {10, 21, 251, 234, 454, 18}; // 额头、太阳穴、脸颊、下巴
 
@@ -118,6 +123,13 @@ public class CircleOverlayView extends View {
         confidenceTextPaint.setAntiAlias(true);
         confidenceTextPaint.setShadowLayer(4, 2, 2, Color.BLACK); // 文字陰影
         confidenceTextPaint.setStyle(Paint.Style.FILL);
+
+        // 參考線畫筆
+        referenceLinePaint = new Paint();
+        referenceLinePaint.setColor(Color.YELLOW);
+        referenceLinePaint.setStrokeWidth(3);
+        referenceLinePaint.setAlpha(150);
+        referenceLinePaint.setAntiAlias(true);
     }
 
     public void setStatus(Status status) {
@@ -139,6 +151,16 @@ public class CircleOverlayView extends View {
         invalidate();
     }
 
+    public void setReferenceLines(float eyeLx, float eyeLy, float eyeRx, float eyeRy,
+                                  float noseX, float noseY, float browX, float browY) {
+        this.eyeLx = eyeLx; this.eyeLy = eyeLy;
+        this.eyeRx = eyeRx; this.eyeRy = eyeRy;
+        this.noseX = noseX; this.noseY = noseY;
+        this.browX = browX; this.browY = browY;
+        this.showReferenceLines = true;
+        invalidate();
+    }
+
     // ==================== 🔥 新增 YOLO 相關方法 ====================
 
     /**
@@ -150,6 +172,12 @@ public class CircleOverlayView extends View {
             Log.d("CircleOverlay", "切換顯示模式: " + mode);
             invalidate(); // 重新繪製
         }
+    }
+// CircleOverlayView.java
+
+    public void clearReferenceLines() {
+        this.showReferenceLines = false;
+        invalidate();
     }
 
     /**
@@ -309,6 +337,52 @@ public class CircleOverlayView extends View {
                     tongueBox.left + 10,
                     tongueBox.top - 20,
                     confidenceTextPaint);
+        }
+
+        // 繪製參考線
+        if (showReferenceLines) {
+//            // X軸：眼睛連線
+//            canvas.drawLine(eyeLx, eyeLy, eyeRx, eyeRy, referenceLinePaint);
+//            // Y軸：眉心到鼻子
+//            canvas.drawLine(browX, browY, noseX, noseY, referenceLinePaint);
+//
+//            // 標註
+//            referenceLinePaint.setTextSize(24);
+//            canvas.drawText("X軸", (eyeLx + eyeRx) / 2, eyeLy - 10, referenceLinePaint);
+//            canvas.drawText("Y軸", browX + 10, (browY + noseY) / 2, referenceLinePaint);
+            // 繪製參考線
+            if (showReferenceLines) {
+                // 延長線的係數
+                float extendFactor = 3.5f; // 延長50%
+
+                // X軸：眼睛連線（延長）
+                float eyeCenterX = (eyeLx + eyeRx) / 2;
+                float eyeCenterY = (eyeLy + eyeRy) / 2;
+                float eyeLineLength = (float) Math.hypot(eyeRx - eyeLx, eyeRy - eyeLy);
+                float eyeAngle = (float) Math.atan2(eyeRy - eyeLy, eyeRx - eyeLx);
+                float extendedLength = eyeLineLength * extendFactor / 2;
+
+                float eyeStartX = eyeCenterX - extendedLength * (float) Math.cos(eyeAngle);
+                float eyeStartY = eyeCenterY - extendedLength * (float) Math.sin(eyeAngle);
+                float eyeEndX = eyeCenterX + extendedLength * (float) Math.cos(eyeAngle);
+                float eyeEndY = eyeCenterY + extendedLength * (float) Math.sin(eyeAngle);
+
+                canvas.drawLine(eyeStartX, eyeStartY, eyeEndX, eyeEndY, referenceLinePaint);
+
+                // Y軸：眉心到鼻子（延長）
+                float noseBrowLength = (float) Math.hypot(noseX - browX, noseY - browY);
+                float noseBrowAngle = (float) Math.atan2(noseY - browY, noseX - browX);
+                float centerX = (browX + noseX) / 2;
+                float centerY = (browY + noseY) / 2;
+                float extendedNBLength = noseBrowLength * extendFactor / 2;
+
+                float nbStartX = centerX - extendedNBLength * (float) Math.cos(noseBrowAngle);
+                float nbStartY = centerY - extendedNBLength * (float) Math.sin(noseBrowAngle);
+                float nbEndX = centerX + extendedNBLength * (float) Math.cos(noseBrowAngle);
+                float nbEndY = centerY + extendedNBLength * (float) Math.sin(noseBrowAngle);
+
+                canvas.drawLine(nbStartX, nbStartY, nbEndX, nbEndY, referenceLinePaint);
+            }
         }
     }
 

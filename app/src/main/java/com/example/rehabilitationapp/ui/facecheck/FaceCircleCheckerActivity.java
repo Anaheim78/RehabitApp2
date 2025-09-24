@@ -155,8 +155,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===============================================
 
     // ==============計時常數==============
-    private static final int CALIBRATION_TIME = 3000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 12000;     // 維持時間(毫秒)
+    private static final int CALIBRATION_TIME = 1000;         // 校正時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 8000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -573,16 +573,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         float scaleX = inputAspect / viewAspect;
 
                         int landmarkCount = result.faceLandmarks().get(0).size();
-                        float[][] landmarks01 = new float[landmarkCount][2]; // 0~1;//正規化原始圖像
+                        float[][] landmarks01 = new float[landmarkCount][3]; // 0~1;//正規化原始圖像
                         float[][] allPoints = new float[landmarkCount][2]; // 0~1;//變形比例，顯示用圖像
 
                         for (int i = 0; i < landmarkCount; i++) {
                             float x = result.faceLandmarks().get(0).get(i).x();
                             float y = result.faceLandmarks().get(0).get(i).y();
+                            float z = result.faceLandmarks().get(0).get(i).z();
 
                             // 存一份原始 0~1（給 CheekFlowEngine 用）
                             landmarks01[i][0] = x;
                             landmarks01[i][1] = y;
+                            landmarks01[i][2] = z;
                             // 這份是給 overlay 畫面：做 X 比例補償後轉像素
                             x = (x - 0.5f) * scaleX + 0.5f;
                             allPoints[i][0] = x * overlayWidth;
@@ -620,7 +622,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 "PUFF_CHEEK".equals(trainingLabel) ||
                                 "REDUCE_CHEEK".equals(trainingLabel)) {
                             // ★★★ 臉頰模式：呼叫 Farneback 光流引擎
-                            handleCheeksMode(landmarks01, mirroredBitmap);
+                            handleCheeksMode(landmarks01, mirroredBitmap,bitmapWidth,bitmapHeight);
                         } else if ("下顎".equals(trainingLabel) ||
                                 "JAW_LEFT".equals(trainingLabel) ||
                                 "JAW_RIGHT".equals(trainingLabel)) {
@@ -743,6 +745,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         ? new Rect(result.boundingBox) : null;
                 mainHandler.post(() -> {
                     overlayView.setYoloDetectionResult(detected, conf, finalViewTongueBox, mouthROIFinal);
+
+                    // 設定參考線 (用 View 座標)
+                    float eyeRxView = allPointsFinal[33][0], eyeRyView = allPointsFinal[33][1];
+                    float eyeLxView = allPointsFinal[263][0], eyeLyView = allPointsFinal[263][1];
+                    float browCxView = allPointsFinal[168][0], browCyView = allPointsFinal[168][1];
+                    float noseXView = allPointsFinal[1][0], noseYView = allPointsFinal[1][1];
+                    overlayView.setReferenceLines(eyeLxView, eyeLyView, eyeRxView, eyeRyView, noseXView, noseYView, browCxView, browCyView);
 
                     if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
                         String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
@@ -907,7 +916,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     //臉頰模式
-    private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap) {
+    private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap, int img_w,int img_h) {
         if (!shouldAcceptNewFrames()) return;
         try {
             ensureCheekEngine();
@@ -928,20 +937,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     // 取得狀態字串（跟你嘴唇/舌頭一致）
                     String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
 
-                    // ✅ 改成寫進主 CSV（臉頰表頭）
-                    dataRecorder.recordLandmarkData(
-                            stateString,
-                            (float) li.x, (float) li.y,
-                            (float) ri.x, (float) ri.y,
-                            (float) liRaw.x, (float) liRaw.y,
-                            (float) riRaw.x, (float) riRaw.y
-                    );
+                    // 改用曲率
+                    Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
+                    dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
 
-                    // （可選）overlay 視覺化
-                    // mainHandler.post(() -> overlayView.setCheekVectors(
-                    //      new CircleOverlayView.Vector2((float) li.x, (float) li.y),
-                    //      new CircleOverlayView.Vector2((float) ri.x, (float) ri.y)
-                    // ));
+
                 }
             });
 
@@ -949,6 +949,47 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.e(TAG, "handleCheeksMode error", e);
         }
     }
+//    //臉頰模式BAK
+//    private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap) {
+//        if (!shouldAcceptNewFrames()) return;
+//        try {
+//            ensureCheekEngine();
+//            long ts = System.currentTimeMillis();
+//
+//            cameraExecutor.execute(() -> {
+//                CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
+//
+//                if (!isTrainingCompleted &&
+//                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING) &&
+//                        r.computedThisFrame) {
+//                    //補償
+//                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
+//                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+//                    //原始
+//                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
+//                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+//                    // 取得狀態字串（跟你嘴唇/舌頭一致）
+//                    String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
+//
+//                     ✅ 改成寫進主 CSV（臉頰表頭）
+////                    dataRecorder.recordLandmarkData(
+////                            stateString,
+////                            (float) li.x, (float) li.y,
+////                            (float) ri.x, (float) ri.y,
+////                            (float) liRaw.x, (float) liRaw.y,
+////                            (float) riRaw.x, (float) riRaw.y
+////                    );
+////
+//
+//
+//
+//                }
+//            });
+//
+//        } catch (Exception e) {
+//            Log.e(TAG, "handleCheeksMode error", e);
+//        }
+//    }
 
     private void ensureCheekEngine() {
         if (cheekEngine == null) {
