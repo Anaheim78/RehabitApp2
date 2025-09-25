@@ -923,18 +923,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             long ts = System.currentTimeMillis();
 
             cameraExecutor.execute(() -> {
-                CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
+                //CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
 
                 if (!isTrainingCompleted &&
-                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING) &&
-                        r.computedThisFrame) {
+                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)){
+//                        r.computedThisFrame) {
                     //補償
-                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
-                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-                    //原始
-                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
-                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-                    // 取得狀態字串（跟你嘴唇/舌頭一致）
+//                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
+//                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+//                    //原始
+//                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
+//                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+//                    // 取得狀態字串（跟你嘴唇/舌頭一致）
                     String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
 
                     // 改用曲率
@@ -1189,6 +1189,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 assert resultObj != null;
                                 actual   = resultObj.optInt("action_count", actual);
                                 duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
+                            }else if ("PUFF_CHEEK".equals(ResMotionType)) {
+                                assert resultObj != null;
+                                actual   = resultObj.optInt("action_count", actual);
+                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
+                                Log.e("IN PUFF_CHEEK",  "actual="+actual+",duration"+duration);
                             }
                         } catch (Exception ignore) {
                             Log.e(TAB1, "==沒拿到值，跑進ignore ======");

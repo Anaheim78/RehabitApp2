@@ -57,6 +57,7 @@ public class FaceDataRecorder {
                     ",point39_x,point39_y,point39_z" +
                     ",point40_x,point40_y,point40_z" +
                     ",point186_x,point186_y,point186_z" +
+
                     ",point164_x,point164_y,point164_z" +
                     ",point0_x,point0_y,point0_z" +
                     ",point267_x,point267_y,point267_z" +
