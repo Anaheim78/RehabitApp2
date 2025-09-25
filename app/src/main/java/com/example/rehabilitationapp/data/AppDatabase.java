@@ -30,7 +30,7 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
                 User.class,
                 TrainingHistory.class
         },
-        version = 4,              // ★ 版本 +1（原本是 2）
+        version = 5,              // ★ 版本 +1（原本是 2）
         exportSchema = true
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -70,6 +70,14 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    // ★ 新增 Migration: 4 -> 5（在 trainingHistory 加 curveJson）
+    public static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE trainingHistory ADD COLUMN curveJson TEXT");
+        }
+    };
+
     public static AppDatabase getInstance(Context context) {
         Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
         if (INSTANCE == null) {
@@ -82,7 +90,7 @@ public abstract class AppDatabase extends RoomDatabase {
                                     "rehab_db_2"
                             )
                             // ★ 不要用 fallbackToDestructiveMigration()，會清庫
-                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4) // ★ 加上 Migration
+                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4, MIGRATION_4_5) // ★ 加上 Migration
                             .build();
 
                     // ===== 下面是你原本的預載資料邏輯，維持不動 =====

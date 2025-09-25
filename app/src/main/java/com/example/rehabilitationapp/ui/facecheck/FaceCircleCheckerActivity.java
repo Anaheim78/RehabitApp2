@@ -1472,7 +1472,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 currentTime,        // finishAt
                 target,
                 achieved,
-                duration
+                duration,
+                null
         );
         new Thread(() -> {
             AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
@@ -1495,6 +1496,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void go(String label, int actual, int target, int durationSec, String csv, String apiJson) {
         String canon = canonicalMotion(label);
         Log.e("GO METHOD", "在GO方法跳轉頁面中..");
+
         //原本的先改FIGMA的看看
         //Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
         Intent it = new Intent(FaceCircleCheckerActivity.this, TrainingResultActivity.class);

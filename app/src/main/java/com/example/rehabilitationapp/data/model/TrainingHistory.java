@@ -1,6 +1,7 @@
 package com.example.rehabilitationapp.data.model;
 
 import androidx.annotation.NonNull;
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
@@ -17,13 +18,14 @@ public class TrainingHistory {
     public int targetTimes;
     public int achievedTimes;
     public int durationTime;
+    public String curveJson;
 
     // 空建構子 (Room 需要)
     public TrainingHistory() {}
     // 建構子
     public TrainingHistory(String trainingID, String trainingLabel,
                            long createAt, long finishAt, int targetTimes,
-                           int achievedTimes, int durationTime) {
+                           int achievedTimes, int durationTime, String curveJso) {
         this.trainingID = trainingID;
         this.trainingLabel = trainingLabel;
         this.createAt = createAt;
@@ -31,5 +33,6 @@ public class TrainingHistory {
         this.targetTimes = targetTimes;
         this.achievedTimes = achievedTimes;
         this.durationTime = durationTime;
+        this.curveJson = curveJson;
     }
 }
