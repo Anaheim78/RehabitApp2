@@ -14,6 +14,10 @@ public interface TrainingHistoryDao {
     @Insert
     void insert(TrainingHistory history);
 
+    @Insert
+    long insertSync(TrainingHistory entity); // 注意：不要在 Main Thread 呼叫
+
+
     @Query("SELECT * FROM TrainingHistory ORDER BY createAt DESC")
     List<TrainingHistory> getAllHistory();
 

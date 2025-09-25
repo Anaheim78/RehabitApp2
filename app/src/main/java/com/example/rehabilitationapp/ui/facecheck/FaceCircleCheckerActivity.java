@@ -155,8 +155,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===============================================
 
     // ==============計時常數==============
-    private static final int CALIBRATION_TIME = 1000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 8000;     // 維持時間(毫秒)
+    private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -1163,31 +1163,57 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         // 先用本地值，若回應含欄位就覆寫
                         // ★ 先用本地值；有回應就按動作類型覆寫
                         String label = label0;
+                        String ResMotionType = "";
                         int actual   = result.totalPeaks;
                         int duration = duration0;
-
+                        String TAB1 = "viewProblem";
                         try {
                             org.json.JSONObject obj = new org.json.JSONObject(body);
+                            org.json.JSONObject resultObj = obj.optJSONObject("result");
+                            Log.e(TAB1, "✅ API JSON 回傳完整內容: \n" + obj.toString(2));
                             label = canonicalMotion(obj.optString("motion", label)); // 正規化
 
-                            if ("poutLip".equals(label)) {
-                                actual   = obj.optInt("pout_count", actual);
-                                duration = (int) Math.round(obj.optDouble("total_hold_time", duration));
+                             ResMotionType = obj.optString("trainingType", ResMotionType);
+
+
+
+
+                            if ("POUT_LIPS".equals(ResMotionType)) {
+                                assert resultObj != null;
+                                actual   = resultObj.optInt("action_count", actual);
+                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
                             } else if ("closeLip".equals(label)) {
                                 actual   = obj.optInt("close_count", actual);
                                 duration = (int) Math.round(obj.optDouble("total_close_time", duration));
                             }
-                        } catch (Exception ignore) { /* 非 JSON 就保留本地值 */ }
+                        } catch (Exception ignore) {
+                            Log.e(TAB1, "==沒拿到值，跑進ignore ======");
+                            /* 非 JSON 就保留本地值 */ }
 
 
                         final String fLabel = label;
                         final int fActual = actual;
                         final int fDuration = duration;
                         final String apiJson = body;
-                        // 在這裡呼叫插入資料庫
-                        insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv);
-                        // 接著跳轉頁面
-                        runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
+
+                        // 寫完 DB 再跳頁
+                        new Thread(() -> {
+                            Log.e(TAB1, "====== 呼叫 insertTrainingRecord / go 前的參數 ======");
+                            Log.e(TAB1, "fLabel: " + fLabel);
+                            Log.e(TAB1, "fActual: " + fActual);
+                            Log.e(TAB1, "target: " + target);
+                            Log.e(TAB1, "fDuration: " + fDuration);
+                            Log.e(TAB1, "csv: " + csv);
+                            Log.e(TAB1, "apiJson: " + apiJson);
+                            Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
+                            Log.e(TAB1, "===========================================");
+                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv);
+                            runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
+                        }).start();
+//                        // 在這裡呼叫插入資料庫
+//                        insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv);
+//                        // 接著跳轉頁面
+//                        runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
                     }
                 });
             }
