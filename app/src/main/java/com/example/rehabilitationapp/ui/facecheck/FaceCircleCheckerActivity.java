@@ -156,7 +156,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // ==============計時常數==============
     private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 30000;     // 維持時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 15000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -1182,9 +1182,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 assert resultObj != null;
                                 actual   = resultObj.optInt("action_count", actual);
                                 duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
-                            } else if ("closeLip".equals(label)) {
-                                actual   = obj.optInt("close_count", actual);
-                                duration = (int) Math.round(obj.optDouble("total_close_time", duration));
+//                            } else if ("closeLip".equals(label)) {
+//                                actual   = obj.optInt("close_count", actual);
+//                                duration = (int) Math.round(obj.optDouble("total_close_time", duration));
+                            }else if ("SIP_LIPS".equals(ResMotionType)) {
+                                assert resultObj != null;
+                                actual   = resultObj.optInt("action_count", actual);
+                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
                             }
                         } catch (Exception ignore) {
                             Log.e(TAB1, "==沒拿到值，跑進ignore ======");
