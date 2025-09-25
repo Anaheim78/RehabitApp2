@@ -62,6 +62,7 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
 
 
 //光流
+import org.json.JSONArray;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Point;
 //本物件WorkFlow可分為偵側流與顯示(時間讀秒)流
@@ -1166,6 +1167,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         String ResMotionType = "";
                         int actual   = result.totalPeaks;
                         int duration = duration0;
+                        String curveJson = "";
                         String TAB1 = "viewProblem";
                         try {
                             org.json.JSONObject obj = new org.json.JSONObject(body);
@@ -1193,7 +1195,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 assert resultObj != null;
                                 actual   = resultObj.optInt("action_count", actual);
                                 duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
-                                Log.e("IN PUFF_CHEEK",  "actual="+actual+",duration"+duration);
+
+                                // 取出 curve
+                                JSONArray curveArray = resultObj.optJSONArray("curve");
+                                curveJson = (curveArray != null) ? curveArray.toString() : "[]";
+
+                                Log.e("IN PUFF_CHEEK", "actual=" + actual + ", duration=" + duration);
+                                Log.e("IN PUFF_CHEEK", "curveJson=" + curveJson);
+
                             }
                         } catch (Exception ignore) {
                             Log.e(TAB1, "==沒拿到值，跑進ignore ======");
@@ -1204,7 +1213,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int fActual = actual;
                         final int fDuration = duration;
                         final String apiJson = body;
-
+                        final String fCurveJson = curveJson;   // ✅ 包成 final 變數
                         // 寫完 DB 再跳頁
                         new Thread(() -> {
                             Log.e(TAB1, "====== 呼叫 insertTrainingRecord / go 前的參數 ======");
@@ -1216,7 +1225,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             Log.e(TAB1, "apiJson: " + apiJson);
                             Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
                             Log.e(TAB1, "===========================================");
-                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv);
+                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
                             runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
                         }).start();
 //                        // 在這裡呼叫插入資料庫
@@ -1436,7 +1445,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     // 新增訓練結果到DB
-    private void insertTrainingRecord(String label, int achieved, int target, int duration, String csv) {
+    private void insertTrainingRecord(String label, int achieved, int target, int duration, String csv,String curveJson) {
         long currentTime = System.currentTimeMillis();
 
         User loggedInUser = AppDatabase.getInstance(this).userDao().findLoggedInOne();
@@ -1464,6 +1473,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Log.e("寫入運動紀錄中看參數", "analysisType: " + analysisType);
         Log.e("寫入運動紀錄中看參數", "trainingID: " + trainingID);
         Log.e("寫入運動紀錄中看參數", "readableTime: " + readableTime);
+        Log.e("寫入運動紀錄中看參數", "curveJson: " + curveJson);
         Log.e("寫入運動紀錄中看參數", "==========================================");
         TrainingHistory history = new TrainingHistory(
                 trainingID,
@@ -1473,7 +1483,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 target,
                 achieved,
                 duration,
-                null
+                curveJson
         );
         new Thread(() -> {
             AppDatabase.getInstance(this).trainingHistoryDao().insert(history);

@@ -25,7 +25,7 @@ public class TrainingHistory {
     // 建構子
     public TrainingHistory(String trainingID, String trainingLabel,
                            long createAt, long finishAt, int targetTimes,
-                           int achievedTimes, int durationTime, String curveJso) {
+                           int achievedTimes, int durationTime, String curveJson) {
         this.trainingID = trainingID;
         this.trainingLabel = trainingLabel;
         this.createAt = createAt;
