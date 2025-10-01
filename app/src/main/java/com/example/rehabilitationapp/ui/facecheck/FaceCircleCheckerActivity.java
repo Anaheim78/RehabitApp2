@@ -590,6 +590,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             x = (x - 0.5f) * scaleX + 0.5f; //???
                             allPoints[i][0] = x * overlayWidth;
                             allPoints[i][1] = y * overlayHeight;
+                            allPoints[i][2] = z ;
                         }
                         //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
                         if (("舌頭".equals(trainingLabel) ||
@@ -745,7 +746,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     overlayView.setYoloDetectionResult(detected, conf, finalViewTongueBox, mouthROIFinal);
 
-                    // 設定參考線 (用 View 座標)
+                    // 設定參考線 (用 View 座標)，單純為了把座標丟給overlayView繪製
                     float eyeRxView = allPointsFinal[33][0], eyeRyView = allPointsFinal[33][1];
                     float eyeLxView = allPointsFinal[263][0], eyeLyView = allPointsFinal[263][1];
                     float browCxView = allPointsFinal[168][0], browCyView = allPointsFinal[168][1];

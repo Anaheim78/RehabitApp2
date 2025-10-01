@@ -33,6 +33,13 @@ public class CSVMotioner {
 
         //2. 檔名路徑分流
         Python py = Python.getInstance();
+        if(fileName.contains("")){
+
+        }
+
+
+
+        //固定測試輸出
         String output;
         try (PyObject pyResult = py.getModule("count_pout_lips")   // 對應 csv_peak_analyzer.py
                 .callAttr("echo_test", "123")) {

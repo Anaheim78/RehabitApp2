@@ -190,17 +190,24 @@ public class FaceDataRecorder {
 //                        relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
 
             } else if ("POUT_LIPS".equals(trainingLabel)) {
-                // 🔥 改用外緣點計算嘴巴高度和寬度
-                float[] mouthDimensions = calculateMouthDimensionsImproved(landmarks);
-                float height = mouthDimensions[0];
-                float width = mouthDimensions[1];
-                float heightWidthRatio = width > 0 ? height / width : 0;
-
-                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
-                        relativeTimeSeconds, state, height, width, heightWidthRatio);
+                //版本 1 : 外緣點計算嘴巴高度和寬度
+//                float[] mouthDimensions = calculateMouthDimensionsImproved(landmarks);
+//                float height = mouthDimensions[0];
+//                float width = mouthDimensions[1];
+//                float heightWidthRatio = width > 0 ? height / width : 0;
+//
+//                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
+//                        relativeTimeSeconds, state, height, width, heightWidthRatio);
 
 //                Log.d(TAG, String.format("嘟嘴數據 [%.3fs] - 高度: %.3f, 寬度: %.3f, 比值: %.3f",
 //                        relativeTimeSeconds, height, width, heightWidthRatio));
+
+                //版本2 : 改用唇外緣Z軸總平均
+                float z_avg = calculateMouthDepth(landmarks);
+                dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.3f"
+                ,relativeTimeSeconds,state,z_avg);
+
+                //Log.d(TAG,"嘟嘴CSV內文 = "+dataLine);
             }
             else if ("JAW_LEFT".equals(trainingLabel)||"JAW_RIGHT".equals(trainingLabel)) {
                 // 🔥 改用三點平均計算下顎水平位移
@@ -269,7 +276,7 @@ public class FaceDataRecorder {
     }
 
 
-    //多載:臉頰
+    //多載:臉頰_光流_舊版
     public void recordLandmarkData(String state, Float liX, Float liY, Float riX, Float riY, Float liRawX, Float liRawY, Float riRawX, Float riRawY) {
         try {
             if (!("PUFF_CHEEK".equals(trainingLabel)||"REDUCE_CHEEK".equals(trainingLabel))) return; // 僅在臉頰模式有效
@@ -458,7 +465,7 @@ public class FaceDataRecorder {
         }
     }
 
-    // 🔥 改良版：用外緣點計算嘴巴高度和寬度
+    // 🔥 嘟嘴：用外緣點計算嘴巴高度和寬度_不要刪除 20251002
     private float[] calculateMouthDimensionsImproved(float[][] landmarks) {
         try {
             // 🔥 更準確的嘴角點 (61: 左嘴角, 291: 右嘴角)
@@ -501,6 +508,43 @@ public class FaceDataRecorder {
             return new float[]{0, 0};
         }
     }
+
+    // 🔥 嘟嘴：用嘴唇外緣點計Z值加總平均 20251002
+    private float calculateMouthDepth(float[][] landmarks) {
+        try {
+            // 上唇外緣關鍵點
+            int[] upperOuterIndices = {61, 62, 63, 64, 65, 66, 67, 291, 292, 293, 294, 295, 296, 297};
+            // 下唇外緣關鍵點
+            int[] lowerOuterIndices = {61, 84, 17, 314, 405, 320, 307, 291, 375, 321, 308, 324, 318};
+
+            float sumZ = 0f;
+            int count = 0;
+
+            // 上唇
+            for (int index : upperOuterIndices) {
+                if (index < landmarks.length && landmarks[index].length > 2) {
+                    sumZ += landmarks[index][2];
+                    count++;
+                }
+            }
+
+            // 下唇
+            for (int index : lowerOuterIndices) {
+                if (index < landmarks.length && landmarks[index].length > 2) {
+                    sumZ += landmarks[index][2];
+                    count++;
+                }
+            }
+
+            // 平均值
+            return (count > 0) ? (sumZ / count) : 0f;
+
+        } catch (Exception e) {
+            Log.e(TAG, "計算嘴巴Z平均時發生錯誤", e);
+            return 0f;
+        }
+    }
+
 
     // 方法 : 計算下顎位移
     // 方法 : 計算下顎位移 (三點平均, 含正規化)
@@ -596,6 +640,8 @@ public class FaceDataRecorder {
                 // 棄用 :調用 CSV 峰值分析器
                 // 確認是否能不用傳過CSVPeakAnalyzer了，改用PYTHON處理了
                 CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
+
+                // 調用PYTHON
                 String test_String = CSVMotioner.analyzePeaksFromFile(context, fileName);
                 Log.d("TEST_CSVMOTION_CALL", "✅ TEST_CSVMOTION_CALL fin..." + test_String);
 
