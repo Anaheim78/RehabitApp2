@@ -15,13 +15,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 //AnalysisResult 遵循原本形式
+//..TO_DO 202210002 把PyAnalysisResult類內物件崁入好(PY RETURN)。然後最後要轉型到能在FACE CIRCLE那邊把GO方法內傳送的參數對齊
 public class CSVMotioner {
-
-        public static class AnalysisResult {
-        public String fileName;
+        //全域物件直接讓FacdCircle可見
+        public static class PyAnalysisResult {
+            public String fileName;
             private boolean success;
 
-            public void PyAnalysisResult() {
+            public  PyAnalysisResult() {
             this.success = false;
         }
     }
@@ -33,7 +34,17 @@ public class CSVMotioner {
 
         //2. 檔名路徑分流
         Python py = Python.getInstance();
-        if(fileName.contains("")){
+        if(fileName.contains("POUT_LIPS")){
+            try(PyObject pyResult = py.getModule("count_pout_lips")
+                    .callAttr("analyze_csv",fileName) ){
+
+                String output = pyResult.toString();
+                Log.d("CSVMOTIONTEST", "🔥 Python 回傳: " + output);
+
+                //To do..把PY回傳內容放入類內物件 AnalysisResult
+
+
+            }
 
         }
 

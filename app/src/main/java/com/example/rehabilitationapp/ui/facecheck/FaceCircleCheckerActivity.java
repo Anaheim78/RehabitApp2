@@ -1084,15 +1084,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
             @Override
             public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
+                //20251002 : 現在要從遠端回傳改回佣PYHON本地值
                 Log.d(TAG, "✅ 測試傳數值到Vercel_");
-
+                //變數宣告
                 final String payload = dataRecorder.exportLinesAsJson();
                 final String csv = dataRecorder.getFileName();
                 final String label0 = trainingLabel;
-                final int target = 4;
+                final int target = 0;
                 final int duration0 = MAINTAIN_TIME_TOTAL / 1000;
+
                 Log.d("API_SEND", "✅ 上傳CSV內容::"+payload);
                 Log.d("SEND_TO_PYTHON，看payload變數就知道內文", "✅ 上傳CSV內容::"+payload);
+                Log.d("PYTHON RETURN REESULT", "✅ 回傳內容::"+payload);
                 // 改呼叫Python去讀CSV檔案
 
 
@@ -1178,6 +1181,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             Log.e(TAB1, "apiJson: " + apiJson);
                             Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
                             Log.e(TAB1, "===========================================");
+
+                            //存檔與跳頁
                             insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
                             runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
                         }).start();

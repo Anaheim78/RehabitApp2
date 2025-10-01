@@ -611,7 +611,7 @@ public class FaceDataRecorder {
             Log.d(TAG, "✅ 檔案儲存成功: " + file.getAbsolutePath());
             Log.d(TAG, "📊 總共記錄了 " + (dataLines.size() - 1) + " 筆數據");
 
-            // 🔥 檔案儲存完成後進行峰值分析，並通過 callback 回傳結果
+            // 🔥 檔案儲存完成()後進行峰值分析，並通過 callback 回傳結果
             performPeakAnalysisWithCallback(callback);
 
             // 使用 Handler 切換到主線程顯示 Toast
