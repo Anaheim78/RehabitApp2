@@ -3,7 +3,10 @@ plugins {
     id 'com.google.gms.google-services'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose' version '2.0.21'
+    id 'com.chaquo.python'   // ✅ 這裡加進來
 }
+
+//apply plugin: 'com.chaquo.python'
 
 android {
     namespace 'com.example.rehabilitationapp'   // 與第一個不同
@@ -16,6 +19,19 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // 🔹 Chaquopy 需要這段
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+
+        python {
+            pip {
+                install "numpy"
+                install "scipy"
+                install "pandas"
+            }
+        }
     }
 
     buildTypes {
@@ -41,6 +57,7 @@ android {
     }
 
 }
+
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'

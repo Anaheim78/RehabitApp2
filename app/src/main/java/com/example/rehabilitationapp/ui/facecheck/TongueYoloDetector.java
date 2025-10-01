@@ -3,6 +3,7 @@ package com.example.rehabilitationapp.ui.facecheck;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.Log;
 import org.tensorflow.lite.Interpreter;
@@ -55,6 +56,9 @@ public class TongueYoloDetector {
     private static Float sRoiEmaCx = null;
     private static Float sRoiEmaCy = null;
 
+    private Bitmap letterboxBitmap;
+    private Canvas letterboxCanvas;
+    private Paint paint;
 
     // 🔥 在這裡加入新的檢測結果類 ↓↓↓
     public static class DetectionResult {
@@ -251,6 +255,7 @@ public class TongueYoloDetector {
     } */
 // 等比縮放 + 黑邊補齊到 INPUT_SIZE×INPUT_SIZE；回傳可直接丟給 TFLite 的 ByteBuffer 與 letterbox 參數
     private Pair<ByteBuffer, LetterboxCtx> preprocessLetterbox(Bitmap roiBmp, int imgSize) {
+        long t0 = System.nanoTime();
         int rw = roiBmp.getWidth();
         int rh = roiBmp.getHeight();
         float scale = Math.min(imgSize * 1f / rw, imgSize * 1f / rh);
@@ -260,17 +265,27 @@ public class TongueYoloDetector {
         int padX = (imgSize - nw) / 2;
         int padY = (imgSize - nh) / 2;
 
-        // 1) 等比縮放
-        Bitmap scaled = Bitmap.createScaledBitmap(roiBmp, nw, nh, true);
+        // 初始化一次畫布
+        if (letterboxBitmap == null) {
+            letterboxBitmap = Bitmap.createBitmap(imgSize, imgSize, Bitmap.Config.ARGB_8888);
+            letterboxCanvas = new Canvas(letterboxBitmap);
+            paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        }
 
-        // 2) 貼到正方形畫布（黑邊）
-        Bitmap canvas = Bitmap.createBitmap(imgSize, imgSize, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(canvas);
-        c.drawColor(Color.BLACK);
-        c.drawBitmap(scaled, padX, padY, null);
+        // 清空黑底
+        letterboxCanvas.drawColor(Color.BLACK);
 
-        // 3) 轉成模型輸入（沿用你現有的 inputBuffer）
-        convertBitmapToByteBuffer(canvas);  // 直接把畫布丟進你原本的轉換函式
+        // 直接把原圖縮放＋貼到黑底（避免 createScaledBitmap）
+        Rect dest = new Rect(padX, padY, padX + nw, padY + nh);
+        letterboxCanvas.drawBitmap(roiBmp, null, dest, paint);
+
+        // 轉成模型輸入
+        convertBitmapToByteBuffer(letterboxBitmap);
+
+        long t1 = System.nanoTime();
+        float preprocessMs = (t1 - t0) / 1_000_000f;
+
+        Log.d("YOLO-PRE", String.format("preprocessLetterbox() %.3f ms", preprocessMs));
 
         LetterboxCtx ctx = new LetterboxCtx();
         ctx.inW = ctx.inH = imgSize;
@@ -278,9 +293,9 @@ public class TongueYoloDetector {
         ctx.padX = padX;
         ctx.padY = padY;
 
-        // 注意：inputBuffer 是類成員，已被剛才那行填好了
         return new Pair<>(inputBuffer, ctx);
     }
+
     /**
      * 🖼️ 圖片預處理：調整大小到 640x640
      */
@@ -614,7 +629,7 @@ public class TongueYoloDetector {
 
             //DetectionResult result = postprocessWithRealCoordinates(roi, overlayWidth, overlayHeight);
 
-            Log.d("METRICS",
+            Log.d("YOLO-METRICS",
                     "infer=" + String.format(java.util.Locale.US, "%.1f", inferMs) +
                             " ms, prob=" + String.format(java.util.Locale.US, "%.3f", result.confidence) +
                             ", backend=" + backend);
