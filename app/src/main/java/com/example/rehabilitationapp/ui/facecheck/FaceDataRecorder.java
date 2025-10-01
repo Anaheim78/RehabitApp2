@@ -81,8 +81,11 @@ public class FaceDataRecorder {
                     ",img_w,img_h";
 
 
-
+    //嘟嘴指標 : 高除以寬 版本1
     private static final String Lip_Prot_HEADER =  "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
+    //嘟嘴指標 : 外緣Z軸 版本2
+    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg";
+
     private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area";
     private static final String TONGUE_HEADER =
             "time_seconds,state," +
@@ -141,6 +144,7 @@ public class FaceDataRecorder {
         } else if ("POUT_LIPS".equals(trainingLabel)) {
             header = Lip_Prot_HEADER;
             //header = "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
+            header = Lip_Prot_HEADER2;
         } else if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -159,15 +163,16 @@ public class FaceDataRecorder {
     }
 
 
-    //多載Overload，用參數分流動作。
-    //calculateXxx，每種動作內處理會叫用的方法，計算的CSV各cell指標的內容數值。
-    //多載:嘴唇
+    //recordLandmarkData方法是一個多載Overload方法，用參數數量決定呼叫方法，區別各動作。
+    //calculateXxx，每種動作內處理會叫的方法，計算的CSV各cell指標的內容數值。
+    //多載: 1.嘴唇
     public void recordLandmarkData(String state, float[][] landmarks, Boolean JawDetected) {
         try {
             // 🔥 改用相對時間，從0開始，以秒為單位
             long currentTime = System.currentTimeMillis();
             double relativeTimeSeconds = (currentTime - startTime) / 1000.0;
-
+            // dataLine存入裡面的值會被記錄到CSV，並ADD到共用變數DataLines後方。
+            // DataLines : 上方已根據動作初始化Header內容
             String dataLine = "";
 
             if ("SIP_LIPS".equals(trainingLabel)) {
@@ -180,6 +185,7 @@ public class FaceDataRecorder {
                 dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
                         relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea);
 
+                //DEBUG列印輸出
 //                Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
 //                        relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
 

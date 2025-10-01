@@ -567,10 +567,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     int overlayWidth = overlayView.getWidth();
                     int overlayHeight = overlayView.getHeight();
-
+                    //  前置鏡頭顯示影像不是真的，是處理過的，MEDIAPPIPE處理的陣列是未處理得"相機陣列"，所以這邊進行模仿處理再顯示
                     if (overlayWidth > 0 && overlayHeight > 0) {
-                        float inputAspect = 480f / 640f; // Bitmap 寬高比
-                        float viewAspect = overlayWidth / (float) overlayHeight; // Overlay 寬高比
+                        float inputAspect = 480f / 640f; // Bitmap 寬高比(?bitmap從哪來，前置鏡頭原始像?)
+                        float viewAspect = overlayWidth / (float) overlayHeight; // Overlay 寬高比(給人看得處理後畫面?)
                         float scaleX = inputAspect / viewAspect;
 
                         int landmarkCount = result.faceLandmarks().get(0).size();
@@ -587,7 +587,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             landmarks01[i][1] = y;
                             landmarks01[i][2] = z;
                             // 這份是給 overlay 畫面：做 X 比例補償後轉像素
-                            x = (x - 0.5f) * scaleX + 0.5f;
+                            x = (x - 0.5f) * scaleX + 0.5f; //???
                             allPoints[i][0] = x * overlayWidth;
                             allPoints[i][1] = y * overlayHeight;
                         }
@@ -599,12 +599,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 "TONGUE_BACK".equals(trainingLabel) ||
                                 "TONGUE_UP".equals(trainingLabel) ||
                                 "TONGUE_DOWN".equals(trainingLabel)) && isYoloEnabled) {
-                            // ★ 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap）
+                            // ★ 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap），needFaceMesh=需不需要更新
+                            // 更換機型可以調整看看
                             boolean needFaceMesh = (lastOverlayRoi == null) || (frameId % FACE_MESH_EVERY == 0);
                             if (needFaceMesh) {
                                 Rect overlayRoi = TongueYoloDetector.calculateMouthROI(allPoints, overlayWidth, overlayHeight);
                                 lastOverlayRoi = overlayRoi;
-
+                                //mirroredBitmap =>圖已轉正+左右顛倒後
+                                // b除以sx=o，求sx就是要算縮放倍率
                                 float sx = (float) mirroredBitmap.getWidth() / overlayWidth;
                                 float sy = (float) mirroredBitmap.getHeight() / overlayHeight;
                                 lastBitmapRoi = new Rect(
@@ -619,21 +621,17 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
                                     lastOverlayRoi, lastBitmapRoi);
 
-                        } else if ("鼓頰".equals(trainingLabel) ||
-                                "PUFF_CHEEK".equals(trainingLabel) ||
-                                "REDUCE_CHEEK".equals(trainingLabel)) {
-                            // ★★★ 臉頰模式：呼叫 Farneback 光流引擎
+                        } else if ("鼓頰".equals(trainingLabel) || "PUFF_CHEEK".equals(trainingLabel) || "REDUCE_CHEEK".equals(trainingLabel)) {
+                            // ★★★ 臉頰模式
                             handleCheeksMode(landmarks01, mirroredBitmap,bitmapWidth,bitmapHeight);
-                        } else if ("下顎".equals(trainingLabel) ||
-                                "JAW_LEFT".equals(trainingLabel) ||
-                                "JAW_RIGHT".equals(trainingLabel)) {
+                        } else if ("下顎".equals(trainingLabel) || "JAW_LEFT".equals(trainingLabel) || "JAW_RIGHT".equals(trainingLabel)) {
                             // ★★★ 下顎模式
                             handleJawMode(allPoints);
                         } else {
                             // 嘴唇模式
                             handleLipMode(allPoints);
                         }
-
+                        // *************************前端邏輯
                         // 鼻尖 for 圓框狀態（顯示層用）
                         float noseRelativeX = result.faceLandmarks().get(0).get(1).x();
                         float noseRelativeY = result.faceLandmarks().get(0).get(1).y();
@@ -829,8 +827,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 嘴唇模式：MediaPipe 關鍵點
     private void handleLipMode(float[][] allPoints) {
         if (!shouldAcceptNewFrames()) return;
+        //畫面顯示臉部點
         overlayView.setAllFaceLandmarks(allPoints);
-
+        //校正中跟動作中狀態=>紀錄
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
             String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
             dataRecorder.recordLandmarkData(stateString, allPoints, null);
