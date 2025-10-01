@@ -265,6 +265,7 @@ fun 訓練結果頁() {
 }
 @Composable
 fun TrainingResultCard(data: TrainingHistory) {
+    val context = LocalContext.current
     // =============宣告方法區============
     // 計算達成率
     val percentage = if (data.targetTimes > 0) {
@@ -293,7 +294,13 @@ fun TrainingResultCard(data: TrainingHistory) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = 6.dp)
+            .clickable {
+                val curveData = data.curveJson ?: "[]"
+                val intent = Intent(context, CurveChartActivity::class.java)
+                intent.putExtra("curveJson", curveData)
+                context.startActivity(intent)
+            },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
