@@ -5,7 +5,9 @@ import android.os.Environment;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.example.rehabilitationapp.ui.analysis.CSVMotioner;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
+
 
 import java.io.File;
 import java.io.FileWriter;
@@ -588,6 +590,8 @@ public class FaceDataRecorder {
                 // 棄用 :調用 CSV 峰值分析器
                 // 確認是否能不用傳過CSVPeakAnalyzer了，改用PYTHON處理了
                 CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
+                String test_String = CSVMotioner.analyzePeaksFromFile(context, fileName);
+                Log.d("TEST_CSVMOTION_CALL", "✅ TEST_CSVMOTION_CALL fin..." + test_String);
 
                 if (result.success) {
                     Log.d(TAG, "✅ 峰值分析完成!");
