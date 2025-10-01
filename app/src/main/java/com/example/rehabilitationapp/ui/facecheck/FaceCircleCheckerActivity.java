@@ -819,25 +819,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         );
                     }
                 });
-
-                /*
-                mainHandler.post(() -> {
-                    overlayView.setYoloDetectionResult(detected, conf, finalViewTongueBox, mouthROIFinal);
-                    if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
-                        String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-                        dataRecorder.recordLandmarkData(stateString, allPointsFinal, detected);
-                    }
-                });*/
             });
 
         } catch (Exception e) {
             Log.e(TAG, "處理舌頭模式時發生錯誤", e);
-
-            /*
-            if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
-                String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-                dataRecorder.recordLandmarkData(stateString, allPoints, false);
-            }*/
         }
     }
 
@@ -950,47 +935,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.e(TAG, "handleCheeksMode error", e);
         }
     }
-//    //臉頰模式BAK
-//    private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap) {
-//        if (!shouldAcceptNewFrames()) return;
-//        try {
-//            ensureCheekEngine();
-//            long ts = System.currentTimeMillis();
-//
-//            cameraExecutor.execute(() -> {
-//                CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
-//
-//                if (!isTrainingCompleted &&
-//                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING) &&
-//                        r.computedThisFrame) {
-//                    //補償
-//                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
-//                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-//                    //原始
-//                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
-//                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-//                    // 取得狀態字串（跟你嘴唇/舌頭一致）
-//                    String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-//
-//                     ✅ 改成寫進主 CSV（臉頰表頭）
-////                    dataRecorder.recordLandmarkData(
-////                            stateString,
-////                            (float) li.x, (float) li.y,
-////                            (float) ri.x, (float) ri.y,
-////                            (float) liRaw.x, (float) liRaw.y,
-////                            (float) riRaw.x, (float) riRaw.y
-////                    );
-////
-//
-//
-//
-//                }
-//            });
-//
-//        } catch (Exception e) {
-//            Log.e(TAG, "handleCheeksMode error", e);
-//        }
-//    }
+
 
     private void ensureCheekEngine() {
         if (cheekEngine == null) {
@@ -1133,7 +1078,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         Toast.makeText(this, " 訓練完成！\n正在儲存檔案並進行分析...", Toast.LENGTH_LONG).show();
 
+        //這邊會先呼叫dataRecorder.saveToFileWithCallbac，做運算完成後會從dataRecorder那邊呼叫下面方法onComplete
         dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
+
+
             @Override
             public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
                 Log.d(TAG, "✅ 測試傳數值到Vercel_");
@@ -1144,7 +1092,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 final int target = 4;
                 final int duration0 = MAINTAIN_TIME_TOTAL / 1000;
                 Log.d("API_SEND", "✅ 上傳CSV內容::"+payload);
-                // 送到 API，等回應後再跳頁；失敗就用本地結果
+                Log.d("SEND_TO_PYTHON，看payload變數就知道內文", "✅ 上傳CSV內容::"+payload);
+                // 改呼叫Python去讀CSV檔案
+
+
+                // 棄用 : 送到 API，等回應後再跳頁；失敗就用本地結果
+
                 OkHttpClient client = new OkHttpClient();
                 Request req = new Request.Builder()
                         .url(API_URL) // 你上面已經定義好的常數
@@ -1228,10 +1181,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
                             runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
                         }).start();
-//                        // 在這裡呼叫插入資料庫
-//                        insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv);
-//                        // 接著跳轉頁面
-//                        runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
                     }
                 });
             }

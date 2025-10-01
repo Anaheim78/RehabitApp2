@@ -555,7 +555,7 @@ public class FaceDataRecorder {
                 writer.write(line + "\n");
             }
             writer.close();
-
+            //writer.close();代表真的寫好
             Log.d(TAG, "✅ 檔案儲存成功: " + file.getAbsolutePath());
             Log.d(TAG, "📊 總共記錄了 " + (dataLines.size() - 1) + " 筆數據");
 
@@ -585,7 +585,8 @@ public class FaceDataRecorder {
         // 在背景線程執行峰值分析
         new Thread(() -> {
             try {
-                // 調用 CSV 峰值分析器
+                // 棄用 :調用 CSV 峰值分析器
+                // 確認是否能不用傳過CSVPeakAnalyzer了，改用PYTHON處理了
                 CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
 
                 if (result.success) {
@@ -593,7 +594,7 @@ public class FaceDataRecorder {
                     Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",
                             result.calibratingPeaks, result.maintainingPeaks, result.totalPeaks));
 
-                    // 🔥 成功回調
+                    // 成功後，這裡負責回調FaceCircle的onCompelete，若以棄用則回傳CSV路徑就好
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
                             callback.onComplete(result)
                     );
