@@ -7,61 +7,126 @@ import android.util.Log;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-//AnalysisResult 遵循原本形式
-//..TO_DO 202210002 把PyAnalysisResult類內物件崁入好(PY RETURN)。然後最後要轉型到能在FACE CIRCLE那邊把GO方法內傳送的參數對齊
 public class CSVMotioner {
-        //全域物件直接讓FacdCircle可見
-        public static class PyAnalysisResult {
-            public String fileName;
-            private boolean success;
 
-            public  PyAnalysisResult() {
-            this.success = false;
+    // 全域物件，讓 FacdCircle 那邊也能直接拿
+    public static class PyAnalysisResult {
+        public String fileName;
+        public boolean success;
+        public int actionCount;
+        public double totalActionTime;
+        public List<Double> breakpoints;
+        public List<Segment> segments;
+        public DebugInfo debug;
+
+        public static class Segment {
+            public int index;
+            public double startTime;
+            public double endTime;
+            public double duration;
+        }
+
+        public static class DebugInfo {
+            public double fsHz;
+            public double cutoff;
+            public int order;
+            public int zcAll;
+            public int zcUp;
+            public int zcDown;
+            public double deadband;
+            public int minInterval;
         }
     }
-    public static String analyzePeaksFromFile(Context context, String fileName) {
+
+    // ===== 主流程 =====
+    public static PyAnalysisResult analyzePeaksFromFile(Context context, String fileName) {
 
         // 1. 找到檔案路徑
         File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         File csvFile = new File(downloadsDir, fileName);
 
-        //2. 檔名路徑分流
         Python py = Python.getInstance();
-        if(fileName.contains("POUT_LIPS")){
-            try(PyObject pyResult = py.getModule("count_pout_lips")
-                    .callAttr("analyze_csv",fileName) ){
+        PyAnalysisResult result = new PyAnalysisResult();
+        result.fileName = fileName;
+        result.success = false;
 
-                String output = pyResult.toString();
-                Log.d("CSVMOTIONTEST", "🔥 Python 回傳: " + output);
+        if (fileName.contains("POUT_LIPS")) {
+            try (PyObject pyResult = py.getModule("count_pout_lips")
+                    .callAttr("analyze_csv", csvFile.getAbsolutePath())) {
 
-                //To do..把PY回傳內容放入類內物件 AnalysisResult
+                Log.d("CSVMOTIONTEST", "🔥 Python 回傳: " + pyResult.toString());
+
+                // Python dict → Java Map
+                Map<PyObject, PyObject> rawMap = pyResult.asMap();
+                Map<String, PyObject> pyMap = new HashMap<>();
+                for (Map.Entry<PyObject, PyObject> entry : rawMap.entrySet()) {
+                    pyMap.put(entry.getKey().toString(), entry.getValue());
+                }
 
 
+                String status = pyMap.get("status").toString();
+                result.success = status.equals("OK");
+
+                if (result.success) {
+                    // 數值欄位
+                    result.actionCount = pyMap.get("action_count").toInt();
+                    result.totalActionTime = pyMap.get("total_action_time").toDouble();
+
+                    // breakpoints
+                    result.breakpoints = new ArrayList<>();
+                    for (PyObject bp : pyMap.get("breakpoints").asList()) {
+                        result.breakpoints.add(bp.toDouble());
+                    }
+
+                    // segments
+                    result.segments = new ArrayList<>();
+                    for (PyObject segObj : pyMap.get("segments").asList()) {
+                        Map<PyObject, PyObject> rawSegMap = segObj.asMap();
+                        Map<String, PyObject> segMap = new HashMap<>();
+                        for (Map.Entry<PyObject, PyObject> entry : rawSegMap.entrySet()) {
+                            segMap.put(entry.getKey().toString(), entry.getValue());
+                        }
+
+
+                        PyAnalysisResult.Segment seg = new PyAnalysisResult.Segment();
+                        seg.index = segMap.get("index").toInt();
+                        seg.startTime = segMap.get("start_time").toDouble();
+                        seg.endTime = segMap.get("end_time").toDouble();
+                        seg.duration = segMap.get("duration").toDouble();
+                        result.segments.add(seg);
+                    }
+
+                    // debug
+                    Map<PyObject, PyObject> dbgMap = pyMap.get("debug").asMap();
+                    Map<String, PyObject> segMap = new HashMap<>();
+                    for (Map.Entry<PyObject, PyObject> entry : dbgMap.entrySet()) {
+                        segMap.put(entry.getKey().toString(), entry.getValue());
+                    }
+
+                    PyAnalysisResult.DebugInfo dbg = new PyAnalysisResult.DebugInfo();
+                    dbg.fsHz = dbgMap.get("fs_hz").toDouble();
+                    dbg.cutoff = dbgMap.get("cutoff").toDouble();
+                    dbg.order = dbgMap.get("order").toInt();
+                    dbg.zcAll = dbgMap.get("zc_all").toInt();
+                    dbg.zcUp = dbgMap.get("zc_up").toInt();
+                    dbg.zcDown = dbgMap.get("zc_down").toInt();
+                    dbg.deadband = dbgMap.get("deadband").toDouble();
+                    dbg.minInterval = dbgMap.get("min_interval").toInt();
+                    result.debug = dbg;
+                }
+
+            } catch (Exception e) {
+                Log.e("CSVMOTIONTEST", "🔥 解析錯誤", e);
+                result.success = false;
             }
-
         }
 
-
-
-        //固定測試輸出
-        String output;
-        try (PyObject pyResult = py.getModule("count_pout_lips")   // 對應 csv_peak_analyzer.py
-                .callAttr("echo_test", "123")) {
-
-            // 2. 把 Python 回傳結果轉字串
-            output = pyResult.toString();
-        }
-        Log.d("CSVMOTIONTEST", "🔥 Python 回傳: " + output);
-
-        return output;
+        return result;
     }
 }
-
-

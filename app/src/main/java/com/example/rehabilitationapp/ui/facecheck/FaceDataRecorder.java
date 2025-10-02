@@ -207,7 +207,9 @@ public class FaceDataRecorder {
                 dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.3f"
                 ,relativeTimeSeconds,state,z_avg);
 
-                //Log.d(TAG,"嘟嘴CSV內文 = "+dataLine);
+
+
+                Log.d(TAG,"嘟嘴CSV內文 = "+dataLine);
             }
             else if ("JAW_LEFT".equals(trainingLabel)||"JAW_RIGHT".equals(trainingLabel)) {
                 // 🔥 改用三點平均計算下顎水平位移
@@ -642,8 +644,19 @@ public class FaceDataRecorder {
                 CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
 
                 // 調用PYTHON
-                String test_String = CSVMotioner.analyzePeaksFromFile(context, fileName);
-                Log.d("TEST_CSVMOTION_CALL", "✅ TEST_CSVMOTION_CALL fin..." + test_String);
+                CSVMotioner.PyAnalysisResult res = CSVMotioner.analyzePeaksFromFile(context, fileName);
+                Log.d("RECORDER FACE DATA  ==>", "Py  RES ==> " + res);
+                Log.d("RECORDER FACE DATA  ==>", "動作數: " + res.actionCount);
+                Log.d("RECORDER FACE DATA  ==>", "總動作時間: " + res.totalActionTime);
+//                Log.d("RECORDER FACE DATA  ==>", "第一個斷點: " + (res.breakpoints.size() > 0 ? res.breakpoints.get(0) : -1));
+
+                Log.d("TEST_CSVMOTION_CALL", "✅ TEST_CSVMOTION_CALL fin...");
+                if (res.success) {
+                    Log.d("FACECIRCLE", "動作數: " + res.actionCount);
+                    Log.d("FACECIRCLE", "總動作時間: " + res.totalActionTime);
+                    Log.d("FACECIRCLE", "第一個斷點: " + (res.breakpoints.size() > 0 ? res.breakpoints.get(0) : -1));
+                }
+                //如果成功就跳接GO
 
                 if (result.success) {
                     Log.d(TAG, "✅ 峰值分析完成!");

@@ -62,14 +62,18 @@ def analyze_csv(file_path: str) -> dict:
         lowmap = {str(c).strip().lower(): c for c in df.columns if c is not None}
 
         # 檢查必要欄位
-        if "time_seconds" not in lowmap or "height_width_ratio" not in lowmap:
+        if "time_seconds" not in lowmap or "outer_mouth_z_avg" not in lowmap:
             return {"status": "ERROR", "error": "缺少必要欄位"}
 
         # 數據轉 numpy
         t_raw = pd.to_numeric(df[lowmap["time_seconds"]], errors="coerce").to_numpy()
-        r_raw = pd.to_numeric(df[lowmap["height_width_ratio"]], errors="coerce").to_numpy()
+        r_raw = pd.to_numeric(df[lowmap["outer_mouth_z_avg"]], errors="coerce").to_numpy()
         m = np.isfinite(t_raw) & np.isfinite(r_raw)
         t, r = t_raw[m], r_raw[m]
+        # 輸出logcat
+        print("[PYTHON DEBUG] t[:10] =", t[:10])  # 只印前 10 筆
+        print("[PYTHON DEBUG] r[:10] =", r[:10])
+
 
         if len(t) < 2:
             return {"status": "OK", "action_count": 0, "total_action_time": 0.0,
@@ -77,16 +81,21 @@ def analyze_csv(file_path: str) -> dict:
 
         # 低通
         r_filt = lowpass_filter(r, fs=FS, cutoff=CUTOFF, order=ORDER)
+        # 輸出logcat
+        print("[PYTHON DEBUG] r_filt =", r_filt[:20])  # 只印前 20 筆避免爆炸
 
         # 基線扣除
         win = int(4.0 * FS)
         baseline = moving_average(r_filt, win)
         r_detrend = r_filt - baseline
+        # 輸出logcat
+        print("[PYTHON DEBUG] r_detrend =", r_detrend[:20])  # 只印前 20 筆避免爆炸
 
         # 零交叉
         deadband = 0.005 * float(np.std(r_detrend)) if np.std(r_detrend) > 0 else 0.0
         min_interval = int(0.5 * FS)
         zc_all, zc_up, zc_down = zero_crossings(r_detrend, t, deadband=deadband, min_interval=min_interval)
+        print("[PYTHON DEBUG] zc_all, zc_up, zc_down =", zc_all, zc_up, zc_down)
 
         # 建 segments
         segments, positive_segments = [], []

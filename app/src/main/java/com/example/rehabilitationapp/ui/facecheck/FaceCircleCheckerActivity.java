@@ -73,6 +73,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 123;
     // LOG 的 Tag
     private static final String TAG = "FaceCircleChecker";
+    private static final String TAG_2 = "FaceChecker_2";
 
     // final處理執行緒，待現有Thread自行完成後再關閉
     private volatile boolean isStopping = false;
@@ -565,6 +566,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (faceDetected) {
             try {
                 runOnUiThread(() -> {
+                    Log.d(TAG_2, "進入主流程_checkFacePosition");
                     int overlayWidth = overlayView.getWidth();
                     int overlayHeight = overlayView.getHeight();
                     //  前置鏡頭顯示影像不是真的，是處理過的，MEDIAPPIPE處理的陣列是未處理得"相機陣列"，所以這邊進行模仿處理再顯示
@@ -575,7 +577,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                         int landmarkCount = result.faceLandmarks().get(0).size();
                         float[][] landmarks01 = new float[landmarkCount][3]; // 0~1;//正規化原始圖像
-                        float[][] allPoints = new float[landmarkCount][2]; // 0~1;//變形比例，顯示用圖像
+                        float[][] allPoints = new float[landmarkCount][3]; // 0~1;//變形比例，顯示用圖像
 
                         for (int i = 0; i < landmarkCount; i++) {
                             float x = result.faceLandmarks().get(0).get(i).x();
@@ -591,6 +593,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             allPoints[i][0] = x * overlayWidth;
                             allPoints[i][1] = y * overlayHeight;
                             allPoints[i][2] = z ;
+                            Log.d(TAG_2, "進入主流程_checkFacePosition_寫完兩個allPoints");
                         }
                         //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
                         if (("舌頭".equals(trainingLabel) ||
@@ -600,6 +603,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 "TONGUE_BACK".equals(trainingLabel) ||
                                 "TONGUE_UP".equals(trainingLabel) ||
                                 "TONGUE_DOWN".equals(trainingLabel)) && isYoloEnabled) {
+
+                            Log.d(TAG_2, "動作分流_舌頭");
+
                             // ★ 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap），needFaceMesh=需不需要更新
                             // 更換機型可以調整看看
                             boolean needFaceMesh = (lastOverlayRoi == null) || (frameId % FACE_MESH_EVERY == 0);
@@ -623,12 +629,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                     lastOverlayRoi, lastBitmapRoi);
 
                         } else if ("鼓頰".equals(trainingLabel) || "PUFF_CHEEK".equals(trainingLabel) || "REDUCE_CHEEK".equals(trainingLabel)) {
+                            Log.d(TAG_2, "動作分流_臉頰");
                             // ★★★ 臉頰模式
                             handleCheeksMode(landmarks01, mirroredBitmap,bitmapWidth,bitmapHeight);
                         } else if ("下顎".equals(trainingLabel) || "JAW_LEFT".equals(trainingLabel) || "JAW_RIGHT".equals(trainingLabel)) {
                             // ★★★ 下顎模式
+                            Log.d(TAG_2, "動作分流_下顎");
                             handleJawMode(allPoints);
                         } else {
+                            Log.d(TAG_2, "動作分流_嘴唇");
                             // 嘴唇模式
                             handleLipMode(allPoints);
                         }
@@ -835,6 +844,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
             dataRecorder.recordLandmarkData(stateString, allPoints, null);
             Log.d(TAG, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
+
+            Log.d(TAG_2, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
         }
     }
 
@@ -1101,93 +1112,93 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                 // 棄用 : 送到 API，等回應後再跳頁；失敗就用本地結果
 
-                OkHttpClient client = new OkHttpClient();
-                Request req = new Request.Builder()
-                        .url(API_URL) // 你上面已經定義好的常數
-                        .post(RequestBody.create(payload, MediaType.parse("application/json; charset=utf-8")))
-                        .build();
-
-                client.newCall(req).enqueue(new okhttp3.Callback() {
-                    @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                        Log.e("API_RES", "❌ API 失敗，改用本地結果", e);
-                        runOnUiThread(() -> go(label0, result.totalPeaks, target, duration0, csv, null));
-                    }
-
-                    @Override public void onResponse(okhttp3.Call call, okhttp3.Response response) throws java.io.IOException {
-                        String body = (response.body() != null) ? response.body().string() : "";
-                        Log.d("API_RES", "✅ API 回應: " + body);
+//                OkHttpClient client = new OkHttpClient();
+//                Request req = new Request.Builder()
+//                        .url(API_URL) // 你上面已經定義好的常數
+//                        .post(RequestBody.create(payload, MediaType.parse("application/json; charset=utf-8")))
+//                        .build();
+//
+//                client.newCall(req).enqueue(new okhttp3.Callback() {
+//                    @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
+//                        Log.e("API_RES", "❌ API 失敗，改用本地結果", e);
+//                        runOnUiThread(() -> go(label0, result.totalPeaks, target, duration0, csv, null));
+//                    }
+//
+//                    @Override public void onResponse(okhttp3.Call call, okhttp3.Response response) throws java.io.IOException {
+//                        String body = (response.body() != null) ? response.body().string() : "";
+//                        Log.d("API_RES", "✅ API 回應: " + body);
 
                         // 先用本地值，若回應含欄位就覆寫
                         // ★ 先用本地值；有回應就按動作類型覆寫
-                        String label = label0;
-                        String ResMotionType = "";
-                        int actual   = result.totalPeaks;
-                        int duration = duration0;
-                        String curveJson = "";
-                        String TAB1 = "viewProblem";
-                        try {
-                            org.json.JSONObject obj = new org.json.JSONObject(body);
-                            org.json.JSONObject resultObj = obj.optJSONObject("result");
-                            Log.e(TAB1, "✅ API JSON 回傳完整內容: \n" + obj.toString(2));
-                            label = canonicalMotion(obj.optString("motion", label)); // 正規化
-
-                             ResMotionType = obj.optString("trainingType", ResMotionType);
-
-
-
-
-                            if ("POUT_LIPS".equals(ResMotionType)) {
-                                assert resultObj != null;
-                                actual   = resultObj.optInt("action_count", actual);
-                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
-//                            } else if ("closeLip".equals(label)) {
-//                                actual   = obj.optInt("close_count", actual);
-//                                duration = (int) Math.round(obj.optDouble("total_close_time", duration));
-                            }else if ("SIP_LIPS".equals(ResMotionType)) {
-                                assert resultObj != null;
-                                actual   = resultObj.optInt("action_count", actual);
-                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
-                            }else if ("PUFF_CHEEK".equals(ResMotionType)) {
-                                assert resultObj != null;
-                                actual   = resultObj.optInt("action_count", actual);
-                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
-
-                                // 取出 curve
-                                JSONArray curveArray = resultObj.optJSONArray("curve");
-                                curveJson = (curveArray != null) ? curveArray.toString() : "[]";
-
-                                Log.e("IN PUFF_CHEEK", "actual=" + actual + ", duration=" + duration);
-                                Log.e("IN PUFF_CHEEK", "curveJson=" + curveJson);
-
-                            }
-                        } catch (Exception ignore) {
-                            Log.e(TAB1, "==沒拿到值，跑進ignore ======");
-                            /* 非 JSON 就保留本地值 */ }
-
-
-                        final String fLabel = label;
-                        final int fActual = actual;
-                        final int fDuration = duration;
-                        final String apiJson = body;
-                        final String fCurveJson = curveJson;   // ✅ 包成 final 變數
-                        // 寫完 DB 再跳頁
+//                        String label = label0;
+//                        String ResMotionType = "";
+//                        int actual   = result.totalPeaks;
+//                        int duration = duration0;
+//                        String curveJson = "";
+//                        String TAB1 = "viewProblem";
+//                        try {
+//                            org.json.JSONObject obj = new org.json.JSONObject(body);
+//                            org.json.JSONObject resultObj = obj.optJSONObject("result");
+//                            Log.e(TAB1, "✅ API JSON 回傳完整內容: \n" + obj.toString(2));
+//                            label = canonicalMotion(obj.optString("motion", label)); // 正規化
+//
+//                             ResMotionType = obj.optString("trainingType", ResMotionType);
+//
+//
+//
+//
+//                            if ("POUT_LIPS".equals(ResMotionType)) {
+//                                assert resultObj != null;
+//                                actual   = resultObj.optInt("action_count", actual);
+//                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
+////                            } else if ("closeLip".equals(label)) {
+////                                actual   = obj.optInt("close_count", actual);
+////                                duration = (int) Math.round(obj.optDouble("total_close_time", duration));
+//                            }else if ("SIP_LIPS".equals(ResMotionType)) {
+//                                assert resultObj != null;
+//                                actual   = resultObj.optInt("action_count", actual);
+//                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
+//                            }else if ("PUFF_CHEEK".equals(ResMotionType)) {
+//                                assert resultObj != null;
+//                                actual   = resultObj.optInt("action_count", actual);
+//                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
+//
+//                                // 取出 curve
+//                                JSONArray curveArray = resultObj.optJSONArray("curve");
+//                                curveJson = (curveArray != null) ? curveArray.toString() : "[]";
+//
+//                                Log.e("IN PUFF_CHEEK", "actual=" + actual + ", duration=" + duration);
+//                                Log.e("IN PUFF_CHEEK", "curveJson=" + curveJson);
+//
+//                            }
+//                        } catch (Exception ignore) {
+//                            Log.e(TAB1, "==沒拿到值，跑進ignore ======");
+//                            /* 非 JSON 就保留本地值 */ }
+//
+//
+//                        final String fLabel = label;
+//                        final int fActual = actual;
+//                        final int fDuration = duration;
+//                        final String apiJson = body;
+//                        final String fCurveJson = curveJson;   // ✅ 包成 final 變數
+//                        // 寫完 DB 再跳頁
                         new Thread(() -> {
-                            Log.e(TAB1, "====== 呼叫 insertTrainingRecord / go 前的參數 ======");
-                            Log.e(TAB1, "fLabel: " + fLabel);
-                            Log.e(TAB1, "fActual: " + fActual);
-                            Log.e(TAB1, "target: " + target);
-                            Log.e(TAB1, "fDuration: " + fDuration);
-                            Log.e(TAB1, "csv: " + csv);
-                            Log.e(TAB1, "apiJson: " + apiJson);
-                            Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
-                            Log.e(TAB1, "===========================================");
-
-                            //存檔與跳頁
-                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
-                            runOnUiThread(() -> go(trainingLabel_String, fActual, target, fDuration, csv, apiJson));
+//                            Log.e(TAB1, "====== 呼叫 insertTrainingRecord / go 前的參數 ======");
+//                            Log.e(TAB1, "fLabel: " + fLabel);
+//                            Log.e(TAB1, "fActual: " + fActual);
+//                            Log.e(TAB1, "target: " + target);
+//                            Log.e(TAB1, "fDuration: " + fDuration);
+//                            Log.e(TAB1, "csv: " + csv);
+//                            Log.e(TAB1, "apiJson: " + apiJson);
+//                            Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
+//                            Log.e(TAB1, "===========================================");
+//
+//                            //存檔與跳頁
+//                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
+                            runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
                         }).start();
-                    }
-                });
+//                    }
+//                });
             }
 
 
