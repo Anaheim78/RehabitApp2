@@ -158,7 +158,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // ==============計時常數==============
     private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 5000;     // 維持時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 25000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -411,9 +411,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Preview preview = new Preview.Builder().build();
         preview.setSurfaceProvider(cameraView.getSurfaceProvider());
 
+
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
+//                改看看高幀數但很慢
+//        ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
+//                .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER) // 會「堵住」相機供應端，不丟幀
+//                .setImageQueueDepth(8) // 可選：佇列深度，避免一下子就卡死；沒有此 API 就忽略這行
+//                .build();
+
         imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
 
         CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
@@ -999,6 +1006,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
             if (currentMaintainTime >= MAINTAIN_TIME_TOTAL) {
                 Log.d(TAG, "✅ 維持時間達標！訓練完成");
+                Log.d(TAG_2, "✅ 維持時間達標！訓練完成");
                 completedTraining();
             } else {
                 mainHandler.postDelayed(maintainTimer, 100);
@@ -1080,6 +1088,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void completedTraining() {
         stopSimpleCue();
         Log.d(TAG, " === 訓練完成！開始儲存資料 ");
+        Log.d(TAG_2, " ==已進入compelete ");
         isTrainingCompleted = true;
         cancelTimers();
 
