@@ -111,7 +111,7 @@ public class FaceDataRecorder {
 
     // 🔥 Callback 介面
     public interface DataSaveCallback {
-        void onComplete(CSVPeakAnalyzer.AnalysisResult result);
+        void onComplete(CSVMotioner. PyAnalysisResult res);
         void onError(String error);
     }
 
@@ -650,22 +650,31 @@ public class FaceDataRecorder {
                 Log.d("RECORDER FACE DATA  ==>", "總動作時間: " + res.totalActionTime);
 //                Log.d("RECORDER FACE DATA  ==>", "第一個斷點: " + (res.breakpoints.size() > 0 ? res.breakpoints.get(0) : -1));
 
-                Log.d("TEST_CSVMOTION_CALL", "✅ TEST_CSVMOTION_CALL fin...");
-                if (res.success) {
-                    Log.d("FACECIRCLE", "動作數: " + res.actionCount);
-                    Log.d("FACECIRCLE", "總動作時間: " + res.totalActionTime);
-                    Log.d("FACECIRCLE", "第一個斷點: " + (res.breakpoints.size() > 0 ? res.breakpoints.get(0) : -1));
-                }
+//                Log.d("TEST_CSVMOTION_CALL", "✅ TEST_CSVMOTION_CALL fin...");
+//                if (res.success) {
+//                    Log.d("FACECIRCLE", "動作數: " + res.actionCount);
+//                    Log.d("FACECIRCLE", "總動作時間: " + res.totalActionTime);
+//                    Log.d("FACECIRCLE", "第一個斷點: " + (res.breakpoints.size() > 0 ? res.breakpoints.get(0) : -1));
+//                }
                 //如果成功就跳接GO
                 //dataRecorder 改用res回呼
-                if (result.success) {
-                    Log.d(TAG, "✅ 峰值分析完成!");
-                    Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",
-                            result.calibratingPeaks, result.maintainingPeaks, result.totalPeaks));
-
-                    // 成功後，這裡負責回調FaceCircle的onCompelete，若以棄用則回傳CSV路徑就好
+//                if (result.success) {
+//                    Log.d(TAG, "✅ 峰值分析完成!");
+//                    Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",
+//                            result.calibratingPeaks, result.maintainingPeaks, result.totalPeaks));
+//
+//                    // 成功後，這裡負責回調FaceCircle的onCompelete，若以棄用則回傳CSV路徑就好
+//                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+//                            callback.onComplete(result)
+//                    );
+                if (res.success) {
+                    Log.d(TAG, "✅ python分析完成!");
+//                    Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",
+//                            result.calibratingPeaks, result.maintainingPeaks, result.totalPeaks));
+//
+                    //成功後，這裡負責回調FaceCircle的onCompelete，若以棄用則回傳CSV路徑就好
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                            callback.onComplete(result)
+                            callback.onComplete(res)
                     );
 
                 } else {

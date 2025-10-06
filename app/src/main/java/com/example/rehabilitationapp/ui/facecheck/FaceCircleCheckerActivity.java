@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.ui.analysis.CSVMotioner;
 import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
 import com.example.rehabilitationapp.ui.results.TrainingResultActivity;
@@ -1099,11 +1100,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Toast.makeText(this, " 訓練完成！\n正在儲存檔案並進行分析...", Toast.LENGTH_LONG).show();
 
         //這邊會先呼叫dataRecorder.saveToFileWithCallbac，做運算完成後會從dataRecorder那邊呼叫下面方法onComplete
+        //底下new FaceDataRecorder.DataSaveCallback()，好像是一個callBack物件在saveToFileWithCallback方法當參數
         dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
 
 
             @Override
-            public void onComplete(CSVPeakAnalyzer.AnalysisResult result) {
+            public void onComplete(CSVMotioner.PyAnalysisResult res) {
                 //20251002 : 現在要從遠端回傳改回佣PYHON本地值
                 Log.d(TAG, "✅ 測試傳數值到Vercel_");
                 //變數宣告
@@ -1116,9 +1118,37 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 Log.d("API_SEND", "✅ 上傳CSV內容::"+payload);
                 Log.d("SEND_TO_PYTHON，看payload變數就知道內文", "✅ 上傳CSV內容::"+payload);
                 Log.d("PYTHON RETURN REESULT", "✅ 回傳內容::"+payload);
+
                 // 改呼叫Python去讀CSV檔案
+                String label = label0;
+                String ResMotionType = "";
+                String curveJson = "";
+                String TAB1 = "viewProblem";
+
+                int actual   = 0;
+                int duration = duration0;
+
+                actual   = res.actionCount;
+                duration = (int) res.totalActionTime;
 
 
+                new Thread(() -> {
+                    // 改呼叫Python去讀CSV檔案
+                    String flabel = label0;
+                    String fResMotionType = "";
+                    String fcurveJson = "";
+                    String fTAB1 = "viewProblem";
+
+                    int factual   = 0;
+                    int fduration = duration0;
+
+                    factual   = res.actionCount;
+                    fduration = (int) res.totalActionTime;
+
+                    //存檔與跳頁
+                    insertTrainingRecord(trainingLabel_String, factual, 6, fduration, csv,null);
+                    runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
+                }).start();
                 // 棄用 : 送到 API，等回應後再跳頁；失敗就用本地結果
 
 //                OkHttpClient client = new OkHttpClient();
@@ -1160,7 +1190,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //                                assert resultObj != null;
 //                                actual   = resultObj.optInt("action_count", actual);
 //                                duration = (int) Math.round(resultObj.optDouble("total_action_time", duration));
-////                            } else if ("closeLip".equals(label)) {
+////                            }
+//                              else if ("closeLip".equals(label)) {
 ////                                actual   = obj.optInt("close_count", actual);
 ////                                duration = (int) Math.round(obj.optDouble("total_close_time", duration));
 //                            }else if ("SIP_LIPS".equals(ResMotionType)) {
@@ -1191,21 +1222,21 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //                        final String apiJson = body;
 //                        final String fCurveJson = curveJson;   // ✅ 包成 final 變數
 //                        // 寫完 DB 再跳頁
-                        new Thread(() -> {
-//                            Log.e(TAB1, "====== 呼叫 insertTrainingRecord / go 前的參數 ======");
-//                            Log.e(TAB1, "fLabel: " + fLabel);
-//                            Log.e(TAB1, "fActual: " + fActual);
-//                            Log.e(TAB1, "target: " + target);
-//                            Log.e(TAB1, "fDuration: " + fDuration);
-//                            Log.e(TAB1, "csv: " + csv);
-//                            Log.e(TAB1, "apiJson: " + apiJson);
-//                            Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
-//                            Log.e(TAB1, "===========================================");
-//
-//                            //存檔與跳頁
-//                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
-                            runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
-                        }).start();
+//                        new Thread(() -> {
+////                            Log.e(TAB1, "====== 呼叫 insertTrainingRecord / go 前的參數 ======");
+////                            Log.e(TAB1, "fLabel: " + fLabel);
+////                            Log.e(TAB1, "fActual: " + fActual);
+////                            Log.e(TAB1, "target: " + target);
+////                            Log.e(TAB1, "fDuration: " + fDuration);
+////                            Log.e(TAB1, "csv: " + csv);
+////                            Log.e(TAB1, "apiJson: " + apiJson);
+////                            Log.e(TAB1, "trainingLabel_String: " + trainingLabel_String);
+////                            Log.e(TAB1, "===========================================");
+////
+////                            //存檔與跳頁
+////                            insertTrainingRecord(trainingLabel_String, fActual, target, fDuration, csv,fCurveJson);
+//                            runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
+//                        }).start();
 //                    }
 //                });
             }
