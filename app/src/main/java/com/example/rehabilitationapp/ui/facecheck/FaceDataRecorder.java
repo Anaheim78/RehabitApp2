@@ -657,7 +657,7 @@ public class FaceDataRecorder {
                     Log.d("FACECIRCLE", "第一個斷點: " + (res.breakpoints.size() > 0 ? res.breakpoints.get(0) : -1));
                 }
                 //如果成功就跳接GO
-
+                //dataRecorder 改用res回呼
                 if (result.success) {
                     Log.d(TAG, "✅ 峰值分析完成!");
                     Log.d(TAG, String.format("📊 峰值統計 - 校正: %d, 維持: %d, 總計: %d",

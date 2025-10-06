@@ -47,7 +47,7 @@ def zero_crossings(x, t, deadband=0.0, min_interval=10):
     return crossings_all, crossings_up, crossings_down
 
 # ===== 動作篩選 =====
-def filter_actions(segments, min_duration=1.5, min_gap=1.0):
+def filter_actions(segments, min_duration=0.5, min_gap=0.5):
     actions = []
     last_end = -1e9
     for seg in segments:
@@ -96,8 +96,8 @@ def analyze_csv(file_path: str) -> dict:
         r_detrend = r_filt - baseline
 
         # 零交叉，min_interval=>間隔點需要至少大於多少
-        deadband = 0.005 * float(np.std(r_detrend)) if np.std(r_detrend) > 0 else 0.0
-        min_interval = int(0.5 * FS)
+        deadband = 0.001 * float(np.std(r_detrend)) if np.std(r_detrend) > 0 else 0.0
+        min_interval = int(0.2 * FS)
         zc_all, zc_up, zc_down = zero_crossings(r_detrend, t, deadband=deadband, min_interval=min_interval)
 
         # 建 segments
@@ -126,7 +126,7 @@ def analyze_csv(file_path: str) -> dict:
 
 
         # 篩選動作
-        actions = filter_actions(segments, min_duration=1.5, min_gap=1.0)
+        actions = filter_actions(segments, min_duration=0.5, min_gap=0.5)
 
         breakpoints = [seg["end_time"] for seg in segments]
         total_action_time = round(sum(seg["duration"] for seg in actions), 3)
