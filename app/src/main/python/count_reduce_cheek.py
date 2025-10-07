@@ -1,4 +1,4 @@
-
+#要調看負數
 import io, csv, math
 import numpy as np
 import pandas as pd
@@ -98,7 +98,6 @@ def analyze_csv(file_path: str) -> dict:
         missing = [c for c in need_cols if c not in df.columns]
         if missing:
             return {"status": "ERROR", "error": f"missing columns ({len(missing)})", "missing_preview": missing[:10]}
-
         # **只保留 state == MAINTAINING**
         df = df[df["state"] == "MAINTAINING"]
 
@@ -132,24 +131,24 @@ def analyze_csv(file_path: str) -> dict:
 
         # 零交叉（取 >0 的段）
         std = float(np.std(s_d)) if len(s_d) else 0.0
-        deadband = 0.005 * std if std > 0 else 0.0
+        deadband = 0.001 * std if std > 0 else 0.0
         min_interval = int(0.5 * FS)
         zc_all, zc_up, zc_down = zero_crossings(s_d, t, deadband=deadband, min_interval=min_interval)
 
         segments = []
-        positive_segments = []
+        negative_segments = []
         if len(zc_all) >= 2:
             for i, (s_idx, e_idx) in enumerate(zip(zc_all[:-1], zc_all[1:])):
                 st, ed = float(t[s_idx]), float(t[e_idx])
                 dur = round(ed - st, 3)
                 seg = {"index": i, "start_time": round(st, 3), "end_time": round(ed, 3), "duration": dur}
                 segments.append(seg)
-                # 只計「>0」區間
-                if s_d[s_idx] >= 0:
-                    positive_segments.append(seg)
+                # 只計「<0」區間
+                if s_d[s_idx] < 0:
+                    negative_segments.append(seg)
 
-        action_count = len(positive_segments)
-        total_action_time = round(sum(seg["duration"] for seg in positive_segments), 3)
+        action_count = len(negative_segments)
+        total_action_time = round(sum(seg["duration"] for seg in negative_segments), 3)
         breakpoints = [seg["end_time"] for seg in segments]
 
         # === 新增曲線輸出（time,value list） ===
