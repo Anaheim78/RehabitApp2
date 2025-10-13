@@ -449,6 +449,103 @@ public class CSVMotioner {
                 result.success = false;
             }
         }
+
+        //6.舌頭往右
+        if (fileName.contains("TONGUE_RIGHT")){
+            try (PyObject pyResult = py.getModule("count_tongue_right")
+                    .callAttr("analyze_tongue_csv", csvFile.getAbsolutePath(),"right")) {
+
+                Log.d("CSVMOTIONTEST", "🔥 (TONGUE_RIGHT)Python 回傳: " + pyResult.toString());
+
+                // Python dict → Java Map
+                Map<PyObject, PyObject> rawMap = pyResult.asMap();
+                Map<String, PyObject> pyMap = new HashMap<>();
+                for (Map.Entry<PyObject, PyObject> entry : rawMap.entrySet()) {
+                    pyMap.put(entry.getKey().toString(), entry.getValue());
+                }
+
+
+                String status = pyMap.get("status").toString();
+                result.success = status.equals("OK");
+
+                if (result.success) {
+                    // 數值欄位
+                    result.actionCount = pyMap.get("action_count").toInt();
+                    result.totalActionTime = pyMap.get("total_action_time").toDouble();
+
+                    // breakpoints
+                    result.breakpoints = new ArrayList<>();
+                    for (PyObject bp : pyMap.get("breakpoints").asList()) {
+                        result.breakpoints.add(bp.toDouble());
+                    }
+
+                    // segments
+                    result.segments = new ArrayList<>();
+                    for (PyObject segObj : pyMap.get("segments").asList()) {
+                        Map<PyObject, PyObject> rawSegMap = segObj.asMap();
+                        Map<String, PyObject> segMap = new HashMap<>();
+                        for (Map.Entry<PyObject, PyObject> entry : rawSegMap.entrySet()) {
+                            segMap.put(entry.getKey().toString(), entry.getValue());
+                        }
+
+
+                        PyAnalysisResult.Segment seg = new PyAnalysisResult.Segment();
+                        seg.index = segMap.get("index").toInt();
+                        seg.startTime = segMap.get("start_time").toDouble();
+                        seg.endTime = segMap.get("end_time").toDouble();
+                        seg.duration = segMap.get("duration").toDouble();
+                        result.segments.add(seg);
+                    }
+
+                    // debug
+                    Map<PyObject, PyObject> dbgMap = pyMap.get("debug").asMap();
+                    Map<String, PyObject> segMap = new HashMap<>();
+                    for (Map.Entry<PyObject, PyObject> entry : dbgMap.entrySet()) {
+                        segMap.put(entry.getKey().toString(), entry.getValue());
+                    }
+//
+
+                    //先給0，因為回傳規格跟上面頰唇動作不一樣
+                    PyAnalysisResult.DebugInfo dbg = new PyAnalysisResult.DebugInfo();
+                    PyObject v;
+
+                    v = segMap.get("fs_hz");
+                    dbg.fsHz = (v != null) ? v.toDouble() : 0.0;
+                    v = segMap.get("cutoff");
+                    dbg.cutoff = (v != null) ? v.toDouble() : 0.0;
+                    v = segMap.get("deadband");
+                    dbg.deadband = (v != null) ? v.toDouble() : 0.0;
+
+                    v = segMap.get("order");
+                    dbg.order = (v != null) ? v.toInt() : 0;
+                    v = segMap.get("zc_all");
+                    dbg.zcAll = (v != null) ? v.toInt() : 0;
+                    v = segMap.get("zc_up");
+                    dbg.zcUp = (v != null) ? v.toInt() : 0;
+                    v = segMap.get("zc_down");
+                    dbg.zcDown = (v != null) ? v.toInt() : 0;
+                    // min_interval 可能不存在，Python 回傳的是 min_interval_frames
+                    v = segMap.get("min_interval");
+                    if (v == null) v = segMap.get("min_interval_frames");
+                    dbg.minInterval = (v != null) ? v.toInt() : 0;
+                    result.debug = dbg;
+
+                    Log.d("CSVMOTIONTEST", "DEBUG fsHz=" + dbg.fsHz +
+                            ", cutoff=" + dbg.cutoff +
+                            ", order=" + dbg.order +
+                            ", zcAll=" + dbg.zcAll +
+                            ", zcUp=" + dbg.zcUp +
+                            ", zcDown=" + dbg.zcDown +
+                            ", deadband=" + dbg.deadband +
+                            ", minInterval=" + dbg.minInterval);
+                }
+            } catch (Exception e) {
+                Log.e("CSVMOTIONTEST", "🔥 解析錯誤", e);
+                result.success = false;
+            }
+        }
+
+        //統一回傳
         return result;
     }
 }

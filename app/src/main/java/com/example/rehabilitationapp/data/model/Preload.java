@@ -45,6 +45,10 @@ public class Preload {
         list.add(new PlanItemCrossRef(2, 4)); // 計畫1 ← 動作3 (嘟嘴)
         list.add(new PlanItemCrossRef(2, 5)); // 計畫2 ← 動作5 (左舌)
         list.add(new PlanItemCrossRef(2, 6)); // 計畫2 ← 動作6 (右舌)
+        list.add(new PlanItemCrossRef(2, 7)); // 計畫2 ← 動作7 (舌頭前)
+        list.add(new PlanItemCrossRef(2, 9)); // 計畫2 ← 動作9 (舌頭上)
+        list.add(new PlanItemCrossRef(2, 10)); // 計畫2 ← 動作10 (舌頭下)
+
         return list;
     }
 
