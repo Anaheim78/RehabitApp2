@@ -9,8 +9,8 @@ LEFT_CHEEK_IDXS  = [117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,
 RIGHT_CHEEK_IDXS = [164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266]
 
 # 濾波參數（與其他模組一致）
-FS = 20.0
-CUTOFF = 0.5
+FS = 10.0
+CUTOFF = 0.3
 ORDER = 4
 
 # ===== 濾波 & 前處理 =====
@@ -132,7 +132,7 @@ def analyze_csv(file_path: str) -> dict:
         # 零交叉（取 >0 的段）
         std = float(np.std(s_d)) if len(s_d) else 0.0
         deadband = 0.001 * std if std > 0 else 0.0
-        min_interval = int(0.5 * FS)
+        min_interval = int(1.0 * FS)
         zc_all, zc_up, zc_down = zero_crossings(s_d, t, deadband=deadband, min_interval=min_interval)
 
         segments = []
