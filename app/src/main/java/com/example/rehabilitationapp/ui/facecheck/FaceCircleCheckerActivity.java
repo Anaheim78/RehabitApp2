@@ -159,7 +159,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // ==============計時常數==============
     private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 25000;     // 維持時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 10000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -574,7 +574,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (faceDetected) {
             try {
                 runOnUiThread(() -> {
-                    Log.d(TAG_2, "進入主流程_checkFacePosition");
+//                    Log.d(TAG_2, "進入主流程_checkFacePosition");
                     int overlayWidth = overlayView.getWidth();
                     int overlayHeight = overlayView.getHeight();
                     //  前置鏡頭顯示影像不是真的，是處理過的，MEDIAPPIPE處理的陣列是未處理得"相機陣列"，所以這邊進行模仿處理再顯示
@@ -601,7 +601,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             allPoints[i][0] = x * overlayWidth;
                             allPoints[i][1] = y * overlayHeight;
                             allPoints[i][2] = z ;
-                            Log.d(TAG_2, "進入主流程_checkFacePosition_寫完兩個allPoints");
+//                            Log.d(TAG_2, "進入主流程_checkFacePosition_寫完兩個allPoints");
                         }
                         //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
                         if (("舌頭".equals(trainingLabel) ||
@@ -612,9 +612,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 "TONGUE_UP".equals(trainingLabel) ||
                                 "TONGUE_DOWN".equals(trainingLabel)) && isYoloEnabled) {
 
-                            Log.d(TAG_2, "動作分流_舌頭");
+//                            Log.d(TAG_2, "動作分流_舌頭");
 
-                            // ★ 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap），needFaceMesh=需不需要更新
+                            // 幀樹過濾器: 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap），needFaceMesh=需不需要更新
                             // 更換機型可以調整看看
                             boolean needFaceMesh = (lastOverlayRoi == null) || (frameId % FACE_MESH_EVERY == 0);
                             if (needFaceMesh) {
@@ -686,6 +686,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     /**
      * 舌頭模式：用快取好的 ROI + 節流 YOLO
+     * 模式處理只負責到紀錄，稍後由狀態幾呼叫完成進行後續邏輯
      */
     private void handleTongueMode(float[][] allPoints,
                                   Bitmap mirroredBitmap,
@@ -728,6 +729,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 }
 
                 // 每 10 秒打一行 METRICS
+                // 好像跟電池有關
                 String thermalStr = "N/A";
                 try {
                     android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);

@@ -644,6 +644,7 @@ public class FaceDataRecorder {
                 CSVPeakAnalyzer.AnalysisResult result = CSVPeakAnalyzer.analyzePeaksFromFile(context, fileName);
 
                 // 調用PYTHON
+                Log.d("CSVMotioner  ==>", "call CSVMotioner ");
                 CSVMotioner.PyAnalysisResult res = CSVMotioner.analyzePeaksFromFile(context, fileName);
                 Log.d("RECORDER FACE DATA  ==>", "Py  RES ==> " + res);
                 Log.d("RECORDER FACE DATA  ==>", "動作數: " + res.actionCount);
@@ -678,11 +679,11 @@ public class FaceDataRecorder {
                     );
 
                 } else {
-                    Log.e(TAG, "❌ 峰值分析失敗: " + result.errorMessage);
+                    Log.e(TAG, "❌ 峰值分析失敗: " + res.debug);
 
                     // 🔥 失敗回調
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                            callback.onError("峰值分析失敗: " + result.errorMessage)
+                            callback.onError("峰值分析失敗: " +  res.debug)
                     );
                 }
 
