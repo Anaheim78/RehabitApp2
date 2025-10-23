@@ -1,8 +1,48 @@
-
 import io, csv, math
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
+
+# ===== 自動計算 FS =====
+def calculate_fs_from_csv(file_path: str) -> float:
+    """
+    統計CSV中排除頭尾後,穩定區的最低幀數作為FS
+    """
+    df = pd.read_csv(file_path)
+    df = df[df["state"] == "MAINTAINING"]
+
+    if len(df) < 2:
+        return 10.0  # 預設值
+
+    t = pd.to_numeric(df["time_seconds"], errors="coerce").to_numpy()
+    t = t[np.isfinite(t)]
+
+    if len(t) < 2:
+        return 10.0
+
+    # 統計每秒的幀數
+    sec_counts = {}
+    for ti in t:
+        sec = int(round(ti))
+        sec_counts[sec] = sec_counts.get(sec, 0) + 1
+
+    # 排除頭尾
+    all_secs = sorted(sec_counts.keys())
+    if len(all_secs) <= 2:
+        # 太短就用全部
+        stable_counts = list(sec_counts.values())
+    else:
+        # 排除第一秒和最後一秒
+        stable_secs = all_secs[1:-1]
+        stable_counts = [sec_counts[s] for s in stable_secs]
+
+    if not stable_counts:
+        return 10.0
+
+    # 取穩定區的最低幀數
+    min_fps = min(stable_counts)
+    print(f"📊 自動計算 FS = {min_fps} (穩定區最低幀數)")
+    return float(min_fps)
 
 # 臉頰點位（左右各 18 個）
 LEFT_CHEEK_IDXS  = [117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186]
@@ -10,7 +50,7 @@ RIGHT_CHEEK_IDXS = [164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,34
 
 # 濾波參數（與其他模組一致）
 FS = 10.0
-CUTOFF = 0.3
+CUTOFF = 0.8
 ORDER = 4
 
 # ===== 濾波 & 前處理 =====
@@ -90,6 +130,8 @@ def _row_points3d(row, idxs):
 # ===== 主流程（只做鼓臉，計「> 0」的段）=====
 def analyze_csv(file_path: str) -> dict:
     try:
+        # === 新增：自動計算 FS ===
+        fs = calculate_fs_from_csv(file_path)
 
         # 讀檔
         df = pd.read_csv(file_path)
@@ -106,8 +148,9 @@ def analyze_csv(file_path: str) -> dict:
             return {
                 "status": "OK", "action_count": 0, "total_action_time": 0.0,
                 "breakpoints": [], "segments": [],
-                "debug": {"fs_hz": FS, "cutoff": CUTOFF, "order": ORDER, "note": "insufficient rows"}
+                "debug": {"fs_hz": fs, "cutoff": CUTOFF, "order": ORDER, "note": "insufficient rows"}
             }
+
         # 每列重建 P_L/P_R → 曲率 → 時序
         curv_L, curv_R, t_list = [], [], []
         for _, row in df.iterrows():
@@ -123,9 +166,8 @@ def analyze_csv(file_path: str) -> dict:
         s = np.asarray(curv_L, dtype=float) + np.asarray(curv_R, dtype=float)  # L+R
 
         # 前處理：低通 → 基線 → 扣除
-        s_f = lowpass_filter(s, fs=FS, cutoff=CUTOFF, order=ORDER)
-        baseline = moving_average(s_f, int(4.0 * FS))
-        # 對齊長度保護（極短序列時 moving_average 會回原長或近原長）
+        s_f = lowpass_filter(s, fs=fs, cutoff=CUTOFF, order=ORDER)
+        baseline = moving_average(s_f, int(5.0 * fs))
         L = min(len(s_f), len(baseline))
         s_d = s_f[:L] - baseline[:L]
         t = t[:L]
@@ -133,7 +175,7 @@ def analyze_csv(file_path: str) -> dict:
         # 零交叉（取 >0 的段）
         std = float(np.std(s_d)) if len(s_d) else 0.0
         deadband = 0.005 * std if std > 0 else 0.0
-        min_interval = int(0.5 * FS)
+        min_interval = int(0.5 * fs)
         zc_all, zc_up, zc_down = zero_crossings(s_d, t, deadband=deadband, min_interval=min_interval)
 
         segments = []
@@ -144,21 +186,17 @@ def analyze_csv(file_path: str) -> dict:
                 dur = round(ed - st, 3)
                 seg = {"index": i, "start_time": round(st, 3), "end_time": round(ed, 3), "duration": dur}
                 segments.append(seg)
-                # 只計「>0」區間
                 if s_d[s_idx] >= 0:
                     positive_segments.append(seg)
+
+        MIN_HOLD_SEC = 0.5  # 動作至少維持 0.4 秒才算
+        positive_segments = [seg for seg in positive_segments if seg["duration"] >= MIN_HOLD_SEC]
 
         action_count = len(positive_segments)
         total_action_time = round(sum(seg["duration"] for seg in positive_segments), 3)
         breakpoints = [seg["end_time"] for seg in segments]
 
-        # === 新增曲線輸出（time,value list） ===
-        # curve = [{"t": round(float(tt), 3), "v": round(float(vv), 6)}
-        #          for tt, vv in zip(t, s_d)]
-        # curve = [{"t": float(tt), "v": float(vv)} for tt, vv in zip(t, s_d)]
-        curve = [{"t": round(float(tt), 3), "v": f"{vv:.10f}"}
-         for tt, vv in zip(t, s_d)]
-
+        curve = [{"t": round(float(tt), 3), "v": f"{vv:.10f}"} for tt, vv in zip(t, s_d)]
 
         return {
             "status": "OK",
@@ -168,7 +206,7 @@ def analyze_csv(file_path: str) -> dict:
             "segments": segments,
             "curve": curve,
             "debug": {
-                "fs_hz": FS,
+                "fs_hz": fs,
                 "cutoff": CUTOFF,
                 "order": ORDER,
                 "zc_all": len(zc_all),
