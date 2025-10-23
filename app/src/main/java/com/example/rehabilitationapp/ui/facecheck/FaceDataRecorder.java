@@ -84,7 +84,7 @@ public class FaceDataRecorder {
     //嘟嘴指標 : 高除以寬 版本1
     private static final String Lip_Prot_HEADER =  "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
     //嘟嘴指標 : 外緣Z軸 版本2
-    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg";
+    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction";
 
     private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area";
     private static final String TONGUE_HEADER =
@@ -203,9 +203,14 @@ public class FaceDataRecorder {
 //                        relativeTimeSeconds, height, width, heightWidthRatio));
 
                 //版本2 : 改用唇外緣Z軸總平均
+                float noseTipZ = landmarks[1][2];
                 float z_avg = calculateMouthDepth(landmarks);
-                dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.3f"
-                ,relativeTimeSeconds,state,z_avg);
+                //Z=離鏡頭距離，鼻尖近=T，嘟起嘴巴也跟著變小
+                //若=F則反過來鼻尖較遠，嘟起時應該抓大
+                String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
+
+                dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.3f,%s"
+                ,relativeTimeSeconds,state,z_avg,nosePeakDirection);
 
 
 
