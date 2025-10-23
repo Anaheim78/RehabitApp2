@@ -3,13 +3,96 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
 
+# ===== 自動計算 FS =====
+def calculate_fs_from_csv(file_path: str) -> float:
+    """
+    統計CSV中排除頭尾後,穩定區的最低幀數作為FS
+    """
+    df = pd.read_csv(file_path)
+    df = df[df["state"] == "MAINTAINING"]
+
+    if len(df) < 2:
+        return 10.0  # 預設值
+
+    t = pd.to_numeric(df["time_seconds"], errors="coerce").to_numpy()
+    t = t[np.isfinite(t)]
+
+    if len(t) < 2:
+        return 10.0
+
+    # 統計每秒的幀數
+    sec_counts = {}
+    for ti in t:
+        sec = int(ti)
+        sec_counts[sec] = sec_counts.get(sec, 0) + 1
+
+    # 排除頭尾
+    all_secs = sorted(sec_counts.keys())
+    if len(all_secs) <= 2:
+        # 太短就用全部
+        stable_counts = list(sec_counts.values())
+    else:
+        # 排除第一秒和最後一秒
+        stable_secs = all_secs[1:-1]
+        stable_counts = [sec_counts[s] for s in stable_secs]
+
+    if not stable_counts:
+        return 10.0
+
+    # 取穩定區的最低幀數
+    min_fps = min(stable_counts)
+    print(f"📊 自動計算 FS = {min_fps} (穩定區最低幀數)")
+    return float(min_fps)
+
+# ===== 判斷 nosepeak_direction 的主要狀態 =====
+def get_dominant_nosepeak_direction(file_path: str) -> str:
+    """
+    只看校正階段 (CALIBRATING) 倒數兩秒的 nosepeak_direction
+    """
+    df = pd.read_csv(file_path)
+    df_calib = df[df["state"] == "CALIBRATING"]
+
+    if len(df_calib) == 0:
+        print("⚠️  找不到 CALIBRATING 階段,預設使用 T")
+        return "T"
+
+    if "nosepeak_direction" not in df.columns:
+        print("⚠️  找不到 nosepeak_direction 欄位,預設使用 T")
+        return "T"
+
+    # 取校正階段的最後兩秒
+    t_calib = pd.to_numeric(df_calib["time_seconds"], errors="coerce").to_numpy()
+    t_calib = t_calib[np.isfinite(t_calib)]
+
+    if len(t_calib) == 0:
+        print("⚠️  校正階段時間異常,預設使用 T")
+        return "T"
+
+    max_time = t_calib.max()
+    threshold = max_time - 2.0  # 倒數兩秒
+
+    # 篩選倒數兩秒的資料
+    df_last2sec = df_calib[pd.to_numeric(df_calib["time_seconds"], errors="coerce") >= threshold]
+
+    if len(df_last2sec) == 0:
+        print("⚠️  倒數兩秒沒有資料,預設使用 T")
+        return "T"
+
+    # 統計 T 和 F
+    counts = df_last2sec["nosepeak_direction"].value_counts().to_dict()
+    t_count = counts.get("T", 0)
+    f_count = counts.get("F", 0)
+
+    dominant = "T" if t_count >= f_count else "F"
+    print(f"📌 校正倒數2秒: T={t_count}, F={f_count} → 使用 {dominant}")
+    return dominant
+
 # ===== 參數 =====
-FS = 10.0
 CUTOFF = 0.8
 ORDER = 4
 
 # ===== 低通濾波器 =====
-def lowpass_filter(x, fs=FS, cutoff=CUTOFF, order=ORDER):
+def lowpass_filter(x, fs, cutoff=CUTOFF, order=ORDER):
     b, a = butter(order, cutoff / (fs / 2), btype='low')
     y = filtfilt(b, a, x)
     return y
@@ -62,10 +145,16 @@ def filter_actions(segments, min_duration=0.5, min_gap=0.5):
 # ===== 主流程 =====
 def analyze_csv(file_path: str) -> dict:
     """
-    讀取 CSV，只保留 state=MAINTAINING，
-    然後低通 + baseline 扣除 + 零交叉 + 動作篩選
+    讀取 CSV，自動計算 FS，根據 nosepeak_direction 選擇正/負半週
     """
     try:
+        # 1. 自動計算 FS
+        fs = calculate_fs_from_csv(file_path)
+
+        # 2. 判斷 nosepeak_direction (只看校正階段倒數2秒)
+        dominant_direction = get_dominant_nosepeak_direction(file_path)
+
+        # 3. 讀取數據
         with open(file_path, "r", encoding="utf-8") as f:
             df = pd.DataFrame(csv.DictReader(f))
         lowmap = {str(c).strip().lower(): c for c in df.columns if c is not None}
@@ -87,45 +176,48 @@ def analyze_csv(file_path: str) -> dict:
             return {"status": "OK", "action_count": 0, "total_action_time": 0.0,
                     "breakpoints": [], "segments": [], "debug": {"note": "insufficient data"}}
 
-        # 低通
-        r_filt = lowpass_filter(r, fs=FS, cutoff=CUTOFF, order=ORDER)
+        # 4. 低通
+        r_filt = lowpass_filter(r, fs=fs, cutoff=CUTOFF, order=ORDER)
 
-        # 基線扣除
-        win = int(4.0 * FS)
+        # 5. 基線扣除
+        win = int(4.0 * fs)
         baseline = moving_average(r_filt, win)
         r_detrend = r_filt - baseline
 
-        # 零交叉，min_interval=>間隔點需要至少大於多少
+        # 6. 零交叉
         deadband = 0.001 * float(np.std(r_detrend)) if np.std(r_detrend) > 0 else 0.0
-        min_interval = int(0.2 * FS)
+        min_interval = int(0.2 * fs)
         zc_all, zc_up, zc_down = zero_crossings(r_detrend, t, deadband=deadband, min_interval=min_interval)
 
-        # 建 segments
-#         segments = []
-#         if len(zc_all) >= 2:
-#             for i, (s, e) in enumerate(zip(zc_all[:-1], zc_all[1:])):
-#                 st, ed = float(t[s]), float(t[e])
-#                 dur = round(ed - st, 3)
-#                 segments.append({"index": i, "start_time": st, "end_time": ed, "duration": dur})
-# 建 segments，只保留負半週
+        # 7. 建 segments，根據 nosepeak_direction 選擇正/負半週
         segments = []
         if len(zc_all) >= 2:
             for i, (s, e) in enumerate(zip(zc_all[:-1], zc_all[1:])):
                 st, ed = float(t[s]), float(t[e])
                 dur = round(ed - st, 3)
 
-                # 判斷平均值是否小於 0 → 負半週（嘴巴往前）
-                if np.mean(r_detrend[s:e]) < 0:
-                    segments.append({
-                        "index": i,
-                        "start_time": round(st, 3),
-                        "end_time": round(ed, 3),
-                        "duration": dur
-                    })
+                avg_val = np.mean(r_detrend[s:e])
 
+                # T: 取負半週 (嘴巴往前, Z變小)
+                # F: 取正半週 (嘴巴往前, Z變大)
+                if dominant_direction == "T":
+                    if avg_val < 0:
+                        segments.append({
+                            "index": i,
+                            "start_time": round(st, 3),
+                            "end_time": round(ed, 3),
+                            "duration": dur
+                        })
+                else:  # F
+                    if avg_val > 0:
+                        segments.append({
+                            "index": i,
+                            "start_time": round(st, 3),
+                            "end_time": round(ed, 3),
+                            "duration": dur
+                        })
 
-
-        # 篩選動作
+        # 8. 篩選動作
         actions = filter_actions(segments, min_duration=0.5, min_gap=0.5)
 
         breakpoints = [seg["end_time"] for seg in segments]
@@ -138,10 +230,28 @@ def analyze_csv(file_path: str) -> dict:
             "breakpoints": breakpoints,
             "segments": segments,
             "debug": {
-                "fs_hz": FS, "cutoff": CUTOFF, "order": ORDER,
-                "zc_all": len(zc_all), "zc_up": len(zc_up), "zc_down": len(zc_down),
-                "deadband": round(deadband, 6), "min_interval": min_interval
+                "fs_hz": fs,
+                "cutoff": CUTOFF,
+                "order": ORDER,
+                "nosepeak_direction": dominant_direction,
+                "zc_all": len(zc_all),
+                "zc_up": len(zc_up),
+                "zc_down": len(zc_down),
+                "deadband": round(deadband, 6),
+                "min_interval": min_interval
             }
         }
     except Exception as e:
-        return {"status": "ERROR", "error": str(e)}
+        import traceback
+        return {"status": "ERROR", "error": str(e), "traceback": traceback.format_exc()}
+
+
+# ===== 測試 =====
+if __name__ == "__main__":
+    file_path = "FaceTraining_POUT_LIPS_20251023_103227.csv"
+    result = analyze_csv(file_path)
+    print("\n結果:")
+    print(f"動作數: {result.get('action_count', 0)}")
+    print(f"總動作時間: {result.get('total_action_time', 0)}")
+    print(f"斷點: {result.get('breakpoints', [])}")
+    print(f"\nDebug: {result.get('debug', {})}")
