@@ -78,7 +78,7 @@ public class FaceDataRecorder {
                     ",point347_x,point347_y,point347_z" +
                     ",point330_x,point330_y,point330_z" +
                     ",point266_x,point266_y,point266_z" +
-                    ",img_w,img_h";
+                    ",img_w,img_h,nosePeakDirection";
 
 
     //嘟嘴指標 : 高除以寬 版本1
@@ -86,7 +86,7 @@ public class FaceDataRecorder {
     //嘟嘴指標 : 外緣Z軸 版本2
     private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction";
 
-    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area";
+    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction";
     private static final String TONGUE_HEADER =
             "time_seconds,state," +
                     "tongue_detected," +
@@ -182,8 +182,15 @@ public class FaceDataRecorder {
                 // ✨ 總嘴唇面積 = 上唇 + 下唇
                 float totalLipArea = upperLipArea + lowerLipArea;
 
-                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f",
-                        relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea);
+                // 加入鼻尖方向
+                float noseTipZ = landmarks[1][2];
+                float z_avg = calculateMouthDepth(landmarks);
+                //Z=離鏡頭距離，鼻尖近=T，嘟起嘴巴也跟著變小
+                //若=F則反過來鼻尖較遠，嘟起時應該抓大
+                String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
+
+                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f,%s",
+                        relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea,nosePeakDirection);
 
                 //DEBUG列印輸出
 //                Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
@@ -245,6 +252,7 @@ public class FaceDataRecorder {
             int[] LEFT_CHEEK_IDXS = {117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186};
             int[] RIGHT_CHEEK_IDXS = {164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266};
 
+
             Log.d(TAG, "臉頰曲率參數 img_w=" + img_w + ",img_h=" + img_h);
 
             long now = System.currentTimeMillis();
@@ -253,23 +261,34 @@ public class FaceDataRecorder {
             StringBuilder sb = new StringBuilder();
             sb.append(String.format(Locale.getDefault(), "%.3f,%s", t, state));
 
-            // 拼接左臉頰
+            // 拼接左臉頰 + 計算Z平均
+            float leftCheekZSum = 0;
+            float rightCheekZSum  = 0;
             for (int idx : LEFT_CHEEK_IDXS) {
                 float x = landmarks[idx][0] * img_w;
                 float y = landmarks[idx][1] * img_h;
                 float z = landmarks[idx][2]; // z 不縮放
+                leftCheekZSum += z;
                 sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f", x, y, z));
             }
+            float leftCheekZAvg = leftCheekZSum / LEFT_CHEEK_IDXS.length;
 
             // 拼接右臉頰
             for (int idx : RIGHT_CHEEK_IDXS) {
                 float x = landmarks[idx][0] * img_w;
                 float y = landmarks[idx][1] * img_h;
                 float z = landmarks[idx][2];
+                rightCheekZSum += z;
                 sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f", x, y, z));
             }
+            float rightCheekZAvg = rightCheekZSum / RIGHT_CHEEK_IDXS.length;
+            // 計算鼻尖方向 (用左右臉頰Z平均)
+            float noseTipZ = landmarks[1][2];
+            float cheekZAvg = (leftCheekZAvg + rightCheekZAvg) / 2;
+            String nosePeakDirection = noseTipZ < cheekZAvg ? "T" : "F";
 
-            sb.append(String.format(Locale.getDefault(), ",%d,%d", img_w, img_h));
+
+            sb.append(String.format(Locale.getDefault(), ",%d,%d,%s", img_w, img_h,nosePeakDirection));
 
             String line = sb.toString();
 
