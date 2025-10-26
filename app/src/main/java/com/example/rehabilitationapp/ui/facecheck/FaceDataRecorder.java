@@ -117,7 +117,7 @@ public class FaceDataRecorder {
 
     /*
      * 數字存儲物件，CSV建檔並給定檔名/標頭，根據每種動作不同。
-    */
+     */
     public FaceDataRecorder(Context context, String trainingLabel, int trainingType) {
         this.context = context;
         this.trainingLabel = trainingLabel;
@@ -217,7 +217,7 @@ public class FaceDataRecorder {
                 String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
 
                 dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.3f,%s"
-                ,relativeTimeSeconds,state,z_avg,nosePeakDirection);
+                        ,relativeTimeSeconds,state,z_avg,nosePeakDirection);
 
 
 
