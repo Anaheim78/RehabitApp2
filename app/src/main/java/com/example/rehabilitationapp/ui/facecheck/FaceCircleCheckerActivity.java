@@ -25,6 +25,15 @@ import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
+// 🎥 影片錄製功能
+import androidx.camera.video.Recorder;
+import androidx.camera.video.Recording;
+import androidx.camera.video.VideoCapture;
+import androidx.camera.video.VideoRecordEvent;
+import androidx.camera.video.FileOutputOptions;
+import androidx.camera.video.Quality;
+import androidx.camera.video.QualitySelector;
+
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -42,8 +51,10 @@ import com.google.mediapipe.tasks.vision.core.RunningMode;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult;
 
+import java.io.File;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Locale;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -75,6 +86,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // LOG 的 Tag
     private static final String TAG = "FaceCircleChecker";
     private static final String TAG_2 = "FaceChecker_2";
+    private static final String TAG_3 = "FaceCheck_video";
 
     // final處理執行緒，待現有Thread自行完成後再關閉
     private volatile boolean isStopping = false;
@@ -85,6 +97,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private ProcessCameraProvider cameraProvider;
     private boolean trainingStarted = false; // 避免重複啟動
     //=========【相機權限用】==========
+    //=========【影片錄製控制】==========
+    private static final boolean ENABLE_VIDEO_RECORDING = false; // ← 改 false 就關閉錄影
+    private VideoCapture<Recorder> videoCapture;
+    private Recording currentRecording;
+    private String videoFilePath;
+//====================================
 
     //========【攝影畫面調試】========
     // ROI 快取（Overlay/Bitmap 兩套座標系）
@@ -261,6 +279,22 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        // 🎥 如果還在錄影且訓練未完成，刪除影片
+        if (currentRecording != null) {
+            currentRecording.stop();
+            currentRecording = null;
+
+            // 刪除未完成的影片
+            if (videoFilePath != null && !isTrainingCompleted) {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    File file = new File(videoFilePath);
+                    if (file.exists() && file.delete()) {
+                        Log.d(TAG, "🗑️ 已刪除未完成的影片");
+                    }
+                }, 500);
+            }
+        }
+
         stopSimpleCue();
         super.onDestroy();
         // 1) 停入口：之後不要再提交任何新任務
@@ -412,23 +446,37 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Preview preview = new Preview.Builder().build();
         preview.setSurfaceProvider(cameraView.getSurfaceProvider());
 
-
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
-//                改看看高幀數但很慢
-//        ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-//                .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER) // 會「堵住」相機供應端，不丟幀
-//                .setImageQueueDepth(8) // 可選：佇列深度，避免一下子就卡死；沒有此 API 就忽略這行
-//                .build();
 
         imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
 
         CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
 
+        // 🎥 創建 VideoCapture
+        if (ENABLE_VIDEO_RECORDING) {
+            try {
+                Recorder recorder = new Recorder.Builder()
+                        .setQualitySelector(QualitySelector.from(Quality.HD))
+                        .build();
+                videoCapture = VideoCapture.withOutput(recorder);
+                Log.d(TAG, "✅ VideoCapture 初始化成功");
+            } catch (Exception e) {
+                Log.e(TAG, "❌ VideoCapture 初始化失敗", e);
+            }
+        }
+
         try {
             cameraProvider.unbindAll();
-            cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+
+            // 🎥 綁定相機用例（包含錄影）
+            if (ENABLE_VIDEO_RECORDING && videoCapture != null) {
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis, videoCapture);
+            } else {
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+            }
+
             Log.d(TAG, "相機綁定成功");
         } catch (Exception e) {
             Log.e(TAG, "相機綁定失敗", e);
@@ -637,15 +685,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                     lastOverlayRoi, lastBitmapRoi);
 
                         } else if ("鼓頰".equals(trainingLabel) || "PUFF_CHEEK".equals(trainingLabel) || "REDUCE_CHEEK".equals(trainingLabel)) {
-                            Log.d(TAG_2, "動作分流_臉頰");
+                            //Log.d(TAG_2, "動作分流_臉頰");
                             // ★★★ 臉頰模式
                             handleCheeksMode(landmarks01, mirroredBitmap,bitmapWidth,bitmapHeight);
                         } else if ("下顎".equals(trainingLabel) || "JAW_LEFT".equals(trainingLabel) || "JAW_RIGHT".equals(trainingLabel)) {
                             // ★★★ 下顎模式
-                            Log.d(TAG_2, "動作分流_下顎");
+                            //Log.d(TAG_2, "動作分流_下顎");
                             handleJawMode(allPoints);
                         } else {
-                            Log.d(TAG_2, "動作分流_嘴唇");
+                            //Log.d(TAG_2, "動作分流_嘴唇");
                             // 嘴唇模式
                             handleLipMode(allPoints);
                         }
@@ -853,9 +901,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
             String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
             dataRecorder.recordLandmarkData(stateString, allPoints, null);
-            Log.d(TAG, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
+            //Log.d(TAG, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
 
-            Log.d(TAG_2, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
+            //Log.d(TAG_2, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
         }
     }
 
@@ -973,7 +1021,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //確認時間顯示文字
     private void startCalibrationTimer() {
         cancelTimers();
-        Log.d(TAG, "🟡 開始校正階段計時器");
+        Log.d(TAG_2, "🟡 開始校正階段計時器");
+        Log.d(TAG_3, "🎥 校正開始，啟動錄影");
+        // 🎥 在這裡開始錄影！
+        if (ENABLE_VIDEO_RECORDING && videoCapture != null && currentRecording == null) {
+            Log.d(TAG_3, "🎥 校正開始，啟動錄影");
+            startVideoRecording();
+        }
 
         calibrationTimer = () -> {
             Log.d(TAG, "🟡 校正完成，切換到維持狀態");
@@ -1093,6 +1147,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Log.d(TAG, " === 訓練完成！開始儲存資料 ");
         Log.d(TAG_2, " ==已進入compelete ");
         isTrainingCompleted = true;
+        // 🎥 停止錄影（正常完成，不刪除）
+        if (currentRecording != null) {
+            currentRecording.stop();
+            currentRecording = null;
+            Log.d(TAG, "✅ 錄影完成，影片已保存");
+        }
         cancelTimers();
 
         overlayView.setStatus(CircleOverlayView.Status.OK);
@@ -1320,31 +1380,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         mainHandler.postDelayed(cueRunnable, delayMs);
     }
 
-    private void maybeShowGuideAndStart() {
-        if (!SHOW_GUIDE) {           // ← 關掉就直接開始
-            onStartTraining();
-            return;
-        }
-        // 若使用者之前勾「不再顯示」，就直接開始
-        if (!com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet
-                .shouldShow(this, trainingLabel)) {
-            onStartTraining();
-            return;
-        }
-
-        com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet sheet =
-                com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet
-                        .newInstance(trainingLabel, /* 若有 DB 中文名稱就塞這裡 */ null);
-        sheet.setOnStartListener(this::onStartTraining);
-        sheet.show(getSupportFragmentManager(), "motion_guide");
-    }
 
 
     private void onStartTraining() {
         if (trainingStarted) return;
         trainingStarted = true;
+        Log.d(TAG_3, "✅ 開始錄影流程");
 
-        Log.d(TAG, "✅ 開始訓練流程");
+        // 開始錄影
+        if (ENABLE_VIDEO_RECORDING && videoCapture != null) {
+            startVideoRecording();
+        }
+        Log.d(TAG_2, "✅ 開始訓練流程");
 
         // 狀態提示
         if (statusText != null) statusText.setText("訓練中...");
@@ -1544,7 +1591,54 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         finish();
     }
 
+    /**
+     * 🎥 開始錄影
+     */
+    private void startVideoRecording() {
+        if (videoCapture == null) {
+            Log.e(TAG_3, "❌ VideoCapture 未初始化");
+            return;
+        }
 
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+            String timestamp = sdf.format(new Date());
+            String fileName = "Training_" + trainingLabel + "_" + timestamp + ".mp4";
+
+            File videoFile = new File(getExternalFilesDir(null), fileName);
+            videoFilePath = videoFile.getAbsolutePath();
+
+            FileOutputOptions outputOptions = new FileOutputOptions.Builder(videoFile).build();
+
+            currentRecording = videoCapture.getOutput()
+                    .prepareRecording(this, outputOptions)
+                    .start(ContextCompat.getMainExecutor(this), videoRecordEvent -> {
+                        if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
+                            VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) videoRecordEvent;
+                            if (!finalizeEvent.hasError()) {
+                                Log.d(TAG_3, "✅ 影片已保存: " + videoFilePath);
+                            } else {
+                                Log.e(TAG_3, "❌ 影片錄製失敗: " + finalizeEvent.getError());
+                            }
+                        }
+                    });
+
+            Log.d(TAG_3, "🎥 開始錄影: " + fileName);
+        } catch (Exception e) {
+            Log.e(TAG_3, "❌ 開始錄影失敗", e);
+        }
+    }
+
+    /**
+     * 🎥 停止錄影
+     */
+    private void stopVideoRecording() {
+        if (currentRecording != null) {
+            currentRecording.stop();
+            currentRecording = null;
+            Log.d(TAG_3, "🎥 停止錄影");
+        }
+    }
 
 
 }

@@ -189,7 +189,7 @@ public class FaceDataRecorder {
                 //若=F則反過來鼻尖較遠，嘟起時應該抓大
                 String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
 
-                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.3f,%.3f,%.3f,%s",
+                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.6f,%.6f,%.6f,%s",
                         relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea,nosePeakDirection);
 
                 //DEBUG列印輸出
@@ -216,7 +216,7 @@ public class FaceDataRecorder {
                 //若=F則反過來鼻尖較遠，嘟起時應該抓大
                 String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
 
-                dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.3f,%s"
+                dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.6f,%s"
                         ,relativeTimeSeconds,state,z_avg,nosePeakDirection);
 
 
