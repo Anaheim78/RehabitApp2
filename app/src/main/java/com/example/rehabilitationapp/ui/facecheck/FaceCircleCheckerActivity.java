@@ -79,50 +79,50 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Point;
 //本物件WorkFlow可分為偵側流與顯示(時間讀秒)流
 public class FaceCircleCheckerActivity extends AppCompatActivity {
-
-    //=========【相機權限用】==========
-    // 相機權限用
-    private static final int PERMISSION_REQUEST_CODE = 123;
-    // LOG 的 Tag
+    //<===========【Debug&Log】========
     private static final String TAG = "FaceCircleChecker";
     private static final String TAG_2 = "FaceChecker_2";
     private static final String TAG_3 = "FaceCheck_video";
+    //===========【Debug&Log】========>
 
+    //<=======【THREAD旗標】===============
     // final處理執行緒，待現有Thread自行完成後再關閉
-    private volatile boolean isStopping = false;
+    private volatile boolean isStopping = false; //生命週期onDestroy時，會改為false
+    // 讓提交任務前都能守門，例如在 handleCheeksMode()，讓方法入口停止繼續運作：
+    private boolean shouldAcceptNewFrames() { return !isStopping; }
+    //<=======【THREAD旗標】===============>
 
+
+    //<=========【相機權限用】==========
+    // 相機權限用
+    private static final int PERMISSION_REQUEST_CODE = 123;
     // android.camera.core 相機管理
     private PreviewView cameraView;
-    private FaceLandmarker faceLandmarker;
     private ProcessCameraProvider cameraProvider;
     private boolean trainingStarted = false; // 避免重複啟動
-    //=========【相機權限用】==========
-    //=========【影片錄製控制】==========
+    //=========【相機權限用】==========>
+
+
+    //<=========【影片錄製】==========
     private static final boolean ENABLE_VIDEO_RECORDING = false; // ← 改 false 就關閉錄影
     private VideoCapture<Recorder> videoCapture;
     private Recording currentRecording;
     private String videoFilePath;
-//====================================
+    //<=========【影片錄製】==========>
 
-    //========【攝影畫面調試】========
-    // ROI 快取（Overlay/Bitmap 兩套座標系）
-    private Rect lastOverlayRoi = null;
-    private Rect lastBitmapRoi  = null;
-    //========================
 
-    //=========【執行緒管理】==========
+    //<=========【執行緒管理】==========
     private ExecutorService cameraExecutor;
     private ExecutorService yoloExecutor;
-
     // 主執行緒 handler 與計時任務
     private Handler mainHandler;
     private Runnable calibrationTimer;
     private Runnable maintainTimer;
     private Runnable progressUpdater;
-    //===============================
+    //===============================>
 
 
-    //========【偵測區塊】==========================
+    //<==========【訓練相關物件】=================
     //===【共用變數】========
     //周邊物件
     private FaceDataRecorder dataRecorder;
@@ -130,26 +130,29 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private String trainingLabel = "訓練";
     private int trainingType = -1;
     public String trainingLabel_String;
-    // 讓提交任務前都能守門，例如在 handleCheeksMode() / 影格處理入口：
-    private boolean shouldAcceptNewFrames() { return !isStopping; }
-    //====================================
+    private FaceLandmarker faceLandmarker;
+    //====================================>
 
-    //===【舌頭】 推論頻率控制（可自行調整）========
+    //<========【舌頭】 ========
+    //推論頻率控制（可自行調整）
     private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
-    private static final int YOLO_EVERY      = 3;  // 每 3 幀跑一次 YOLO
+    private static final int YOLO_EVERY   = 3;  // 每 3 幀跑一次 YOLO
+    private long firstMetricTime = 0;
+
     // 周邊物件
     private TongueYoloDetector tongueDetector;
     private boolean isYoloEnabled = false;
-    //====================================
+    // ROI快取給YOLO（Overlay/Bitmap 兩套座標系）
+    private Rect lastOverlayRoi = null;
+    private Rect lastBitmapRoi  = null;
+    //====================================>
 
-    //========【臉頰】========
+    //<========【臉頰】==========
     // 周邊物件
     private CheekFlowEngine cheekEngine;
-    //================
-    //==========================================
+    //================================>
 
-
-    //=========【UX顯示區塊】==========================
+    //<=========【UX顯示區塊相關】==========================
     //臉部圓框
     private CircleOverlayView overlayView;
     //文字顯示
@@ -158,24 +161,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private TextView timerText;
     //進度條
     private ProgressBar progressBar;
+
     //圓框狀態管理
     private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
     private AppState currentState = AppState.CALIBRATING;
+    //===========【UX顯示區塊相關】===============>
 
-
-    // =======【導引提示】==========================
-    private static final boolean SHOW_GUIDE = false; // ← 全域：要不要教學
-    // 導引疊字與循環控制（不影響你原本 Handler/Timer）
-    private android.os.Handler cueHandler;
-    private java.lang.Runnable cueRunnable;
-    private boolean cueRunning = false;
-    private int cueStep = 0; // 循環，根據餘數顯示
-    public int CUE_SEGMENT_SEC = 3; // 可調：導引文字間隔秒數（預設 3 秒）
-    private android.widget.TextView cueTextView; // 畫面上的導引提示文字
-    private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成相對指引內文
-    //===============================================
-
-    // ==============計時常數==============
+    //<==============計時設計常數==============
     private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
     private static final int MAINTAIN_TIME_TOTAL = 20000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
@@ -187,14 +179,25 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 開始結束時間
     private long TraingStartTime;
     private long TraingEndTime;
-    //============================
-    //===========================================
-
-
-    //===========【Debug&Log】========
-    // 幀計數與統計
+    // 紀錄當前幀數
     private int frameId = 0;
-    private long firstMetricTime = 0;
+    //==============計時設計常數==============>
+
+    // =======【動作導引文字提示】==========================
+    private static final boolean SHOW_GUIDE = false; // ← 全域：要不要教學
+    // 導引疊字與循環控制（不影響你原本 Handler/Timer）
+    private android.os.Handler cueHandler;
+    private java.lang.Runnable cueRunnable;
+    private boolean cueRunning = false;
+    private int cueStep = 0; // 循環，根據餘數顯示
+    public int CUE_SEGMENT_SEC = 3; // 可調：導引文字間隔秒數（預設 3 秒）
+    private android.widget.TextView cueTextView; // 畫面上的導引提示文字
+    private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成相對指引內文
+    //===============================================
+
+
+
+
     //================
 
     //===========01【生命週期】========================
@@ -615,6 +618,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         return out;
     }
 
+    //===========【動作方法區域】=========
     // 加入 YOLO 整合
     private void checkFacePosition(FaceLandmarkerResult result, int bitmapWidth, int bitmapHeight, Bitmap mirroredBitmap) {
         boolean faceDetected = result != null && !result.faceLandmarks().isEmpty();
@@ -736,10 +740,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
      * 舌頭模式：用快取好的 ROI + 節流 YOLO
      * 模式處理只負責到紀錄，稍後由狀態幾呼叫完成進行後續邏輯
      */
-    private void handleTongueMode(float[][] allPoints,
-                                  Bitmap mirroredBitmap,
-                                  int bitmapWidth,
-                                  int bitmapHeight,
+    private void handleTongueMode(float[][] allPoints, Bitmap mirroredBitmap, int bitmapWidth, int bitmapHeight,
                                   Rect overlayRoi,   // ← 使用快取 Overlay ROI
                                   Rect bitmapRoi) {  // ← 使用快取 Bitmap ROI
         try {
@@ -919,6 +920,41 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
+    //臉頰模式
+    private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap, int img_w,int img_h) {
+        if (!shouldAcceptNewFrames()) return;
+        try {
+            ensureCheekEngine();
+            long ts = System.currentTimeMillis();
+
+            cameraExecutor.execute(() -> {
+                //CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
+
+                if (!isTrainingCompleted &&
+                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)){
+//                        r.computedThisFrame) {
+                    //補償
+//                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
+//                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+//                    //原始
+//                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
+//                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+//                    // 取得狀態字串（跟你嘴唇/舌頭一致）
+                    String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
+
+                    // 改用曲率
+                    Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
+                    dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
+
+
+                }
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "handleCheeksMode error", e);
+        }
+    }
+
     //處理時間顯示
     private void handleFacePosition(boolean faceInside) {
         if (isTrainingCompleted) return;
@@ -970,42 +1006,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateTimerDisplay();
     }
 
-    //臉頰模式
-    private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap, int img_w,int img_h) {
-        if (!shouldAcceptNewFrames()) return;
-        try {
-            ensureCheekEngine();
-            long ts = System.currentTimeMillis();
-
-            cameraExecutor.execute(() -> {
-                //CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
-
-                if (!isTrainingCompleted &&
-                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)){
-//                        r.computedThisFrame) {
-                    //補償
-//                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
-//                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-//                    //原始
-//                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
-//                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-//                    // 取得狀態字串（跟你嘴唇/舌頭一致）
-                    String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-
-                    // 改用曲率
-                    Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
-                    dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
 
 
-                }
-            });
 
-        } catch (Exception e) {
-            Log.e(TAG, "handleCheeksMode error", e);
-        }
-    }
-
-
+    // 光流相關
     private void ensureCheekEngine() {
         if (cheekEngine == null) {
             CheekFlowEngine.Params pp = new CheekFlowEngine.Params();
