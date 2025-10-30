@@ -18,7 +18,8 @@ public class CircleOverlayView extends View {
         OK,              // 绿色
         OUT_OF_BOUND,    // 红色
         NO_FACE,         // 默认
-        CALIBRATING      // 黄色
+        CALIBRATING,      // 黄色
+        DEMO             // 藍色（示範段）
     }
 
     // 🔥 新增：顯示模式
@@ -248,6 +249,9 @@ public class CircleOverlayView extends View {
             case CALIBRATING:
                 circlePaint.setColor(Color.YELLOW);
                 break;
+            case DEMO:
+                circlePaint.setColor(Color.BLUE);
+                break;
             case NO_FACE:
             default:
                 circlePaint.setColor(Color.WHITE);
@@ -392,6 +396,7 @@ public class CircleOverlayView extends View {
                                  float[] leftCheek, float[] rightCheek, float[] chin) {
         // 空方法，保持兼容性
     }
+    public Status getStatus() { return status; }
 
     public void clearFaceKeyPoints() {
         clearAllLandmarks();

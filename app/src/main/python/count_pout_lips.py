@@ -1,257 +1,360 @@
-import io, csv
+import io
+import csv
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
 
-# ===== 自動計算 FS =====
+# ===== 自動計算取樣率（僅用 MAINTAINING）=====
 def calculate_fs_from_csv(file_path: str) -> float:
     """
-    統計CSV中排除頭尾後,穩定區的最低幀數作為FS
+    統計CSV中排除頭尾後，穩定區的最低幀數作為FS
     """
     df = pd.read_csv(file_path)
-    df = df[df["state"] == "MAINTAINING"]
-
-    if len(df) < 2:
-        return 10.0  # 預設值
-
+    if "state" in df.columns:
+        df = df[df["state"] == "MAINTAINING"]
+    if len(df) < 2 or "time_seconds" not in df.columns:
+        return 10.0
     t = pd.to_numeric(df["time_seconds"], errors="coerce").to_numpy()
     t = t[np.isfinite(t)]
-
     if len(t) < 2:
         return 10.0
 
-    # 統計每秒的幀數
     sec_counts = {}
     for ti in t:
         sec = int(ti)
         sec_counts[sec] = sec_counts.get(sec, 0) + 1
 
-    # 排除頭尾
     all_secs = sorted(sec_counts.keys())
     if len(all_secs) <= 2:
-        # 太短就用全部
         stable_counts = list(sec_counts.values())
     else:
-        # 排除第一秒和最後一秒
         stable_secs = all_secs[1:-1]
         stable_counts = [sec_counts[s] for s in stable_secs]
 
     if not stable_counts:
         return 10.0
 
-    # 取穩定區的最低幀數
     min_fps = min(stable_counts)
-    print(f"📊 自動計算 FS = {min_fps} (穩定區最低幀數)")
+    print(f"📊 FS(auto) = {min_fps} Hz")
     return float(min_fps)
 
-# ===== 判斷 nosepeak_direction 的主要狀態 =====
-def get_dominant_nosepeak_direction(file_path: str) -> str:
+# ===== DEMO 判斷主方向 =====
+def infer_dir_from_demo(df, cols, point_name, dir_default="N"):
     """
-    只看校正階段 (CALIBRATING) 倒數兩秒的 nosepeak_direction
+    從 DEMO 階段判斷主要動作方向
+    P: 正半波 (往上)
+    N: 負半波 (往下)
     """
-    df = pd.read_csv(file_path)
-    df_calib = df[df["state"] == "CALIBRATING"]
+    if "state" not in cols:
+        return dir_default
 
-    if len(df_calib) == 0:
-        print("⚠️  找不到 CALIBRATING 階段,預設使用 T")
-        return "T"
+    s_col = cols["state"]
+    mask = df[s_col].astype(str).str.contains("DEMO", case=False, na=False)
+    demo = df[mask]
 
-    if "nosepeak_direction" not in df.columns:
-        print("⚠️  找不到 nosepeak_direction 欄位,預設使用 T")
-        return "T"
+    if demo.empty:
+        print(f"⚠️  找不到 DEMO 階段，預設使用 {dir_default}")
+        return dir_default
 
-    # 取校正階段的最後兩秒
-    t_calib = pd.to_numeric(df_calib["time_seconds"], errors="coerce").to_numpy()
-    t_calib = t_calib[np.isfinite(t_calib)]
+    r = pd.to_numeric(demo[cols[point_name]], errors="coerce").dropna().to_numpy()
+    if r.size < 6:
+        print(f"⚠️  DEMO 資料不足，預設使用 {dir_default}")
+        return dir_default
 
-    if len(t_calib) == 0:
-        print("⚠️  校正階段時間異常,預設使用 T")
-        return "T"
+    med = np.median(r)
+    q95 = np.percentile(r, 95)
+    q05 = np.percentile(r, 5)
+    up_amp = q95 - med
+    down_amp = med - q05
 
-    max_time = t_calib.max()
-    threshold = max_time - 2.0  # 倒數兩秒
-
-    # 篩選倒數兩秒的資料
-    df_last2sec = df_calib[pd.to_numeric(df_calib["time_seconds"], errors="coerce") >= threshold]
-
-    if len(df_last2sec) == 0:
-        print("⚠️  倒數兩秒沒有資料,預設使用 T")
-        return "T"
-
-    # 統計 T 和 F
-    counts = df_last2sec["nosepeak_direction"].value_counts().to_dict()
-    t_count = counts.get("T", 0)
-    f_count = counts.get("F", 0)
-
-    dominant = "T" if t_count >= f_count else "F"
-    print(f"📌 校正倒數2秒: T={t_count}, F={f_count} → 使用 {dominant}")
-    return dominant
-
-# ===== 參數 =====
-CUTOFF = 0.8
-ORDER = 4
+    dir_auto = "N" if down_amp > up_amp else "P"
+    print(f"📌 DEMO 方向判斷: 上振幅={up_amp:.4f}, 下振幅={down_amp:.4f} → 使用 {dir_auto}")
+    return dir_auto
 
 # ===== 低通濾波器 =====
-def lowpass_filter(x, fs, cutoff=CUTOFF, order=ORDER):
+def lowpass_filter(x, fs=25.0, cutoff=0.5, order=4):
     b, a = butter(order, cutoff / (fs / 2), btype='low')
-    y = filtfilt(b, a, x)
-    return y
+    return filtfilt(b, a, x)
 
 # ===== 移動平均（基線估計）=====
-def moving_average(x, win_samples):
-    if win_samples < 1:
-        win_samples = 1
+def moving_average(x, win_samples=20):
     kernel = np.ones(win_samples) / win_samples
     pad_width = win_samples // 2
     x_padded = np.pad(x, pad_width, mode='edge')
     baseline_full = np.convolve(x_padded, kernel, mode='same')
-    baseline = baseline_full[pad_width:-pad_width]
-    return baseline
+    return baseline_full[pad_width:-pad_width]
 
 # ===== 零交叉檢測 =====
 def zero_crossings(x, t, deadband=0.0, min_interval=10):
-    crossings_all, crossings_up, crossings_down = [], [], []
-    last_idx = -min_interval
+    raw = []
     for i in range(1, len(x)):
         if np.isnan(x[i-1]) or np.isnan(x[i]):
             continue
-        # 負 -> 正
-        if x[i-1] < 0 and x[i] >= 0 and abs(x[i]) > deadband:
-            if i - last_idx >= min_interval:
-                crossings_all.append(i)
-                crossings_up.append(i)
-                last_idx = i
-        # 正 -> 負
-        elif x[i-1] > 0 and x[i] <= 0 and abs(x[i]) > deadband:
-            if i - last_idx >= min_interval:
-                crossings_all.append(i)
-                crossings_down.append(i)
-                last_idx = i
-    return crossings_all, crossings_up, crossings_down
+        if (x[i-1] <= 0 and x[i] > 0) or (x[i-1] >= 0 and x[i] < 0):
+            raw.append(i)
 
-# ===== 動作篩選 =====
-def filter_actions(segments, min_duration=0.5, min_gap=0.5):
-    actions = []
-    last_end = -1e9
-    for seg in segments:
-        if seg["duration"] < min_duration:
-            continue
-        if seg["start_time"] - last_end < min_gap:
-            continue
-        actions.append(seg)
-        last_end = seg["end_time"]
-    return actions
+    crossings_all, last_keep, prev_idx = [], -min_interval, 0
+    for idx in raw:
+        seg_amp = np.max(np.abs(x[prev_idx:idx+1]))
+        if seg_amp >= deadband and (idx - last_keep) >= min_interval:
+            crossings_all.append(idx)
+            last_keep = idx
+        prev_idx = idx
+    return crossings_all
 
-# ===== 主流程 =====
-def analyze_csv(file_path: str) -> dict:
+# ===== 半波分析：正半波（峰值）=====
+def analyze_high_peaks(i, zc_all, r_detrend, t, threshold, spans):
+    """分析正半波，計算峰值與相鄰谷值的差值"""
+    s, e = zc_all[i], zc_all[i + 1]
+    seg = r_detrend[s:e]
+
+    peak_val = np.max(seg)
+    peak_idx = np.argmax(seg)
+    peak_time = t[zc_all[i] + peak_idx]
+
+    # 計算與前後谷值的差值
+    prev_min = np.min(r_detrend[zc_all[i-1]:zc_all[i]]) if i - 1 >= 0 else np.nan
+    next_min = np.min(r_detrend[zc_all[i+1]:zc_all[i+2]]) if i + 2 < len(zc_all) else np.nan
+
+    diffs = []
+    if np.isfinite(prev_min):
+        diffs.append(peak_val - prev_min)
+    if np.isfinite(next_min):
+        diffs.append(peak_val - next_min)
+
+    if any(d >= threshold for d in diffs):
+        diff_max = max(diffs)
+        st, ed = t[s], t[e]
+        spans.append({
+            "start_time": round(st, 3),
+            "end_time": round(ed, 3),
+            "peak_time": round(peak_time, 3),
+            "peak_value": round(peak_val, 6),
+            "diff_max": round(diff_max, 6),
+            "duration": round(ed - st, 3)
+        })
+    return spans
+
+# ===== 半波分析：負半波（谷值）=====
+def analyze_low_troughs(i, zc_all, r_detrend, t, threshold, spans):
+    """分析負半波，計算谷值與相鄰峰值的差值"""
+    s, e = zc_all[i], zc_all[i + 1]
+    seg = r_detrend[s:e]
+
+    trough_val = np.min(seg)
+    trough_idx = np.argmin(seg)
+    trough_time = t[zc_all[i] + trough_idx]
+
+    # 計算與前後峰值的差值
+    prev_max = np.max(r_detrend[zc_all[i-1]:zc_all[i]]) if i - 1 >= 0 else np.nan
+    next_max = np.max(r_detrend[zc_all[i+1]:zc_all[i+2]]) if i + 2 < len(zc_all) else np.nan
+
+    diffs = []
+    if np.isfinite(prev_max):
+        diffs.append(prev_max - trough_val)
+    if np.isfinite(next_max):
+        diffs.append(next_max - trough_val)
+
+    if any(d >= threshold for d in diffs):
+        diff_max = max(diffs)
+        st, ed = t[s], t[e]
+        spans.append({
+            "start_time": round(st, 3),
+            "end_time": round(ed, 3),
+            "trough_time": round(trough_time, 3),
+            "trough_value": round(trough_val, 6),
+            "diff_max": round(diff_max, 6),
+            "duration": round(ed - st, 3)
+        })
+    return spans
+
+# ===== 主分析流程 =====
+def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
+                threshold: float = 0.0008, dir_default: str = "N") -> dict:
     """
-    讀取 CSV，自動計算 FS，根據 nosepeak_direction 選擇正/負半週
+    分析 CSV 檔案，自動判斷方向並計算動作次數
+
+    Parameters:
+    -----------
+    file_path : str
+        CSV 檔案路徑
+    cutoff : float
+        低通濾波截止頻率 (Hz)
+    order : int
+        濾波器階數
+    threshold : float
+        動作閾值（半波差值）
+    dir_default : str
+        預設方向 ("P" 或 "N")，當無法從 DEMO 判斷時使用
+
+    Returns:
+    --------
+    dict : 包含分析結果的字典
     """
     try:
-        # 1. 自動計算 FS
-        fs = calculate_fs_from_csv(file_path)
+        # 讀取 CSV
+        df = pd.read_csv(file_path)
+        cols = {c.lower(): c for c in df.columns}
 
-        # 2. 判斷 nosepeak_direction (只看校正階段倒數2秒)
-        dominant_direction = get_dominant_nosepeak_direction(file_path)
-
-        # 3. 讀取數據
-        with open(file_path, "r", encoding="utf-8") as f:
-            df = pd.DataFrame(csv.DictReader(f))
-        lowmap = {str(c).strip().lower(): c for c in df.columns if c is not None}
+        # 判斷任務類型
+        if "outer_mouth_z_avg" in cols:
+            point_name = "outer_mouth_z_avg"
+            output_name = "POUT_LIPS"
+        elif "total_lip_area" in cols:
+            point_name = "total_lip_area"
+            output_name = "SIP_LIPS"
+        else:
+            return {
+                "status": "ERROR",
+                "action_count": 0,
+                "segments": [],
+                "error": "找不到 outer_mouth_z_avg 或 total_lip_area 欄位"
+            }
 
         # 檢查必要欄位
-        if "time_seconds" not in lowmap or "state" not in lowmap or "outer_mouth_z_avg" not in lowmap:
-            return {"status": "ERROR", "error": "缺少必要欄位"}
+        if "time_seconds" not in cols or point_name not in cols:
+            return {
+                "status": "ERROR",
+                "action_count": 0,
+                "segments": [],
+                "error": "缺少必要欄位"
+            }
 
-        # 只保留 MAINTAINING
-        df = df[df[lowmap["state"]] == "MAINTAINING"]
+        # 全段資料（用於判斷方向）
+        df_all = df.copy()
 
-        # 數據轉 numpy
-        t_raw = pd.to_numeric(df[lowmap["time_seconds"]], errors="coerce").to_numpy()
-        r_raw = pd.to_numeric(df[lowmap["outer_mouth_z_avg"]], errors="coerce").to_numpy()
-        m = np.isfinite(t_raw) & np.isfinite(r_raw)
-        t, r = t_raw[m], r_raw[m]
+        # 判斷方向（從 DEMO）
+        dir_eff = infer_dir_from_demo(df_all, cols, point_name, dir_default)
+
+        # 只保留 MAINTAINING 階段
+        if "state" in cols:
+            df_main = df_all[df_all[cols["state"]] == "MAINTAINING"].copy()
+        else:
+            df_main = df_all.copy()
+
+        # 提取時間與訊號
+        t = pd.to_numeric(df_main[cols["time_seconds"]], errors="coerce").to_numpy()
+        r = pd.to_numeric(df_main[cols[point_name]], errors="coerce").to_numpy()
+        m = np.isfinite(t) & np.isfinite(r)
+        t, r = t[m], r[m]
 
         if len(t) < 2:
-            return {"status": "OK", "action_count": 0, "total_action_time": 0.0,
-                    "breakpoints": [], "segments": [], "debug": {"note": "insufficient data"}}
+            return {
+                "status": "OK",
+                "action_count": 0,
+                "total_action_time": 0.0,
+                "breakpoints": [],
+                "segments": [],
+                "debug": {
+                    "fs_hz": fs,
+                    "cutoff": cutoff,
+                    "order": order,
+                    "zc_all": 0,
+                    "zc_up": 0,
+                    "zc_down": 0,
+                    "deadband": 0.0,
+                    "min_interval": int(0.2 * fs)
+                }
+            }
 
-        # 4. 低通
-        r_filt = lowpass_filter(r, fs=fs, cutoff=CUTOFF, order=ORDER)
+        # 自動計算取樣率
+        fs = calculate_fs_from_csv(file_path)
 
-        # 5. 基線扣除
-        win = int(4.0 * fs)
-        baseline = moving_average(r_filt, win)
+        # 濾波
+        r_filt = lowpass_filter(r, fs=fs, cutoff=cutoff, order=order)
+
+        # 基線扣除
+        baseline = moving_average(r_filt, int(4.0 * fs))
         r_detrend = r_filt - baseline
 
-        # 6. 零交叉
-        deadband = 0.001 * float(np.std(r_detrend)) if np.std(r_detrend) > 0 else 0.0
-        min_interval = int(0.2 * fs)
-        zc_all, zc_up, zc_down = zero_crossings(r_detrend, t, deadband=deadband, min_interval=min_interval)
+        # 零交叉檢測
+        zc_all = zero_crossings(r_detrend, t, deadband=0.0, min_interval=int(0.2 * fs))
 
-        # 7. 建 segments，根據 nosepeak_direction 選擇正/負半週
+        # 分析半波
+        spans = []
+        for i in range(len(zc_all) - 1):
+            s, e = zc_all[i], zc_all[i + 1]
+            seg = r_detrend[s:e]
+            if len(seg) == 0:
+                continue
+
+            seg_mean = np.mean(seg)
+
+            # 根據方向選擇正或負半波
+            if dir_eff == "P" and seg_mean > 0:
+                spans = analyze_high_peaks(i, zc_all, r_detrend, t, threshold, spans)
+            elif dir_eff == "N" and seg_mean < 0:
+                spans = analyze_low_troughs(i, zc_all, r_detrend, t, threshold, spans)
+
+        # 計算總動作時間
+        total_action_time = round(sum(action["duration"] for action in spans), 3)
+
+        # 建立斷點列表
+        breakpoints = [action["end_time"] for action in spans]
+
+        # 轉換成 segments 格式（與 Java 期望的格式一致）
         segments = []
-        if len(zc_all) >= 2:
-            for i, (s, e) in enumerate(zip(zc_all[:-1], zc_all[1:])):
-                st, ed = float(t[s]), float(t[e])
-                dur = round(ed - st, 3)
+        for i, action in enumerate(spans):
+            segments.append({
+                "index": i,
+                "start_time": action["start_time"],
+                "end_time": action["end_time"],
+                "duration": action["duration"]
+            })
 
-                avg_val = np.mean(r_detrend[s:e])
-
-                # T: 取負半週 (嘴巴往前, Z變小)
-                # F: 取正半週 (嘴巴往前, Z變大)
-                if dominant_direction == "T":
-                    if avg_val < 0:
-                        segments.append({
-                            "index": i,
-                            "start_time": round(st, 3),
-                            "end_time": round(ed, 3),
-                            "duration": dur
-                        })
-                else:  # F
-                    if avg_val > 0:
-                        segments.append({
-                            "index": i,
-                            "start_time": round(st, 3),
-                            "end_time": round(ed, 3),
-                            "duration": dur
-                        })
-
-        # 8. 篩選動作
-        actions = filter_actions(segments, min_duration=0.5, min_gap=0.5)
-
-        breakpoints = [seg["end_time"] for seg in segments]
-        total_action_time = round(sum(seg["duration"] for seg in actions), 3)
-
+        # 返回與 count_sip_lips.py 完全相同的格式
         return {
             "status": "OK",
-            "action_count": len(actions),
+            "action_count": len(spans),
             "total_action_time": total_action_time,
             "breakpoints": breakpoints,
             "segments": segments,
             "debug": {
                 "fs_hz": fs,
-                "cutoff": CUTOFF,
-                "order": ORDER,
-                "nosepeak_direction": dominant_direction,
+                "cutoff": cutoff,
+                "order": order,
                 "zc_all": len(zc_all),
-                "zc_up": len(zc_up),
-                "zc_down": len(zc_down),
-                "deadband": round(deadband, 6),
-                "min_interval": min_interval
+                "zc_up": 0,  # 嘟嘴/抿嘴不區分上下交叉，統一給 0
+                "zc_down": 0,
+                "deadband": 0.0,  # 嘟嘴/抿嘴沒使用 deadband，統一給 0.0
+                "min_interval": int(0.2 * fs)
             }
         }
+
     except Exception as e:
         import traceback
-        return {"status": "ERROR", "error": str(e), "traceback": traceback.format_exc()}
+        error_msg = str(e)
+        return {
+            "status": "ERROR",
+            "action_count": 0,
+            "total_action_time": 0.0,
+            "breakpoints": [],
+            "segments": [],
+            "error": error_msg,
+            "traceback": traceback.format_exc()
+        }
 
 
 # ===== 測試 =====
 if __name__ == "__main__":
-    file_path = "FaceTraining_POUT_LIPS_20251023_103227.csv"
-    result = analyze_csv(file_path)
-    print("\n結果:")
-    print(f"動作數: {result.get('action_count', 0)}")
-    print(f"總動作時間: {result.get('total_action_time', 0)}")
-    print(f"斷點: {result.get('breakpoints', [])}")
-    print(f"\nDebug: {result.get('debug', {})}")
+    # 測試範例
+    file_path = "FaceTraining_SIP_LIPS_20251029_131942_blue.csv"
+
+    result = analyze_csv(file_path, cutoff=0.8, order=4, threshold=0.0008)
+
+    print("\n===== 分析結果 =====")
+    print(f"狀態: {result.get('status')}")
+    print(f"動作次數: {result.get('action_count')}")
+    print(f"總動作時間: {result.get('total_action_time')} 秒")
+    print(f"\n斷點時間: {result.get('breakpoints', [])}")
+
+    if result.get('segments'):
+        print(f"\n===== 動作明細 =====")
+        for seg in result.get('segments', []):
+            print(f"動作 {seg['index']}:")
+            print(f"  時間範圍: {seg['start_time']} ~ {seg['end_time']} 秒")
+            print(f"  持續時間: {seg['duration']} 秒")
+
+    print(f"\n===== Debug 資訊 =====")
+    for key, value in result.get('debug', {}).items():
+        print(f"{key}: {value}")

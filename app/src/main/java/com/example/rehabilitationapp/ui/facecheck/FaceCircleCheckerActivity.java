@@ -165,10 +165,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //圓框狀態管理
     private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
     private AppState currentState = AppState.CALIBRATING;
+
+    //新增籃框
+    // --- 校正示範（藍色）用的旗標，只在 CALIBRATING 內生效 ---
+    private boolean demoEnabled  = true;   // 要不要跑示範（可留 true）
+    private boolean demoStarted  = false;  // 是否已啟動一次
+    private boolean demoFinished = false;  // 是否已完整跑完一次
+    private long demoStartMs     = 0L;     // 起始時間（ms）
+
     //===========【UX顯示區塊相關】===============>
 
     //<==============計時設計常數==============
-    private static final int CALIBRATION_TIME = 5000;         // 校正時間(毫秒)
+    private static final int CALIBRATION_TIME = 13000;         // 校正時間(毫秒)
     private static final int MAINTAIN_TIME_TOTAL = 20000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
@@ -822,8 +830,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     overlayView.setReferenceLines(eyeLxView, eyeLyView, eyeRxView, eyeRyView, noseXView, noseYView, browCxView, browCyView);
 
                     if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
-                        String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
-
+                        String stateString = csvState();
                         // 1) 影像尺寸（Bitmap 像素）
                         final int imgW = mirroredBitmap.getWidth();
                         final int imgH = mirroredBitmap.getHeight();
@@ -900,7 +907,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         overlayView.setAllFaceLandmarks(allPoints);
         //校正中跟動作中狀態=>紀錄
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
-            String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
+            String stateString = csvState();
             dataRecorder.recordLandmarkData(stateString, allPoints, null);
             //Log.d(TAG, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
 
@@ -914,7 +921,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         overlayView.setAllFaceLandmarks(allPoints);
 
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
-            String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
+            String stateString = csvState();
             dataRecorder.recordLandmarkData(stateString, allPoints, true);
             Log.d(TAG, "記下顎資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
         }
@@ -940,7 +947,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
 //                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
 //                    // 取得狀態字串（跟你嘴唇/舌頭一致）
-                    String stateString = (currentState == AppState.CALIBRATING) ? "CALIBRATING" : "MAINTAINING";
+                    String stateString = csvState();
 
                     // 改用曲率
                     Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
@@ -962,17 +969,68 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         long currentTime = System.currentTimeMillis();
 
         switch (currentState) {
+//            case CALIBRATING:
+//                if (faceInside) {
+//                    if (calibrationStartTime == 0) {
+//                        calibrationStartTime = currentTime;
+//                        startCalibrationTimer();
+//                    }
+//                    overlayView.setStatus(CircleOverlayView.Status.CALIBRATING);
+//                } else {
+//                    resetCalibration();
+//                    overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
+//                    currentState = AppState.OUT_OF_BOUNDS;
+//                }
+//                break;
             case CALIBRATING:
                 if (faceInside) {
+                    // 進入/重新進入校正區：啟動校正計時、重置示範旗標（讓本輪只播一次）
                     if (calibrationStartTime == 0) {
                         calibrationStartTime = currentTime;
                         startCalibrationTimer();
+
+                        demoStarted = false;
+                        demoFinished = false;
                     }
-                    overlayView.setStatus(CircleOverlayView.Status.CALIBRATING);
+
+                    // 預設：黃（CALIBRATING）
+                    CircleOverlayView.Status uiStatus = CircleOverlayView.Status.CALIBRATING;
+
+                    // 在 CALIBRATING 中用「時間片段」決定顏色：黃4s → 藍5s → 黃4s →（之後維持黃）
+                    if (demoEnabled && !demoFinished) {
+                        if (!demoStarted) {
+                            demoStarted = true;
+                            demoStartMs = currentTime; // ms
+                        }
+                        long d = currentTime - demoStartMs; // 經過毫秒
+
+                        if (d < 4000) {
+                            // 0~4s：黃
+                            uiStatus = CircleOverlayView.Status.CALIBRATING;
+                        } else if (d < 9000) {
+                            // 4~9s：藍
+                            uiStatus = CircleOverlayView.Status.DEMO;
+                        } else if (d < 13000) {
+                            // 9~13s：黃
+                            uiStatus = CircleOverlayView.Status.CALIBRATING;
+                        } else {
+                            // 播完一次就固定黃（避免重播）
+                            uiStatus = CircleOverlayView.Status.CALIBRATING;
+                            demoFinished = true;
+                        }
+                    }
+
+                    // 單一出口設定顏色，避免被別處覆寫
+                    overlayView.setStatus(uiStatus);
+
                 } else {
+                    // 離開圓框 → 依原邏輯轉出界，並重置示範旗標（下次回來會重新播放）
                     resetCalibration();
                     overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
                     currentState = AppState.OUT_OF_BOUNDS;
+
+                    demoStarted = false;
+                    demoFinished = false;
                 }
                 break;
 
@@ -1643,6 +1701,17 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG_3, "🎥 停止錄影");
         }
     }
+
+    private String csvState() {
+        CircleOverlayView.Status ui = (overlayView != null) ? overlayView.getStatus() : null;
+        if (ui == CircleOverlayView.Status.DEMO) return "DEMO";
+        if (currentState == AppState.CALIBRATING) return "CALIBRATING";
+        if (currentState == AppState.MAINTAINING) return "MAINTAINING";
+        if (ui == CircleOverlayView.Status.OUT_OF_BOUND) return "OUT_OF_BOUND";
+        return "UNKNOWN";
+    }
+
+
 
 
 }
