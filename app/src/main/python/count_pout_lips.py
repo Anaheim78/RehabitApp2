@@ -41,34 +41,56 @@ def calculate_fs_from_csv(file_path: str) -> float:
 # ===== DEMO 判斷主方向 =====
 def infer_dir_from_demo(df, cols, point_name, dir_default="N"):
     """
-    從 DEMO 階段判斷主要動作方向
+    從 DEMO 段自動推斷方向（面積法）
     P: 正半波 (往上)
     N: 負半波 (往下)
     """
-    if "state" not in cols:
+    if "state" not in cols or "time_seconds" not in cols:
         return dir_default
 
     s_col = cols["state"]
-    mask = df[s_col].astype(str).str.contains("DEMO", case=False, na=False)
-    demo = df[mask]
-
-    if demo.empty:
-        print(f"⚠️  找不到 DEMO 階段，預設使用 {dir_default}")
+    t_col = cols["time_seconds"]
+    mask_demo = df[s_col].astype(str).str.contains("DEMO", case=False, na=False)
+    if not mask_demo.any():
+        print(f"⚠️ 找不到 DEMO 段，預設使用 {dir_default}")
         return dir_default
 
-    r = pd.to_numeric(demo[cols[point_name]], errors="coerce").dropna().to_numpy()
-    if r.size < 6:
-        print(f"⚠️  DEMO 資料不足，預設使用 {dir_default}")
+    # 取 DEMO 段的時間與訊號
+    t_all = pd.to_numeric(df[t_col], errors="coerce").to_numpy()
+    r_all = pd.to_numeric(df[cols[point_name]], errors="coerce").to_numpy()
+    m_valid = np.isfinite(t_all) & np.isfinite(r_all)
+    t_all, r_all = t_all[m_valid], r_all[m_valid]
+    mask_demo = mask_demo.to_numpy()[m_valid]
+
+    if np.sum(mask_demo) < 5:
+        print(f"⚠️ DEMO 資料不足，預設使用 {dir_default}")
         return dir_default
 
-    med = np.median(r)
-    q95 = np.percentile(r, 95)
-    q05 = np.percentile(r, 5)
-    up_amp = q95 - med
-    down_amp = med - q05
+    t_demo = t_all[mask_demo]
+    r_demo = r_all[mask_demo]
+    t0, t1 = t_demo[0], t_demo[-1]
+    side_sec = 2.0  # DEMO 兩側取樣區間
 
-    dir_auto = "N" if down_amp > up_amp else "P"
-    print(f"📌 DEMO 方向判斷: 上振幅={up_amp:.4f}, 下振幅={down_amp:.4f} → 使用 {dir_auto}")
+    mask_left = (t_all >= t0 - side_sec) & (t_all < t0)
+    mask_right = (t_all > t1) & (t_all <= t1 + side_sec)
+
+    if np.sum(mask_left) < 3 or np.sum(mask_right) < 3:
+        print(f"⚠️ DEMO 兩側資料不足，預設使用 {dir_default}")
+        return dir_default
+
+    r_left_avg = np.mean(r_all[mask_left])
+    r_right_avg = np.mean(r_all[mask_right])
+
+    # 建立基準線（連接左右平均）
+    baseline = np.interp(t_demo, [t_demo[0], t_demo[-1]], [r_left_avg, r_right_avg])
+    diff = r_demo - baseline
+
+    # 計算上下方面積
+    area_pos = np.trapz(diff[diff > 0], t_demo[diff > 0]) if np.any(diff > 0) else 0
+    area_neg = np.trapz(-diff[diff < 0], t_demo[diff < 0]) if np.any(diff < 0) else 0
+
+    dir_auto = "P" if area_pos > area_neg else "N"
+    print(f"📈 DEMO 面積法方向: +面積={area_pos:.4f}, -面積={area_neg:.4f} → 使用 {dir_auto}")
     return dir_auto
 
 # ===== 低通濾波器 =====
