@@ -1,7 +1,7 @@
 import math
 import numpy as np
 import pandas as pd
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt, correlate, find_peaks
 
 # === cheek landmark sets ===
 LEFT_CHEEK_IDXS  = [117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186]
@@ -9,7 +9,7 @@ RIGHT_CHEEK_IDXS = [164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,34
 
 # === params ===
 FS_DEFAULT         = 10.0
-CUTOFF             = 0.3
+CUTOFF_DEFAULT     = 1.0   # 自動 cutoff 失敗時的備援值
 ORDER              = 4
 THRESHOLD          = 2e-6
 
@@ -55,10 +55,12 @@ def calculate_fs_from_csv(file_path: str) -> float:
         return FS_DEFAULT
 
 # ===== 濾波 & 前處理 =====
-def lowpass_filter(x, fs=FS_DEFAULT, cutoff=CUTOFF, order=ORDER):
+def lowpass_filter(x, fs=FS_DEFAULT, cutoff=CUTOFF_DEFAULT, order=ORDER):
     x = np.asarray(x, dtype=float)
     if x.size < 8:
         return x
+    # 保護：cutoff 不得 >= Nyquist
+    cutoff = min(cutoff, 0.49 * fs)
     b, a = butter(order, cutoff / (fs / 2), btype='low')
     return filtfilt(b, a, x)
 
@@ -69,6 +71,65 @@ def moving_average(x, win_samples):
     xpad = np.pad(x, pad, mode='edge')
     base = np.convolve(xpad, ker, mode='same')
     return base[pad:-pad]
+
+# ===== 自動估 cutoff（核心功能）=====
+def auto_cutoff_from_signal(t, r, fs,
+                            min_period_sec=0.5,   # 允許的動作最短週期（快動作）
+                            max_period_sec=4.0,   # 允許的動作最長週期（慢動作）
+                            gain_over_f0=1.5,     # cutoff = gain * f0（略高於主頻）
+                            min_cut=0.25,         # 底限（Hz）
+                            max_cut_cap=2.0       # 上限（Hz），避免過大
+                            ):
+    """
+    用「實際 MAINTAINING 段」估主週期：
+      1) detrend（2s移動平均）
+      2) 自相關找第一個顯著峰（落在 min~max 週期範圍）
+      3) 失敗則直接用 CUTOFF_DEFAULT（不使用零交叉備援法）
+      4) cutoff = clamp(gain * f0, [min_cut, max_cut_cap, 0.49*fs])
+    """
+    x = np.asarray(r, dtype=float)
+    if x.size < max(16, int(1.5*fs)):
+        print("[AUTO-CUTOFF] data too short -> fallback cutoff")
+        return CUTOFF_DEFAULT
+
+    # 粗濾 + 去趨勢
+    x_f = lowpass_filter(x, fs=fs, cutoff=min(1.5, 0.49*fs), order=ORDER)
+    base = moving_average(x_f, int(max(3, 2.0 * fs)))
+    xd = x_f - base
+
+    std = np.std(xd)
+    if std < 1e-12:
+        print("[AUTO-CUTOFF] flat signal -> fallback cutoff")
+        return CUTOFF_DEFAULT
+    xn = (xd - np.mean(xd)) / std
+
+    # 自相關（只看正延遲）
+    ac = correlate(xn, xn, mode='full')
+    ac = ac[ac.size//2:]   # 從 lag=0 往後
+
+    # 搜尋範圍（秒→樣本）
+    min_lag = int(min_period_sec * fs)
+    max_lag = int(max_period_sec * fs)
+    min_lag = max(min_lag, 1)
+    max_lag = min(max_lag, ac.size-1)
+    if max_lag <= min_lag:
+        print("[AUTO-CUTOFF] bad lag window -> fallback cutoff")
+        return CUTOFF_DEFAULT
+
+    # 找第一個顯著峰
+    peaks, props = find_peaks(ac[min_lag:max_lag+1], prominence=0.05)
+    if peaks.size > 0:
+        lag = peaks[0] + min_lag
+        period = lag / fs
+        f0 = 1.0 / max(period, 1e-9)
+        cutoff = gain_over_f0 * f0
+        cutoff = float(np.clip(cutoff, min_cut, min(max_cut_cap, 0.49*fs)))
+        print(f"✅ [AUTO-CUTOFF] autocorr: period≈{period:.2f}s f0≈{f0:.2f}Hz -> cutoff={cutoff:.2f}Hz")
+        return cutoff
+
+    # 自相關失敗 → 直接用固定值（移除零交叉備援法）
+    print(f"⚠️ [AUTO-CUTOFF] autocorr failed -> fallback cutoff={CUTOFF_DEFAULT:.2f}Hz")
+    return CUTOFF_DEFAULT
 
 # ===== 曲率計算 =====
 def fit_quadratic_surface_xyz(x, y, z):
@@ -128,7 +189,7 @@ def zero_crossings(x, min_interval, deadband=0.0):
     return z_all, z_up, z_down
 
 # ===== 方向判斷 (從 DEMO 段) =====
-def infer_dir_from_demo_by_series(t_all, r_all, mask_demo, ax=None, side_sec=2.0):
+def infer_dir_from_demo_by_series(t_all, r_all, mask_demo, side_sec=2.0):
     """
     方向判斷（新版穩定版）：
     - 取 DEMO 段前 side_sec 秒 與 後 side_sec 秒
@@ -170,17 +231,7 @@ def infer_dir_from_demo_by_series(t_all, r_all, mask_demo, ax=None, side_sec=2.0
     neg_area = np.trapz(np.clip(-diff, 0, None), t_demo)
     d = "P" if pos_area > neg_area else "N"
 
-    print(f"[DIR-new] Lavg={r_left_avg:.3e}, Ravg={r_right_avg:.3e}, pos={pos_area:.2e}, neg={neg_area:.2e}, dir={d}")
-
-    if ax is not None:
-        ax.plot([t_demo[0], t_demo[-1]], [r_left_avg, r_right_avg],
-                color='purple', linestyle='--', linewidth=1.5, alpha=0.7, label='avg-line')
-        ax.fill_between(t_demo, r_demo, base, where=(diff>=0), alpha=0.25, color='limegreen')
-        ax.fill_between(t_demo, r_demo, base, where=(diff<0),  alpha=0.25, color='salmon')
-        ax.legend()
-        ax.text((t_demo[0]+t_demo[-1])/2, (r_left_avg+r_right_avg)/2, d,
-                color='black', fontsize=12, fontweight='bold', va='bottom')
-
+    print(f"[DIR] Lavg={r_left_avg:.3e}, Ravg={r_right_avg:.3e}, pos={pos_area:.2e}, neg={neg_area:.2e} -> dir={d}")
     return d
 
 # ===== 建立波段 =====
@@ -252,7 +303,7 @@ def merge_same_direction_waves(segs, r_detrend, t, dir_eff, fs,
 def analyze_csv(file_path: str) -> dict:
     """
     輸入: CSV 檔案路徑
-    輸出: dict 格式 (標準格式，與 count_puff_cheek.py 一致)
+    輸出: dict 格式 (標準格式)
     {
         "status": "OK" | "ERROR",
         "action_count": int,
@@ -264,6 +315,8 @@ def analyze_csv(file_path: str) -> dict:
     }
 
     內部邏輯:
+    - 自動計算 FS
+    - 自動計算 cutoff（使用自相關法）
     - 自動判斷方向 (P/N) 從 DEMO 段
     - 同向波合併
     - Delta 閾值篩選
@@ -325,9 +378,14 @@ def analyze_csv(file_path: str) -> dict:
                 "debug": {"note": "insufficient MAINTAINING data"}
             }
 
-        # === 濾波/基線/去趨勢 ===
+        # === 自動計算 FS ===
         fs = calculate_fs_from_csv(file_path)
-        r_filt = lowpass_filter(r, fs=fs, cutoff=CUTOFF, order=ORDER)
+
+        # === 自動計算 cutoff（核心新增功能）===
+        cutoff_auto = auto_cutoff_from_signal(t, r, fs)
+
+        # === 濾波/基線/去趨勢（使用自動 cutoff）===
+        r_filt = lowpass_filter(r, fs=fs, cutoff=cutoff_auto, order=ORDER)
         baseline = moving_average(r_filt, int(4.0 * fs))
         r_detrend = r_filt - baseline
 
@@ -427,23 +485,32 @@ def analyze_csv(file_path: str) -> dict:
                 }
                 for i, seg in enumerate(segments)
             ],
-            "curve": curve,
+            #"curve": curve,
             "debug": {
                 "fs_hz": fs,
-                "cutoff": CUTOFF,
+                "cutoff": round(cutoff_auto, 3),  # 新增：顯示自動計算的 cutoff
+                "cutoff_default": CUTOFF_DEFAULT,
                 "order": ORDER,
                 "threshold": THRESHOLD,
                 "total_segments": len(segments),
+                "pos_waves": pos_waves,
+                "neg_waves": neg_waves,
                 "zc_all": len(zc_all),
                 "zc_up": len(zc_up),
                 "zc_down": len(zc_down),
                 "deadband": round(deadband, 6),
-                "min_interval": min_interval
+                "min_interval": min_interval,
+                "direction": dir_eff
             }
         }
 
     except Exception as e:
-        return {"status": "ERROR", "error": str(e)}
+        import traceback
+        return {
+            "status": "ERROR",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 
 # ===== 測試用 =====
@@ -453,11 +520,21 @@ if __name__ == "__main__":
     result = analyze_csv(test_file)
 
     print("\n" + "="*60)
-    print("📊 Analysis Result:")
+    print("📊 Analysis Result (with AUTO CUTOFF):")
     print("="*60)
     print(f"Status: {result.get('status')}")
     print(f"Action Count: {result.get('action_count')}")
     print(f"Total Action Time: {result.get('total_action_time')}s")
     print(f"Total Segments: {len(result.get('segments', []))}")
     print(f"Breakpoints: {len(result.get('breakpoints', []))}")
+
+    if 'debug' in result:
+        debug = result['debug']
+        print(f"\n🔧 Debug Info:")
+        print(f"  - FS: {debug.get('fs_hz')} Hz")
+        print(f"  - Auto Cutoff: {debug.get('cutoff_auto')} Hz")
+        print(f"  - Direction: {debug.get('direction')}")
+        print(f"  - Pos Waves: {debug.get('pos_waves')}")
+        print(f"  - Neg Waves: {debug.get('neg_waves')}")
+
     print("\n" + "="*60)
