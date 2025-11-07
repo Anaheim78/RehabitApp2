@@ -3,6 +3,57 @@ import csv
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
+from scipy.signal import correlate, find_peaks
+
+def auto_cutoff_from_signal(t, r, fs,
+                            min_period_sec=0.5,
+                            max_period_sec=5.0,
+                            gain_over_f0=1.5,
+                            min_cut=0.25,
+                            max_cut_cap=2.0):
+    """
+    根據信號週期自動估 cutoff 頻率，並回傳區段清單。
+    """
+    x = np.asarray(r, dtype=float)
+    if x.size < int(2 * fs):
+        return 0.8, []
+
+    # 全域濾波 & 基線
+    b, a = butter(4, min(1.5, 0.49 * fs) / (fs / 2), btype='low')
+    x_f = filtfilt(b, a, x)
+    base = moving_average(x_f, int(3 * fs))
+    xd = x_f - base
+    xn = (xd - np.mean(xd)) / (np.std(xd) + 1e-12)
+
+    # 自相關
+    ac = correlate(xn, xn, mode='full')[len(xn)-1:]
+    min_lag, max_lag = int(min_period_sec * fs), int(max_period_sec * fs)
+    peaks, _ = find_peaks(ac[min_lag:max_lag], prominence=0.05)
+    if len(peaks) == 0:
+        return 0.8, []
+    lag_main = peaks[np.argmax(ac[min_lag + peaks])]
+    f0_main = fs / (lag_main + min_lag)
+    cutoff_main = np.clip(gain_over_f0 * f0_main, min_cut, min(max_cut_cap, 0.49*fs))
+
+    # 分段估計
+    win_size = int(5 * fs)
+    step = int(2.5 * fs)
+    segments, local_cuts = [], []
+    for start in range(0, len(xn)-win_size, step):
+        seg = xn[start:start + win_size]
+        ac_seg = correlate(seg, seg, mode='full')[len(seg)-1:]
+        peaks_seg, _ = find_peaks(ac_seg[min_lag:max_lag], prominence=0.05)
+        if len(peaks_seg) == 0:
+            continue
+        lag_seg = peaks_seg[np.argmax(ac_seg[min_lag + peaks_seg])]
+        f0_seg = fs / (lag_seg + min_lag)
+        cutoff_seg = np.clip(gain_over_f0 * f0_seg, min_cut, min(max_cut_cap, 0.49*fs))
+        t_mid = t[start + win_size//2]
+        segments.append({"start": t_mid-2.5, "end": t_mid+2.5, "cutoff": float(cutoff_seg)})
+        local_cuts.append(cutoff_seg)
+    cutoff_final = np.median(local_cuts) if local_cuts else cutoff_main
+    print(f"✅ 自動cutoff完成 → 最終={cutoff_final:.2f}Hz, 區段數={len(segments)}")
+    return cutoff_final, segments
 
 # ===== 自動計算取樣率（僅用 MAINTAINING）=====
 def calculate_fs_from_csv(file_path: str) -> float:
@@ -283,7 +334,40 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
         fs = calculate_fs_from_csv(file_path)
 
         # 濾波
-        r_filt = lowpass_filter(r, fs=fs, cutoff=cutoff, order=order)
+        # 自動估cutoff
+        cutoff_final, segments = auto_cutoff_from_signal(t, r, fs)
+        r_filt_mixed = np.zeros_like(r)
+
+        for seg in segments:
+            m = (t >= seg["start"]) & (t <= seg["end"])
+            if np.sum(m) < int(1.0 * fs):
+                continue
+            r_seg = r[m]
+            r_filt_seg = lowpass_filter(r_seg, fs=fs, cutoff=seg["cutoff"], order=order)
+            r_filt_mixed[m] = r_filt_seg
+
+        # 若仍有空洞區塊，補上濾波（防 filtfilt 報錯）
+        if np.sum(r_filt_mixed == 0) > 0:
+            m_missing = (r_filt_mixed == 0)
+            idx_missing = np.flatnonzero(m_missing)
+            if len(idx_missing) > 0:
+                start = idx_missing[0]
+                blocks = []
+                for i in range(1, len(idx_missing)):
+                    if idx_missing[i] != idx_missing[i-1] + 1:
+                        blocks.append((start, idx_missing[i-1]))
+                        start = idx_missing[i]
+                blocks.append((start, idx_missing[-1]))
+
+                for st, ed in blocks:
+                    seg = r[st:ed+1]
+                    if len(seg) < 16:
+                        r_filt_mixed[st:ed+1] = seg
+                    else:
+                        r_filt_mixed[st:ed+1] = lowpass_filter(seg, fs=fs, cutoff=cutoff_final, order=order)
+
+        r_filt = r_filt_mixed
+
 
         # 基線扣除
         baseline = moving_average(r_filt, int(4.0 * fs))
@@ -333,7 +417,7 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
             "segments": segments,
             "debug": {
                 "fs_hz": fs,
-                "cutoff": cutoff,
+                "cutoff": cutoff_final,
                 "order": order,
                 "zc_all": len(zc_all),
                 "zc_up": 0,  # 嘟嘴/抿嘴不區分上下交叉，統一給 0

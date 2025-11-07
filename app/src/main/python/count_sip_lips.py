@@ -3,6 +3,57 @@ import csv
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
+from scipy.signal import correlate, find_peaks
+
+def auto_cutoff_from_signal(t, r, fs,
+                            min_period_sec=0.5,
+                            max_period_sec=5.0,
+                            gain_over_f0=1.5,
+                            min_cut=0.25,
+                            max_cut_cap=2.0):
+    """
+    根據信號週期自動估 cutoff 頻率，並回傳區段清單。
+    """
+    x = np.asarray(r, dtype=float)
+    if x.size < int(2 * fs):
+        return 0.8, []
+
+    # 全域濾波 & 基線
+    b, a = butter(4, min(1.5, 0.49 * fs) / (fs / 2), btype='low')
+    x_f = filtfilt(b, a, x)
+    base = moving_average(x_f, int(3 * fs))
+    xd = x_f - base
+    xn = (xd - np.mean(xd)) / (np.std(xd) + 1e-12)
+
+    # 自相關
+    ac = correlate(xn, xn, mode='full')[len(xn)-1:]
+    min_lag, max_lag = int(min_period_sec * fs), int(max_period_sec * fs)
+    peaks, _ = find_peaks(ac[min_lag:max_lag], prominence=0.05)
+    if len(peaks) == 0:
+        return 0.8, []
+    lag_main = peaks[np.argmax(ac[min_lag + peaks])]
+    f0_main = fs / (lag_main + min_lag)
+    cutoff_main = np.clip(gain_over_f0 * f0_main, min_cut, min(max_cut_cap, 0.49*fs))
+
+    # 分段估計
+    win_size = int(5 * fs)
+    step = int(2.5 * fs)
+    segments, local_cuts = [], []
+    for start in range(0, len(xn)-win_size, step):
+        seg = xn[start:start + win_size]
+        ac_seg = correlate(seg, seg, mode='full')[len(seg)-1:]
+        peaks_seg, _ = find_peaks(ac_seg[min_lag:max_lag], prominence=0.05)
+        if len(peaks_seg) == 0:
+            continue
+        lag_seg = peaks_seg[np.argmax(ac_seg[min_lag + peaks_seg])]
+        f0_seg = fs / (lag_seg + min_lag)
+        cutoff_seg = np.clip(gain_over_f0 * f0_seg, min_cut, min(max_cut_cap, 0.49*fs))
+        t_mid = t[start + win_size//2]
+        segments.append({"start": t_mid-2.5, "end": t_mid+2.5, "cutoff": float(cutoff_seg)})
+        local_cuts.append(cutoff_seg)
+    cutoff_final = np.median(local_cuts) if local_cuts else cutoff_main
+    print(f"✅ 自動cutoff完成 → 最終={cutoff_final:.2f}Hz, 區段數={len(segments)}")
+    return cutoff_final, segments
 
 # ===== 自動計算取樣率（僅用 MAINTAINING）=====
 def calculate_fs_from_csv(file_path: str) -> float:
@@ -41,34 +92,56 @@ def calculate_fs_from_csv(file_path: str) -> float:
 # ===== DEMO 判斷主方向 =====
 def infer_dir_from_demo(df, cols, point_name, dir_default="N"):
     """
-    從 DEMO 階段判斷主要動作方向
+    從 DEMO 段自動推斷方向（面積法）
     P: 正半波 (往上)
     N: 負半波 (往下)
     """
-    if "state" not in cols:
+    if "state" not in cols or "time_seconds" not in cols:
         return dir_default
 
     s_col = cols["state"]
-    mask = df[s_col].astype(str).str.contains("DEMO", case=False, na=False)
-    demo = df[mask]
-
-    if demo.empty:
-        print(f"⚠️  找不到 DEMO 階段，預設使用 {dir_default}")
+    t_col = cols["time_seconds"]
+    mask_demo = df[s_col].astype(str).str.contains("DEMO", case=False, na=False)
+    if not mask_demo.any():
+        print(f"⚠️ 找不到 DEMO 段，預設使用 {dir_default}")
         return dir_default
 
-    r = pd.to_numeric(demo[cols[point_name]], errors="coerce").dropna().to_numpy()
-    if r.size < 6:
-        print(f"⚠️  DEMO 資料不足，預設使用 {dir_default}")
+    # 取 DEMO 段的時間與訊號
+    t_all = pd.to_numeric(df[t_col], errors="coerce").to_numpy()
+    r_all = pd.to_numeric(df[cols[point_name]], errors="coerce").to_numpy()
+    m_valid = np.isfinite(t_all) & np.isfinite(r_all)
+    t_all, r_all = t_all[m_valid], r_all[m_valid]
+    mask_demo = mask_demo.to_numpy()[m_valid]
+
+    if np.sum(mask_demo) < 5:
+        print(f"⚠️ DEMO 資料不足，預設使用 {dir_default}")
         return dir_default
 
-    med = np.median(r)
-    q95 = np.percentile(r, 95)
-    q05 = np.percentile(r, 5)
-    up_amp = q95 - med
-    down_amp = med - q05
+    t_demo = t_all[mask_demo]
+    r_demo = r_all[mask_demo]
+    t0, t1 = t_demo[0], t_demo[-1]
+    side_sec = 2.0  # DEMO 兩側取樣區間
 
-    dir_auto = "N" if down_amp > up_amp else "P"
-    print(f"📌 DEMO 方向判斷: 上振幅={up_amp:.4f}, 下振幅={down_amp:.4f} → 使用 {dir_auto}")
+    mask_left = (t_all >= t0 - side_sec) & (t_all < t0)
+    mask_right = (t_all > t1) & (t_all <= t1 + side_sec)
+
+    if np.sum(mask_left) < 3 or np.sum(mask_right) < 3:
+        print(f"⚠️ DEMO 兩側資料不足，預設使用 {dir_default}")
+        return dir_default
+
+    r_left_avg = np.mean(r_all[mask_left])
+    r_right_avg = np.mean(r_all[mask_right])
+
+    # 建立基準線（連接左右平均）
+    baseline = np.interp(t_demo, [t_demo[0], t_demo[-1]], [r_left_avg, r_right_avg])
+    diff = r_demo - baseline
+
+    # 計算上下方面積
+    area_pos = np.trapz(diff[diff > 0], t_demo[diff > 0]) if np.any(diff > 0) else 0
+    area_neg = np.trapz(-diff[diff < 0], t_demo[diff < 0]) if np.any(diff < 0) else 0
+
+    dir_auto = "P" if area_pos > area_neg else "N"
+    print(f"📈 DEMO 面積法方向: +面積={area_pos:.4f}, -面積={area_neg:.4f} → 使用 {dir_auto}")
     return dir_auto
 
 # ===== 低通濾波器 =====
@@ -261,7 +334,40 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
         fs = calculate_fs_from_csv(file_path)
 
         # 濾波
-        r_filt = lowpass_filter(r, fs=fs, cutoff=cutoff, order=order)
+        # 自動估cutoff
+        cutoff_final, segments = auto_cutoff_from_signal(t, r, fs)
+        r_filt_mixed = np.zeros_like(r)
+
+        for seg in segments:
+            m = (t >= seg["start"]) & (t <= seg["end"])
+            if np.sum(m) < int(1.0 * fs):
+                continue
+            r_seg = r[m]
+            r_filt_seg = lowpass_filter(r_seg, fs=fs, cutoff=seg["cutoff"], order=order)
+            r_filt_mixed[m] = r_filt_seg
+
+        # 若仍有空洞區塊，補上濾波（防 filtfilt 報錯）
+        if np.sum(r_filt_mixed == 0) > 0:
+            m_missing = (r_filt_mixed == 0)
+            idx_missing = np.flatnonzero(m_missing)
+            if len(idx_missing) > 0:
+                start = idx_missing[0]
+                blocks = []
+                for i in range(1, len(idx_missing)):
+                    if idx_missing[i] != idx_missing[i-1] + 1:
+                        blocks.append((start, idx_missing[i-1]))
+                        start = idx_missing[i]
+                blocks.append((start, idx_missing[-1]))
+
+                for st, ed in blocks:
+                    seg = r[st:ed+1]
+                    if len(seg) < 16:
+                        r_filt_mixed[st:ed+1] = seg
+                    else:
+                        r_filt_mixed[st:ed+1] = lowpass_filter(seg, fs=fs, cutoff=cutoff_final, order=order)
+
+        r_filt = r_filt_mixed
+
 
         # 基線扣除
         baseline = moving_average(r_filt, int(4.0 * fs))
@@ -311,7 +417,7 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
             "segments": segments,
             "debug": {
                 "fs_hz": fs,
-                "cutoff": cutoff,
+                "cutoff": cutoff_final,
                 "order": order,
                 "zc_all": len(zc_all),
                 "zc_up": 0,  # 嘟嘴/抿嘴不區分上下交叉，統一給 0
