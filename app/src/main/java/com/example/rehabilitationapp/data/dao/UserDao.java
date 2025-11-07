@@ -44,5 +44,12 @@ public interface UserDao {
     // 以 user_id 更新 ui_style，且型別一致用 String
     @Query("UPDATE users SET ui_style = :style WHERE user_id = :userId")
     void updateUiStyle(String userId, String style);
+
+    // 給首頁排程回壓使用
+    @Query("UPDATE users SET need_sync = :syncStatus WHERE user_id = :userId")
+    int updateSyncStatus(String userId , int syncStatus);
+
+    @Query("UPDATE users SET password = :newPassword, need_sync = 1 AND user_id  = :userId")
+    int updatePasswordWithSyncFlag(String userId , String  newPassword);
 }
 

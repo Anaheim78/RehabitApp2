@@ -1,5 +1,7 @@
 package com.example.rehabilitationapp.ui.home;
 
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -13,18 +15,37 @@ import com.example.rehabilitationapp.R;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.DatabaseReference;
+
+import com.example.rehabilitationapp.data.dao.UserDao;
+import com.example.rehabilitationapp.data.model.User;
 import com.example.rehabilitationapp.databinding.FragmentHomeBinding;
 import android.view.View.OnClickListener;
 import android.widget.Toast;
 import android.widget.GridLayout;
 import android.content.Intent;
 import com.example.rehabilitationapp.ui.facecheck.FaceCircleCheckerActivity;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.dao.TrainingItemDao;
 import com.example.rehabilitationapp.data.model.TrainingItem;
+
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.content.Context;
+import android.util.Log;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+//每次進入首頁時，檢查是否帳密要同步更新到FIREBASE
+
+
 public class HomeFragment extends Fragment {
 
     private FragmentHomeBinding binding;
@@ -32,12 +53,17 @@ public class HomeFragment extends Fragment {
     private int selectedTrainingType = -1;
     private List<TrainingItem> items;
 
+
+
+    //在onCreateView的視圖初始化_穩定結束後，再進行部分內容渲染
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
         // 在這裡設定標題
         requireActivity().setTitle("首頁");  // 或 "訓練計畫"
+        //binding.titleGreeting.setText("Hi, Allen!");
+
     }
 
     @Override
@@ -46,21 +72,17 @@ public class HomeFragment extends Fragment {
 
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
-
         // 初始化界面
         initializeUI();
-        // onViewCreated 或 initializeUI 之後
-        //HorizontalScrollView hsv = binding.hsTraining; // 先在 XML 給 HorizontalScrollView 加個 id: @+id/hs_training
-        //hsv.setFillViewport(true);
-        //hsv.setOverScrollMode(View.OVER_SCROLL_NEVER);
-
-// 禁止水平滑動，但保留點擊：只攔截 MOVE，不攔截 DOWN/UP
-        //hsv.setOnTouchListener((v, ev) -> ev.getAction() == MotionEvent.ACTION_MOVE);
         return root;
     }
 
     private void initializeUI() {
+        Log.d("Sync_forTest", "HomeFragment initializeUI CALLED");
         binding.titleGreeting.setText("Hi, Allen!");
+
+        //0) 同步檢查
+        syncUserDataToFirebase();
 
         // 1) 用 DAO 讀資料（背景執行緒）
         Executors.newSingleThreadExecutor().execute(() -> {
@@ -150,6 +172,52 @@ public class HomeFragment extends Fragment {
         }
     }
 
+    private void syncUserDataToFirebase() {
+
+        if (!isNetworkAvailable()) return;
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                UserDao userDao = AppDatabase.getInstance(requireContext()).userDao();
+                User user = userDao.findLoggedInOne();
+
+                if (user == null) {
+                    Log.d("Sync_forTest", "User = null, skip sync");
+                    return;
+                }
+
+                Log.d("Sync_forTest", "LoggedInUser = " + user.userId + ", need_sync = " + user.need_sync);
+
+                if (user.need_sync != 1) return;
+
+                Map<String, Object> userData = new HashMap<>();
+                userData.put("password", user.password);
+                userData.put("updateTime", System.currentTimeMillis());
+
+                FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+                db.collection("Users").document(user.userId)
+                        .set(userData)
+                        .addOnSuccessListener(aVoid -> {
+                            Log.d("Sync_forTest", "Firestore 上傳成功");
+
+                            // update local DB
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                userDao.updateSyncStatus(user.userId, 0);
+                                Log.d("Sync_forTest", "同步成功");
+                            });
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e("Sync_forTest", "Firestore 同步失敗", e);
+                        });
+
+            } catch (Exception e) {
+                Log.e("Sync_forTest", "錯誤", e);
+            }
+        });
+    }
+
+
     private int dp(int v) {
         float d = getResources().getDisplayMetrics().density;
         return Math.round(v * d);
@@ -162,4 +230,24 @@ public class HomeFragment extends Fragment {
         binding = null;
         selectedCard = null;
     }
+
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager cm = (ConnectivityManager)
+                requireContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            Network network = cm.getActiveNetwork();
+            if (network == null) return false;
+
+            NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
+            return capabilities != null &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } else {
+            // 舊版 Android
+            android.net.NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+            return activeNetwork != null && activeNetwork.isConnected();
+        }
+    }
+
 }

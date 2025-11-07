@@ -35,6 +35,9 @@ public class User {
     @ColumnInfo(name = "name")
     public String name;
 
+    @ColumnInfo(name = "need_sync")
+    public int need_sync ;
+
     public int getLocalId() {
         return localId;
     }

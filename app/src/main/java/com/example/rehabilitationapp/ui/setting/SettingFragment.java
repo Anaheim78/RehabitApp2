@@ -16,6 +16,13 @@ import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
 
+//SettingFragment : 綁定layout
+//onViewCreated() : 初次渲染欄位格式等，不包括資料
+//loadUserAndUpdateUI : 更新內文，重回跟進入都跑一遍
+
+//btnEditProfile.setOnClickListener(v ->  按鍵綁定 "個人資料編輯"
+//btnChangePassword.setOnClickListener(v ->  按鍵綁定 "密碼變更"
+
 public class SettingFragment extends Fragment {
 
     public SettingFragment() { super(R.layout.fragment_setting); }

@@ -30,7 +30,8 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
                 User.class,
                 TrainingHistory.class
         },
-        version = 5,              // ★ 版本 +1（原本是 2）
+        //!!!!!!!!!!!!!!!!!!!!!!!每次更新資料庫這邊要改，比如5->6，這裡要寫6!!!!!!但不然會直接依打開就閃退掉!!!!可以不用清掉資料!!!!!!!!!!!!!!!!3=
+        version = 6,              // ★ 版本 +1（原本是 2）
         exportSchema = true
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -78,6 +79,17 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    // 同步排程
+    public static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // 在 users 表新增 need_sync 欄位
+            db.execSQL("ALTER TABLE users ADD COLUMN need_sync INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+
+
     public static AppDatabase getInstance(Context context) {
         Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
         if (INSTANCE == null) {
@@ -90,7 +102,7 @@ public abstract class AppDatabase extends RoomDatabase {
                                     "rehab_db_2"
                             )
                             // ★ 不要用 fallbackToDestructiveMigration()，會清庫
-                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4, MIGRATION_4_5) // ★ 加上 Migration
+                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4, MIGRATION_4_5,MIGRATION_5_6) // ★ 加上 Migration
                             .build();
 
                     // ===== 下面是你原本的預載資料邏輯，維持不動 =====

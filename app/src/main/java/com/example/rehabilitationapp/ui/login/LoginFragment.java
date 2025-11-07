@@ -22,6 +22,34 @@ import com.example.rehabilitationapp.ui.home.HomeFragment;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+
+//登入邏輯，首次登入後從FireBase搜尋是否存在
+
+//若成功 : 檢查本地DB有無該帳號資料;
+    // 若無則新建該帳號
+    // 已存在: 更新登入時間
+//所以後續使用者在APP設定頁面，修改密碼時，應同步更新本地與FireBase。防呆 : 若本地ROOM的密碼與FIREBASE不同步時，應修改FIREBASE或本地?
+//Q : 假設本地再沒網路得情況更新，是否要同步FIREBASE，或者發現兩者更新沒同步是錯誤，應該以原FIREBASE為主?
+
+//A:
+// A.大原則
+//	1.本地允許修改
+//	2.但始終以 Firebase 為最終真相
+//	3.網路恢復後，以 Firebase 為準
+//
+//B.實際場景
+//	1.離線修改密碼
+//	2.本地先存儲新密碼
+//	3.標記為 PENDING_SYNC
+//	4.網路恢復後同步
+//	5.立即同步到 Firebase，並更新本地同步狀態
+//
+//
+//C. 後台同步服務
+//	1.定期檢查 PENDING_SYNC 狀態
+//	2.重試同步到 Firebase
+//	3.如果多次同步失敗，通知用戶
+
 public class LoginFragment extends Fragment {
 
     private static final String TAG = "LOGIN"; // ✅ Log 標籤
