@@ -154,7 +154,7 @@ public class EditProfileActivity extends AppCompatActivity {
                 etEmail.setText(nz(me.email));
                 etName.setText(nz(me.name));
                 etBirthday.setText(nz(me.birthday));
-                if (tvJoinDate != null) tvJoinDate.setText(nz(me.createdAtFormatted));
+                if (tvJoinDate != null) tvJoinDate.setText(nz("加入日期：" + me.createdAtFormatted));
 
                 // "M"/"F" → segment 左/右
                 boolean isMaleFromDb = !"F".equalsIgnoreCase(me.gender);   // 預設男
