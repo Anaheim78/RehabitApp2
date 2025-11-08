@@ -42,6 +42,7 @@ import android.net.NetworkInfo;
 import android.content.Context;
 import android.util.Log;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 //每次進入首頁時，檢查是否帳密要同步更新到FIREBASE
 
@@ -174,7 +175,10 @@ public class HomeFragment extends Fragment {
 
     private void syncUserDataToFirebase() {
 
-        if (!isNetworkAvailable()) return;
+        if (!isNetworkAvailable()) {
+            Log.d("Sync_forTest", "without network");
+            return;
+        }
 
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
@@ -190,32 +194,51 @@ public class HomeFragment extends Fragment {
 
                 if (user.need_sync != 1) return;
 
-                Map<String, Object> userData = new HashMap<>();
-                userData.put("password", user.password);
-                userData.put("updateTime", System.currentTimeMillis());
-
                 FirebaseFirestore db = FirebaseFirestore.getInstance();
+                CollectionReference usersRef = db.collection("Users");
 
-                db.collection("Users").document(user.userId)
-                        .set(userData)
-                        .addOnSuccessListener(aVoid -> {
-                            Log.d("Sync_forTest", "Firestore 上傳成功");
+                // Step 1. 用 user_id 查 Firestore 文件
+                usersRef.whereEqualTo("user_id", user.userId)
+                        .limit(1)
+                        .get()
+                        .addOnSuccessListener(querySnapshot -> {
+                            if (!querySnapshot.isEmpty()) {
+                                // Step 2. 找到該文件的亂碼 docId
+                                String docId = querySnapshot.getDocuments().get(0).getId();
+                                Log.d("Sync_forTest", "找到 user_id 對應文件: " + docId);
 
-                            // update local DB
-                            Executors.newSingleThreadExecutor().execute(() -> {
-                                userDao.updateSyncStatus(user.userId, 0);
-                                Log.d("Sync_forTest", "同步成功");
-                            });
+                                // Step 3. 更新指定欄位（不覆蓋整筆）
+                                Map<String, Object> updates = new HashMap<>();
+                                updates.put("password", user.password);
+                                updates.put("updateTime", System.currentTimeMillis());
+
+                                usersRef.document(docId)
+                                        .update(updates)
+                                        .addOnSuccessListener(aVoid -> {
+                                            Log.d("Sync_forTest", "Firestore 密碼更新成功");
+
+                                            // Step 4. 更新本地 DB 狀態
+                                            Executors.newSingleThreadExecutor().execute(() -> {
+                                                userDao.updateSyncStatus(user.userId, 0);
+                                                Log.d("Sync_forTest", "本地同步成功");
+                                            });
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e("Sync_forTest", "Firestore 更新失敗", e);
+                                        });
+
+                            } else {
+                                Log.w("Sync_forTest", "找不到 user_id = " + user.userId + " 的文件，略過更新");
+                            }
                         })
-                        .addOnFailureListener(e -> {
-                            Log.e("Sync_forTest", "Firestore 同步失敗", e);
-                        });
+                        .addOnFailureListener(e -> Log.e("Sync_forTest", "查詢失敗", e));
 
             } catch (Exception e) {
                 Log.e("Sync_forTest", "錯誤", e);
             }
         });
     }
+
 
 
     private int dp(int v) {
