@@ -22,6 +22,7 @@ import com.example.rehabilitationapp.data.model.User;
 
 //btnEditProfile.setOnClickListener(v ->  按鍵綁定 "個人資料編輯"
 //btnChangePassword.setOnClickListener(v ->  按鍵綁定 "密碼變更"
+//btnContact.setOnClickListener(v ->  按鍵綁定 "聯洛"
 
 public class SettingFragment extends Fragment {
 
@@ -30,6 +31,7 @@ public class SettingFragment extends Fragment {
     // === Views ===
     private Button btnEditProfile;
     private Button btnChangePassword;
+    private Button btnContact;
     private TextView tvUserId, tvEmail, tvName, tvBirthday, tvGender, tvJoinDate;
     private View segmentUi, thumbUi;
 
@@ -46,7 +48,7 @@ public class SettingFragment extends Fragment {
         // ---- Bind views ----
         btnEditProfile = view.findViewById(R.id.btnEditProfile);
         btnChangePassword = view.findViewById((R.id.btnChangePassword));
-
+        btnContact = view.findViewById((R.id.btnContact));
         tvUserId   = view.findViewById(R.id.tvUserId);
         tvEmail    = view.findViewById(R.id.tvEmail);
         tvName     = view.findViewById(R.id.tvName);
@@ -104,7 +106,30 @@ public class SettingFragment extends Fragment {
                 });
             }).start();
         });
+
+
+        btnContact.setOnClickListener( v ->{
+            // 以防 currentUserId 還沒載完，這裡再保險查一次
+            new Thread(() -> {
+                String uid = currentUserId;
+                if (uid == null || uid.isEmpty()) {
+                    User me = userDao.findLoggedInOne();
+                    if (me != null) uid = me.userId;
+                }
+                if (uid == null) return;
+
+                final String finalUid = uid;
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    Intent i = new Intent(requireContext(), EditContactActivity.class);
+                    i.putExtra("EXTRA_USER_ID", finalUid);
+                    startActivity(i);
+                });
+            }).start();
+        });
     }
+
+
 
     @Override
     public void onResume() {

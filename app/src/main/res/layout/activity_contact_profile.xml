@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/pageRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_login_gradient">
+
+    <!-- 標題 -->
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="80dp"
+        android:gravity="center"
+        android:text="變更密碼"
+        android:textColor="@android:color/black"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- 表單區 -->
+    <LinearLayout
+        android:id="@+id/formContainer"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="100dp"
+        android:layout_marginHorizontal="24dp"
+        app:layout_constraintTop_toBottomOf="@id/title"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Row：ID -->
+
+        <!-- Row：Email -->
+
+        <!-- Row：姓名 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="20dp">
+
+            <TextView
+                android:layout_width="72dp"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:text="舊密碼"
+                android:textColor="@android:color/black"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/etName"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_field_input"
+                android:paddingHorizontal="8dp"
+                android:hint="請輸入原密碼"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Row：生日 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="0dp"
+            android:background="#FFD600" />
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp"
+            >
+
+            <TextView
+                android:layout_width="72dp"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:text="新密碼"
+                android:textColor="@android:color/black"
+                android:textSize="16sp"
+
+                />
+
+            <EditText
+                android:id="@+id/etBirthday01"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_field_input"
+                android:paddingHorizontal="8dp"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Row：性別 滑塊 -->
+
+        <!-- 標籤：介面風格 -->
+        <!-- 黃色線 -->
+        <!-- Row：介面風格 滑塊 -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp"
+            >
+
+            <TextView
+                android:layout_width="72dp"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:text="再次確認"
+                android:textColor="@android:color/black"
+                android:textSize="16sp" />
+
+            <EditText
+                android:id="@+id/etBirthday"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_field_input"
+                android:paddingHorizontal="8dp"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/etBirthday3"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_field_input"
+            android:hint="YYYY/MM/DD"
+            android:inputType="date"
+            android:paddingHorizontal="8dp"
+            android:textSize="14sp" />
+
+        <FrameLayout
+            android:id="@+id/styleSegment"
+            android:layout_width="match_parent"
+            android:layout_height="65dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/segment_track">
+
+            <View
+                android:id="@+id/styleThumb"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/segment_thumb" />
+
+            <TextView
+                android:id="@+id/msg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="密碼長度需至少 8 個字，需包含英文字母與數字"
+                android:textColor="@android:color/black"
+                android:textSize="14sp" />
+
+        </FrameLayout>
+
+        <!-- 加入日期 -->
+
+    </LinearLayout>
+
+    <!--
+    <Button
+        android:id="@+id/btnConfirm"
+        android:layout_width="160dp"
+        android:layout_height="44dp"
+        android:layout_marginBottom="32dp"
+        android:background="@drawable/segment_thumb"
+        android:text="確認"
+        android:textColor="@android:color/black"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/formContainer"
+        android:stateListAnimator="@null"
+        android:elevation="0dp"
+        android:translationZ="0dp"
+        />  底部確認按鈕 -->
+
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnConfirm"
+        android:layout_width="153dp"
+        android:layout_height="50dp"
+        android:layout_marginBottom="90dp"
+        android:stateListAnimator="@null"
+        android:text="確認"
+        android:textColor="@android:color/black"
+        android:textSize="14sp"
+        app:cornerRadius="10dp"
+        app:elevation="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/formContainer"
+        app:strokeColor="@color/button_border"
+        app:strokeWidth="2dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
