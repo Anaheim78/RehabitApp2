@@ -29,6 +29,7 @@ public class SettingFragment extends Fragment {
 
     // === Views ===
     private Button btnEditProfile;
+    private Button btnChangePassword;
     private TextView tvUserId, tvEmail, tvName, tvBirthday, tvGender, tvJoinDate;
     private View segmentUi, thumbUi;
 
@@ -44,6 +45,7 @@ public class SettingFragment extends Fragment {
 
         // ---- Bind views ----
         btnEditProfile = view.findViewById(R.id.btnEditProfile);
+        btnChangePassword = view.findViewById((R.id.btnChangePassword));
 
         tvUserId   = view.findViewById(R.id.tvUserId);
         tvEmail    = view.findViewById(R.id.tvEmail);
@@ -76,6 +78,27 @@ public class SettingFragment extends Fragment {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     Intent i = new Intent(requireContext(), EditProfileActivity.class);
+                    i.putExtra("EXTRA_USER_ID", finalUid);
+                    startActivity(i);
+                });
+            }).start();
+        });
+
+        //--進入修改密碼--
+        btnChangePassword.setOnClickListener( v ->{
+            // 以防 currentUserId 還沒載完，這裡再保險查一次
+            new Thread(() -> {
+                String uid = currentUserId;
+                if (uid == null || uid.isEmpty()) {
+                    User me = userDao.findLoggedInOne();
+                    if (me != null) uid = me.userId;
+                }
+                if (uid == null) return;
+
+                final String finalUid = uid;
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    Intent i = new Intent(requireContext(), EditPwdActivity.class);
                     i.putExtra("EXTRA_USER_ID", finalUid);
                     startActivity(i);
                 });

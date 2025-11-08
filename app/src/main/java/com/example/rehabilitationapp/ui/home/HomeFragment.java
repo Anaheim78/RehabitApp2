@@ -44,7 +44,8 @@ import android.util.Log;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.FirebaseFirestore;
-//每次進入首頁時，檢查是否帳密要同步更新到FIREBASE
+
+//syncUserDataToFirebase() : 每次進入首頁時，檢查是否帳密要同步更新到FIREBASE
 
 
 public class HomeFragment extends Fragment {
@@ -82,7 +83,7 @@ public class HomeFragment extends Fragment {
         Log.d("Sync_forTest", "HomeFragment initializeUI CALLED");
         binding.titleGreeting.setText("Hi, Allen!");
 
-        //0) 同步檢查
+        //0) 固定SOP : 檢查有沒有修改密碼，同步到FIREBASE
         syncUserDataToFirebase();
 
         // 1) 用 DAO 讀資料（背景執行緒）

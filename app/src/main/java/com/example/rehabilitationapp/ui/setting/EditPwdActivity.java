@@ -4,8 +4,8 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -16,7 +16,7 @@ import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
 
-public class EditProfileActivity extends AppCompatActivity {
+public class EditPwdActivity extends AppCompatActivity {
 
     private EditText etEmail, etName, etBirthday;
     private FrameLayout genderSegment, styleSegment;
@@ -32,7 +32,7 @@ public class EditProfileActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         // 先綁layout xml
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_edit_profile);
+        setContentView(R.layout.activity_change_password_profile);
         // 從Intent讀取
         String userId = getIntent().getStringExtra("EXTRA_USER_ID");
         // 綁定 View
