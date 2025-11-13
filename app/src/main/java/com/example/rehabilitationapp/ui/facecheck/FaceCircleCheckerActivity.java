@@ -104,7 +104,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
     //<=========【影片錄製】==========
-    private static final boolean ENABLE_VIDEO_RECORDING = false; // ← 改 false 就關閉錄影
+    private static final boolean ENABLE_VIDEO_RECORDING = true; // ← 改 false 就關閉錄影
     private VideoCapture<Recorder> videoCapture;
     private Recording currentRecording;
     private String videoFilePath;
