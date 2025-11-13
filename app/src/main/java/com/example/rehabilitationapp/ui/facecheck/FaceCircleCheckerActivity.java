@@ -177,8 +177,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===========【UX顯示區塊相關】===============>
 
     //<==============計時設計常數==============
-    private static final int CALIBRATION_TIME = 13000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 20000;     // 維持時間(毫秒)
+    private static final int CALIBRATION_TIME = 11000;         // 校正時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 15000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
@@ -715,8 +715,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             }
 
                             // 把快取 ROI 傳給 YOLO（不一定每幀更新 ROI）
-                            handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
+//                            handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
+//                                    lastOverlayRoi, lastBitmapRoi);
+                            //20025 11 13 偷改看看新模型
+                            handleTongueModeLR(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
                                     lastOverlayRoi, lastBitmapRoi);
+
                         } else if("TONGUE_LEFT".equals(trainingLabel) || "TONGUE_RIGHT".equals(trainingLabel) ){
 //                            Log.d(TAG_2, "動作分流_舌頭");
                             // 幀樹過濾器: 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap），needFaceMesh=需不需要更新
@@ -1207,10 +1211,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         if (d < 4000) {
                             // 0~4s：黃
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
-                        } else if (d < 9000) {
+                        } else if (d < 8000) {
                             // 4~9s：藍
                             uiStatus = CircleOverlayView.Status.DEMO;
-                        } else if (d < 13000) {
+                            statusText.setText("請做一次示範動作");
+                        } else if (d < 11000) {
                             // 9~13s：黃
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                         } else {
