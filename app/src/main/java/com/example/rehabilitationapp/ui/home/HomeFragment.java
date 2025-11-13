@@ -65,6 +65,25 @@ public class HomeFragment extends Fragment {
         // 在這裡設定標題
         requireActivity().setTitle("首頁");  // 或 "訓練計畫"
         //binding.titleGreeting.setText("Hi, Allen!");
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                UserDao userDao = AppDatabase.getInstance(requireContext()).userDao();
+                User user = userDao.findLoggedInOne();
+
+                if (user != null) {
+                    requireActivity().runOnUiThread(() -> {
+                        String displayName = (user.name != null && !user.name.isEmpty()) ? user.name : user.userId;
+                        binding.titleGreeting.setText("Hi, " + displayName + "!");
+                    });
+                } else {
+                    requireActivity().runOnUiThread(() -> binding.titleGreeting.setText("Hi!"));
+                }
+
+            } catch (Exception e) {
+                Log.e("HomeFragment", "讀取使用者失敗", e);
+                requireActivity().runOnUiThread(() -> binding.titleGreeting.setText("Hi!"));
+            }
+        });
 
     }
 
@@ -110,12 +129,12 @@ public class HomeFragment extends Fragment {
         }
         TrainingItem item = items.get(selectedTrainingType);
 
-        Toast.makeText(getContext(), "開始 " + item.title + " 訓練！", Toast.LENGTH_SHORT).show();
-
-        Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
-        intent.putExtra("training_type", item.analysisType); // 用 DB 裡的 type
-        intent.putExtra("training_label", item.title);
-        startActivity(intent);
+        Toast.makeText(getContext(), "開始 " + item.title + " 影片說明！", Toast.LENGTH_SHORT).show();
+//  TODO .. 改成播放GIF影像
+//        Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
+//        intent.putExtra("training_type", item.analysisType); // 用 DB 裡的 type
+//        intent.putExtra("training_label", item.title);
+//        startActivity(intent);
     }
 
     private void selectCard(View card, int trainingType) {
