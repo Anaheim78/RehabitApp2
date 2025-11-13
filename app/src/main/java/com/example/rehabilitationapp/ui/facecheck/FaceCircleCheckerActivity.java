@@ -141,6 +141,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 周邊物件
     private TongueYoloDetector tongueDetector;
+    private TongueYoloDetectorLR tongueDetectorLR;
     private boolean isYoloEnabled = false;
     // ROI快取給YOLO（Overlay/Bitmap 兩套座標系）
     private Rect lastOverlayRoi = null;
@@ -238,6 +239,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 "TONGUE_UP".equals(trainingLabel) ||
                 "TONGUE_DOWN".equals(trainingLabel)) {
             initializeTongueDetector();
+            Log.d("Confirm what trainingLabel is: ", trainingLabel);
             Log.d(TAG, "✅ 舌頭模式：使用 MediaPipe 關鍵點顯示與啟用 YOLO 檢測 + YOLO 顯示");
         } else {
             Log.d(TAG, "✅ 非舌頭模式：使用 MediaPipe 關鍵點顯示");
@@ -345,6 +347,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG, "✅ YOLO 檢測器資源已清理");
         }
 
+        if (tongueDetectorLR != null) {
+            try {
+                tongueDetectorLR.release();
+            } catch (Throwable ignore) { }
+            tongueDetectorLR = null;
+            Log.d(TAG, "✅ YOLO 檢測器資源已清理");
+        }
+
         if (faceLandmarker != null) {
             try {
                 faceLandmarker.close();
@@ -380,6 +390,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void initializeTongueDetector() {
         try {
             tongueDetector = new TongueYoloDetector(this);
+
             isYoloEnabled = tongueDetector.isInitialized();
             if (!isYoloEnabled) {
                 Log.e(TAG, "❌ 舌頭檢測器初始化失敗");
@@ -389,6 +400,20 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.e(TAG, "❌ 舌頭檢測器初始化錯誤: " + e.getMessage());
             isYoloEnabled = false;
             Toast.makeText(this, "舌頭檢測器載入失敗：" + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+
+        try {
+            tongueDetectorLR = new TongueYoloDetectorLR(this);
+
+            isYoloEnabled = tongueDetectorLR.isInitialized();
+            if (!isYoloEnabled) {
+                Log.e(TAG, "❌ LR舌頭檢測器初始化失敗");
+                Toast.makeText(this, "LR舌頭檢測器初始化失敗，將使用一般模式", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "❌ LR舌頭檢測器初始化錯誤: " + e.getMessage());
+            isYoloEnabled = false;
+            Toast.makeText(this, "LR舌頭檢測器載入失敗：" + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -664,10 +689,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //                            Log.d(TAG_2, "進入主流程_checkFacePosition_寫完兩個allPoints");
                         }
                         //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
-                        if (("舌頭".equals(trainingLabel) ||
-                                "TONGUE_LEFT".equals(trainingLabel) ||
-                                "TONGUE_RIGHT".equals(trainingLabel) ||
-                                "TONGUE_FOWARD".equals(trainingLabel) ||
+                        if (("TONGUE_FOWARD".equals(trainingLabel) ||
                                 "TONGUE_BACK".equals(trainingLabel) ||
                                 "TONGUE_UP".equals(trainingLabel) ||
                                 "TONGUE_DOWN".equals(trainingLabel)) && isYoloEnabled) {
@@ -694,6 +716,29 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                             // 把快取 ROI 傳給 YOLO（不一定每幀更新 ROI）
                             handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
+                                    lastOverlayRoi, lastBitmapRoi);
+                        } else if("TONGUE_LEFT".equals(trainingLabel) || "TONGUE_RIGHT".equals(trainingLabel) ){
+//                            Log.d(TAG_2, "動作分流_舌頭");
+                            // 幀樹過濾器: 每 FACE_MESH_EVERY 幀更新一次 ROI（Overlay→Bitmap），needFaceMesh=需不需要更新
+                            // 更換機型可以調整看看
+                            boolean needFaceMesh = (lastOverlayRoi == null) || (frameId % FACE_MESH_EVERY == 0);
+                            if (needFaceMesh) {
+                                Rect overlayRoi = TongueYoloDetectorLR.calculateMouthROI(allPoints, overlayWidth, overlayHeight);
+                                lastOverlayRoi = overlayRoi;
+                                //mirroredBitmap =>圖已轉正+左右顛倒後
+                                // b除以sx=o，求sx就是要算縮放倍率
+                                Log.d("confirmLR", "into LR checkPos");
+                                float sx = (float) mirroredBitmap.getWidth() / overlayWidth;
+                                float sy = (float) mirroredBitmap.getHeight() / overlayHeight;
+                                lastBitmapRoi = new Rect(
+                                        Math.round(overlayRoi.left * sx),
+                                        Math.round(overlayRoi.top * sy),
+                                        Math.round(overlayRoi.right * sx),
+                                        Math.round(overlayRoi.bottom * sy)
+                                );
+                            }
+                            // 把快取 ROI 傳給 YOLO（不一定每幀更新 ROI）
+                            handleTongueModeLR(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
                                     lastOverlayRoi, lastBitmapRoi);
 
                         } else if ("鼓頰".equals(trainingLabel) || "PUFF_CHEEK".equals(trainingLabel) || "REDUCE_CHEEK".equals(trainingLabel)) {
@@ -747,6 +792,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     /**
      * 舌頭模式：用快取好的 ROI + 節流 YOLO
      * 模式處理只負責到紀錄，稍後由狀態幾呼叫完成進行後續邏輯
+     * 改TongueYoloDetector.DetectionResult result 的物件1或2
      */
     private void handleTongueMode(float[][] allPoints, Bitmap mirroredBitmap, int bitmapWidth, int bitmapHeight,
                                   Rect overlayRoi,   // ← 使用快取 Overlay ROI
@@ -769,6 +815,160 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 TongueYoloDetector.DetectionResult result =
                         tongueDetector.detectTongueWithRealPosition(
                                 mirroredBitmap, bitmapROIFinal, overlayWidth, overlayHeight);
+                long t1 = System.nanoTime();
+                float inferMs = (t1 - t0) / 1_000_000f;
+
+                Rect viewTongueBox = null;
+                if (result.detected && result.boundingBox != null) {
+                    float sx = overlayWidth  / (float) mirroredBitmap.getWidth();
+                    float sy = overlayHeight / (float) mirroredBitmap.getHeight();
+                    Rect b = result.boundingBox;
+                    viewTongueBox = new Rect(
+                            Math.round(b.left   * sx),
+                            Math.round(b.top    * sy),
+                            Math.round(b.right  * sx),
+                            Math.round(b.bottom * sy)
+                    );
+                }
+
+                // 每 10 秒打一行 METRICS
+                // 好像跟電池有關
+                String thermalStr = "N/A";
+                try {
+                    android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                    if (pm != null) {
+                        int ts = pm.getCurrentThermalStatus();
+                        switch (ts) {
+                            case android.os.PowerManager.THERMAL_STATUS_NONE:      thermalStr = "NONE"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_LIGHT:     thermalStr = "LIGHT"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_MODERATE:  thermalStr = "MODERATE"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_SEVERE:    thermalStr = "SEVERE"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_CRITICAL:  thermalStr = "CRITICAL"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_EMERGENCY: thermalStr = "EMERGENCY"; break;
+                            case android.os.PowerManager.THERMAL_STATUS_SHUTDOWN:  thermalStr = "SHUTDOWN"; break;
+                            default: thermalStr = String.valueOf(ts);
+                        }
+                    }
+                } catch (Throwable ignore) {}
+
+                long now = System.currentTimeMillis();
+                if (firstMetricTime == 0) firstMetricTime = now;
+                long elapsed = (now - firstMetricTime) / 1000;
+                if (elapsed == 10 || elapsed == 20 || elapsed == 30 || elapsed == 40) {
+                    Log.d(TAG, String.format("METRICS@%ds infer=%.1fms bestProb=%.3f thermal=%s",
+                            elapsed, inferMs, result.confidence, thermalStr));
+                }
+
+                Rect finalViewTongueBox = viewTongueBox;
+                //準備帶入主執行緒
+                final boolean detected = result.detected;
+                final float conf = result.confidence;
+                final Rect bboxImgFinal = (result.detected && result.boundingBox != null)
+                        ? new Rect(result.boundingBox) : null;
+                mainHandler.post(() -> {
+                    overlayView.setYoloDetectionResult(detected, conf, finalViewTongueBox, mouthROIFinal);
+
+                    // 設定參考線 (用 View 座標)，單純為了把座標丟給overlayView繪製
+                    float eyeRxView = allPointsFinal[33][0], eyeRyView = allPointsFinal[33][1];
+                    float eyeLxView = allPointsFinal[263][0], eyeLyView = allPointsFinal[263][1];
+                    float browCxView = allPointsFinal[168][0], browCyView = allPointsFinal[168][1];
+                    float noseXView = allPointsFinal[1][0], noseYView = allPointsFinal[1][1];
+                    overlayView.setReferenceLines(eyeLxView, eyeLyView, eyeRxView, eyeRyView, noseXView, noseYView, browCxView, browCyView);
+
+                    if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
+                        String stateString = csvState();
+                        // 1) 影像尺寸（Bitmap 像素）
+                        final int imgW = mirroredBitmap.getWidth();
+                        final int imgH = mirroredBitmap.getHeight();
+
+                        // 2) YOLO bbox（Bitmap 像素；無偵測→null）
+                        final android.graphics.Rect bboxImg = bboxImgFinal;
+
+                        // 3) 將 allPointsFinal 統一到「Bitmap 像素」
+                        float[][] ptsPx = toBitmapPixels(allPointsFinal, imgW, imgH, overlayView.getWidth(), overlayView.getHeight());
+
+                        // 4) 取需要的臉部點（MediaPipe FaceMesh index）
+                        final int EYE_R = 33, EYE_L = 263, BROW_C = 168, NOSE_T = 1;
+                        float eyeRx = ptsPx[EYE_R][0], eyeRy = ptsPx[EYE_R][1];
+                        float eyeLx = ptsPx[EYE_L][0], eyeLy = ptsPx[EYE_L][1];
+                        float browCx = ptsPx[BROW_C][0],  browCy = ptsPx[BROW_C][1];
+                        float noseX  = ptsPx[NOSE_T][0],  noseY  = ptsPx[NOSE_T][1];
+
+                        // 5) 補正參數：原點（你要的基準點），旋轉角（兩眼線）、縮放（兩眼距）
+                        float originX = noseX, originY = noseY;   // 你要用鼻尖當原點
+                        float vxEye = eyeRx - eyeLx, vyEye = eyeRy - eyeLy;
+                        float dio   = (float) Math.hypot(vxEye, vyEye);       // 兩眼距
+                        float theta = (float) Math.atan2(vyEye, vxEye);       // 兩眼線相對水平角（弧度）
+
+                        // 6) 舌頭中心（Bitmap 像素）與補正後座標
+                        float cxImg = Float.NaN, cyImg = Float.NaN, xNorm = Float.NaN, yNorm = Float.NaN;
+                        if (bboxImg != null) {
+                            cxImg = (bboxImg.left + bboxImg.right) * 0.5f;
+                            cyImg = (bboxImg.top  + bboxImg.bottom) * 0.5f;
+
+                            // 平移到原點
+                            float vx = cxImg - originX;
+                            float vy = cyImg - originY;
+
+                            // 旋轉 -theta（讓兩眼線水平）
+                            float cosT = (float) Math.cos(theta), sinT = (float) Math.sin(theta);
+                            float xr =  vx * cosT + vy * sinT;
+                            float yr = -vx * sinT + vy * cosT;
+
+                            // 縮放正規化（除以兩眼距）
+                            if (dio > 1e-3f) {
+                                xNorm = xr / dio;
+                                yNorm = yr / dio;
+                            }
+                        }
+
+                        // 7) 寫入：呼叫「舌頭專用多載」
+                        dataRecorder.recordLandmarkData(
+                                stateString,
+                                detected,
+                                bboxImg,
+                                eyeLx, eyeLy, eyeRx, eyeRy,
+                                browCx, browCy, noseX, noseY,
+                                imgW, imgH,
+                                System.currentTimeMillis(),
+                                originX, originY,
+                                theta,
+                                dio,
+                                cxImg, cyImg,
+                                xNorm, yNorm
+                        );
+                    }
+                });
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "處理舌頭模式時發生錯誤", e);
+        }
+    }
+
+
+    private void handleTongueModeLR(float[][] allPoints, Bitmap mirroredBitmap, int bitmapWidth, int bitmapHeight,
+                                  Rect overlayRoi,   // ← 使用快取 Overlay ROI
+                                  Rect bitmapRoi) {  // ← 使用快取 Bitmap ROI
+        try {
+            if (!shouldAcceptNewFrames()) return;
+            // ★ 每 YOLO_EVERY 幀跑一次 YOLO
+            if ((frameId % YOLO_EVERY) != 0) return;
+            if (overlayRoi == null || bitmapRoi == null) return;
+
+            int overlayWidth = overlayView.getWidth();
+            int overlayHeight = overlayView.getHeight();
+
+            final Rect mouthROIFinal = new Rect(overlayRoi);
+            final float[][] allPointsFinal = allPoints;
+            final Rect bitmapROIFinal = new Rect(bitmapRoi);
+
+            yoloExecutor.execute(() -> {
+                long t0 = System.nanoTime();
+                TongueYoloDetectorLR.DetectionResult result =
+                        tongueDetectorLR.detectTongueWithRealPosition(
+                                mirroredBitmap, bitmapROIFinal, overlayWidth, overlayHeight);
+                Log.d("confirmLR", "into LR handle");
                 long t1 = System.nanoTime();
                 float inferMs = (t1 - t0) / 1_000_000f;
 

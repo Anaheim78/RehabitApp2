@@ -170,6 +170,9 @@ public class TongueYoloDetector {
 
 // 依模型實際輸出 shape 配置輸出緩衝區
             int[] outShape = tflite.getOutputTensor(0).shape(); // [1, 8, N]
+            int C = outShape[1];
+            int numClasses = C - 4;
+            Log.d(TAG, "normal OUT shape=" + java.util.Arrays.toString(outShape) + " → numClasses=" + numClasses);
             numDet = (outShape.length >= 3) ? outShape[2] : 8400; // 保險用
             outputBuffer = new float[outShape[0]][outShape[1]][numDet];
             numDet = outputBuffer[0][0].length;
@@ -718,7 +721,21 @@ public class TongueYoloDetector {
             if (v > maxV) maxV = v;
         }
         final boolean needSigmoid = (minV < 0f || maxV > 1f);
-
+        // ←← 在這裡貼下方這段，看類別最大機率
+        int C = outputBuffer[0].length; // 應該是 8
+        float[] maxC = new float[C];
+        for (int c = 4; c < C; c++) {
+            float m = -1e9f;
+            for (int i = 0; i < numDet; i++) {
+                float raw = outputBuffer[0][c][i];
+                float prob = needSigmoid
+                        ? (float) (1.0 / (1.0 + Math.exp(-Math.max(-20.0, Math.min(20.0, raw)))))
+                        : raw;
+                if (prob > m) m = prob;
+            }
+            maxC[c] = m;
+        }
+        Log.d("Other-Down-CH-score", "per-class max: " + java.util.Arrays.toString(maxC));
         // ---- 掃描所有候選，找舌頭機率最高的框 ----
         for (int i = 0; i < numDet; i++) {
             float raw = outputBuffer[0][CH_TONGUE][i];
@@ -735,7 +752,10 @@ public class TongueYoloDetector {
                 bestIdx = i;
             }
         }
-        if (bestIdx < 0) return new DetectionResult(false);
+        if (bestIdx < 0) {
+            Log.d("nor TonguePostprocess", "No box passed threshold; th=" + DEFAULT_CONFIDENCE_THRESHOLD);
+            return new DetectionResult(false);
+        }
 
         // ---- 取出框座標（可能是 0..1，也可能已是像素；自動判斷）----
         float cxN = outputBuffer[0][CH_CX][bestIdx];
@@ -772,6 +792,11 @@ public class TongueYoloDetector {
         if (right <= left || bottom <= top) return new DetectionResult(false);
 
         Rect realBox = new Rect(left, top, right, bottom);
+        // === 這裡加 Log ===
+        Log.d("TonguePostprocess",
+                "Detected! prob=" + bestProb +
+                        " box=(" + left + "," + top + "," + right + "," + bottom + ")" +
+                        " ROI=" + originalROI.toShortString());
         return new DetectionResult(true, bestProb, realBox);
     }
 
