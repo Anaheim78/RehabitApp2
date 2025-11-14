@@ -50,11 +50,11 @@ public class PlanFragment extends Fragment {
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
 
         // 綁 FAB（加號）
-        FloatingActionButton fab = root.findViewById(R.id.fabAddPlan);
-        fab.setOnClickListener(v -> {
-            Intent intent = new Intent(requireContext(), TrainingDetailActivity.class);
-            startActivity(intent);
-        });
+//        FloatingActionButton fab = root.findViewById(R.id.fabAddPlan);
+//        fab.setOnClickListener(v -> {
+//            Intent intent = new Intent(requireContext(), TrainingDetailActivity.class);
+//            startActivity(intent);
+//        });
 
         loadPlans();
 
