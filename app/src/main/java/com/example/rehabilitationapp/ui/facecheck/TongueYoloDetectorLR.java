@@ -41,7 +41,7 @@ public class TongueYoloDetectorLR {
     private static final String MODEL_FILE = "tongueLR_yolo_fp16_320.tflite"; // or fp32
 
     private static final int CHANNEL_SIZE = 3;
-    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.1f;
+    private static final float DEFAULT_CONFIDENCE_THRESHOLD = 0.6f;
 
 
     // === ROI 對齊 Python 的參數 === 用來對應新版TONGUE模型的ROI

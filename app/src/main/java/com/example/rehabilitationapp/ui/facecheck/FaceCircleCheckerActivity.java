@@ -164,8 +164,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private ProgressBar progressBar;
 
     //圓框狀態管理
-    private enum AppState { CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
+    private enum AppState { DEMO,CALIBRATING, MAINTAINING, OUT_OF_BOUNDS }
     private AppState currentState = AppState.CALIBRATING;
+    private boolean isDemoPhase = false;
 
     //新增籃框
     // --- 校正示範（藍色）用的旗標，只在 CALIBRATING 內生效 ---
@@ -718,7 +719,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //                            handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
 //                                    lastOverlayRoi, lastBitmapRoi);
                             //20025 11 13 偷改看看新模型
-                            handleTongueModeLR(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
+                            handleTongueMode(allPoints, mirroredBitmap, bitmapWidth, bitmapHeight,
                                     lastOverlayRoi, lastBitmapRoi);
 
                         } else if("TONGUE_LEFT".equals(trainingLabel) || "TONGUE_RIGHT".equals(trainingLabel) ){
@@ -1213,9 +1214,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                         } else if (d < 8000) {
                             // 4~9s：藍
-                            uiStatus = CircleOverlayView.Status.DEMO;
-                            statusText.setText("請做一次示範動作");
+                            statusText.setText(
+                                    "藍色階段（4–8 秒）\n" +
+                                            "請輕鬆做一次「" + motionLabelZh(trainingLabel) + "」"
+                            );
+                            isDemoPhase = true;
                         } else if (d < 11000) {
+                            isDemoPhase = false;
                             // 9~13s：黃
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                         } else {
@@ -1676,6 +1681,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //置頂狀態說明文字
     private void updateStatusDisplay() {
         if (statusText == null) return;
+        if (isDemoPhase) {
+            return;  // 不要蓋掉藍色階段的文字
+        }
 
         String text;
         if (isTrainingCompleted) {
@@ -1683,10 +1691,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         } else {
             switch (currentState) {
                 case CALIBRATING:
-                    text = "校正中\n請正對鏡頭，並保持鼻尖在圓框內5秒";
+                    text = "校正中\n請正對鏡頭，並保持鼻尖在圓框內";
                     break;
+//                case DEMO:
+//                    text = "藍色階段（4–8 秒）\n" +
+//                            "請輕鬆做一次「" + motionLabelZh(trainingLabel) + "」";
+//                    break;
                 case MAINTAINING:
-                    text = trainingLabel + "\n請維持30秒";
+                    text = trainingLabel + "\n請重複動作，保持自然的間隔，約15秒。";
                     break;
                 case OUT_OF_BOUNDS:
                 default:
