@@ -85,7 +85,7 @@ public class TrainingDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //20251117目前基礎/進階計劃_跑這邊
+        //=========20251117目前基礎/進階計劃_跑這邊===========
         setContentView(R.layout.activity_training_detail);
 
         executor = Executors.newSingleThreadExecutor();

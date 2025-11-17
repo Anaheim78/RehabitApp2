@@ -179,7 +179,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     //<==============計時設計常數==============
     private static final int CALIBRATION_TIME = 11000;         // 校正時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 15000;     // 維持時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 20000;     // 維持時間(毫秒)
     private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
     // 計時變數
     private long calibrationStartTime = 0;
