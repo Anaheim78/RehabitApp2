@@ -102,6 +102,11 @@ public class TrainingDetailActivity extends AppCompatActivity {
         ImageView backBtn = findViewById(R.id.back_btn);
         backBtn.setOnClickListener(v -> finish());
 
+
+        if (planTitle != null && !planTitle.isEmpty()) {
+            titleText.setText(planTitle);
+        }
+
         exercisesRecycler = findViewById(R.id.exercises_recycler);
         GridLayoutManager glm = new GridLayoutManager(this, 2, GridLayoutManager.HORIZONTAL, false);
         exercisesRecycler.setLayoutManager(glm);
