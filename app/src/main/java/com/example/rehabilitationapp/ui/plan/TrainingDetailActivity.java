@@ -21,6 +21,7 @@ import com.example.rehabilitationapp.data.model.TrainingItem;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
 import com.example.rehabilitationapp.ui.facecheck.FaceCircleCheckerActivity;
 import com.example.rehabilitationapp.ui.facecheck.MotionGuideBottomSheet;
+import com.google.android.material.button.MaterialButton;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,15 +34,21 @@ public class TrainingDetailActivity extends AppCompatActivity {
 
     private RecyclerView exercisesRecycler;
     private ExecutorService executor;
-    private boolean isCreateMode = false;  // 新增：模式標記
+    private boolean isCreateMode = false;  // 是否為「建立新計畫」模式
 
-    //plan_detail_menu先棄用
+    // ★ 統一在這支 Activity 裡共用的 Plan 資訊
+    private int planId = -1;
+    private String planTitle = null;
+    private TextView titleText;
+
+    // ==============================
+    // menu：右上角刪除
+    // ==============================
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (!isCreateMode) {
-            long planId = getIntent().getIntExtra("plan_id", -1);
+            // ★ 用欄位 planId，不再從 Intent 亂抓
             if (planId >= 3) {
-//                getMenuInflater().inflate(R.menu.plan_detail_menu, menu);
                 getMenuInflater().inflate(R.menu.plan_detail_menu, menu);
             } else {
                 Log.d("Menu", "預設計畫，不顯示刪除選單");
@@ -57,11 +64,10 @@ public class TrainingDetailActivity extends AppCompatActivity {
                     .setTitle("刪除訓練計畫")
                     .setMessage("確定要刪除這個訓練計畫嗎？")
                     .setPositiveButton("確定", (dialog, which) -> {
-                        long planId = getIntent().getIntExtra("plan_id", -1);
                         if (planId != -1) {
                             executor.execute(() -> {
                                 AppDatabase db = AppDatabase.getInstance(this);
-                                TrainingPlan plan = db.trainingPlanDao().getById((int) planId);
+                                TrainingPlan plan = db.trainingPlanDao().getById(planId);
                                 if (plan != null) {
                                     db.trainingPlanDao().delete(plan);
                                     runOnUiThread(() -> {
@@ -85,32 +91,56 @@ public class TrainingDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //=========20251117目前基礎/進階計劃_跑這邊===========
         setContentView(R.layout.activity_training_detail);
 
         executor = Executors.newSingleThreadExecutor();
 
+        // ★ 一進來就把 planId / planTitle 讀出來，存到欄位
+        planId = getIntent().getIntExtra("plan_id", -1);
+        planTitle = getIntent().getStringExtra("plan_title");
+
         String mode = getIntent().getStringExtra("mode");
         isCreateMode = "create_new".equals(mode);
-        Log.d("TrainDetailAct", "=== Mode: " + mode + ", isCreateMode: " + isCreateMode + " ===");
+        Log.d("TrainDetailAct", "=== Mode: " + mode + ", isCreateMode: " + isCreateMode + ", planId=" + planId + " ===");
 
-        String planTitle = getIntent().getStringExtra("plan_title");
-        TextView titleText = findViewById(R.id.page_title);
-        // 可自行決定是否顯示標題
-        // titleText.setText(planTitle != null ? planTitle : "自訂訓練計畫");
+        titleText = findViewById(R.id.page_title);
+        if (planTitle != null && !planTitle.isEmpty()) {
+            titleText.setText(planTitle);
+        }
 
         ImageView backBtn = findViewById(R.id.back_btn);
         backBtn.setOnClickListener(v -> finish());
 
+        // ==========================
+        // ★ 底下右邊「編輯」按鈕 → 跳到 AddPlanActivity
+        // ==========================
+        MaterialButton btnEdit = findViewById(R.id.btn_edit_plan);
 
-        if (planTitle != null && !planTitle.isEmpty()) {
-            titleText.setText(planTitle);
+        if (isCreateMode) {
+            // 「建立新計畫」模式下，本來就不是針對某個 plan，禁用編輯按鈕
+            btnEdit.setEnabled(false);
+            btnEdit.setAlpha(0.4f);
+        } else {
+            btnEdit.setOnClickListener(v -> {
+
+                if (planId <= 0) {
+                    Toast.makeText(this, "找不到計畫 ID，無法編輯", Toast.LENGTH_SHORT).show();
+                    Log.e("TrainDetailAct", "Edit click but planId=" + planId);
+                    return;
+                }
+
+                Intent intent = new Intent(TrainingDetailActivity.this, AddPlanActivity.class);
+                intent.putExtra("plan_id", planId);
+                intent.putExtra("plan_title", planTitle);
+                startActivity(intent);
+            });
         }
 
         exercisesRecycler = findViewById(R.id.exercises_recycler);
         GridLayoutManager glm = new GridLayoutManager(this, 2, GridLayoutManager.HORIZONTAL, false);
         exercisesRecycler.setLayoutManager(glm);
 
+        // 第一次進來先載一次
         loadExercises();
 
         Button createBtn = findViewById(R.id.start_plan_btn);
@@ -119,6 +149,7 @@ public class TrainingDetailActivity extends AppCompatActivity {
         } else {
             createBtn.setText("開始訓練");
         }
+
         createBtn.setOnClickListener(v -> {
             Log.d("TrainDetailAct","click start/create button");
             if (isCreateMode) {
@@ -158,7 +189,7 @@ public class TrainingDetailActivity extends AppCompatActivity {
                         .show();
 
             } else {
-                // 👉 這裡改成：先在本頁跳教學，按「開始」才真正進 FaceCircleCheckerActivity
+                // 開始訓練
                 SelectableExerciseAdapter adapter = (SelectableExerciseAdapter) exercisesRecycler.getAdapter();
                 List<TrainingItem> selectedItems = adapter.getSelectedItems();
                 if (selectedItems.isEmpty()) {
@@ -171,6 +202,38 @@ public class TrainingDetailActivity extends AppCompatActivity {
         });
     }
 
+    // ==============================
+    // ★ 回到這頁時，自動重新抓最新的「名稱＋動作」
+    // ==============================
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (!isCreateMode && planId > 0) {
+            executor.execute(() -> {
+                AppDatabase db = AppDatabase.getInstance(this);
+
+                TrainingPlan plan = db.trainingPlanDao().getById(planId);
+                PlanWithItems planWithItems = db.trainingPlanDao().getPlanWithItemsById(planId);
+
+                runOnUiThread(() -> {
+                    if (plan != null) {
+                        planTitle = plan.title;          // 更新記憶中的標題
+                        titleText.setText(plan.title);   // 更新畫面上方標題
+                    }
+                    if (planWithItems != null) {
+                        SelectableExerciseAdapter adapter =
+                                new SelectableExerciseAdapter(planWithItems.items, false);
+                        exercisesRecycler.setAdapter(adapter);
+                    }
+                });
+            });
+        }
+    }
+
+    // ==============================
+    // 載入動作內容（第一次 onCreate 用）
+    // ==============================
     private void loadExercises() {
         executor.execute(() -> {
             try {
@@ -184,11 +247,11 @@ public class TrainingDetailActivity extends AppCompatActivity {
                     });
 
                 } else {
-                    long planId = getIntent().getIntExtra("plan_id", 0);
+                    int currentPlanId = planId;  // ★ 用欄位，不再 getIntExtra
                     List<PlanWithItems> allPlans = db.trainingPlanDao().getAllPlansWithItems();
 
                     for (PlanWithItems planWithItems : allPlans) {
-                        if (planWithItems.plan.id == planId) {
+                        if (planWithItems.plan.id == currentPlanId) {
                             List<TrainingItem> exercises = planWithItems.items;
                             runOnUiThread(() -> {
                                 SelectableExerciseAdapter adapter = new SelectableExerciseAdapter(exercises,false);
@@ -210,24 +273,21 @@ public class TrainingDetailActivity extends AppCompatActivity {
     }
 
     // ==============================
-    // ↓↓↓ 下面是這次新增的教學流程 & 工具方法 ↓↓↓
+    // ↓↓↓ 教學流程 & 工具方法（維持原樣） ↓↓↓
     // ==============================
 
     /** 在本頁顯示教學；按「開始」後才跳 FaceCircleCheckerActivity */
     private void showGuideThenStart(TrainingItem item) {
-        // 代號：優先用 DB 的 analysisType；若空就用中文推測
         String analysisType = (item.analysisType != null && !item.analysisType.isEmpty())
                 ? item.analysisType
                 : inferAnalysisTypeFromTitle(item.title);
         String titleZh = item.title;
 
-        // 若使用者勾過「不再顯示」→ 直接進訓練頁
         if (!shouldShowGuide(analysisType)) {
             launchTraining(analysisType, titleZh);
             return;
         }
 
-        // 顯示教學 BottomSheet（延用你已實作的）
         MotionGuideBottomSheet sheet = MotionGuideBottomSheet.newInstance(analysisType, titleZh);
         sheet.setOnStartListener(() -> launchTraining(analysisType, titleZh));
         sheet.show(getSupportFragmentManager(), "motion_guide_from_detail");
@@ -239,16 +299,11 @@ public class TrainingDetailActivity extends AppCompatActivity {
         Toast.makeText(this, "開始「" + titleZh + "」訓練！", Toast.LENGTH_SHORT).show();
 
         Intent intent = new Intent(this, FaceCircleCheckerActivity.class);
-        // ★ 新版/統一讀法
-        intent.putExtra("training_type", analysisType); // 供 FaceCircle 判斷動作
-        intent.putExtra("training_title", titleZh);     // 中文標題（顯示/教學）
-
-        // ★ 相容舊讀法（你之前 FaceCircle 可能讀這個）
+        intent.putExtra("training_type", analysisType);
+        intent.putExtra("training_title", titleZh);
         intent.putExtra("training_label", titleZh);
 
         startActivity(intent);
-        // 是否 finish() 依你 UX 決定；現在保留不關，讓使用者返回本頁也行
-        // finish();
     }
 
     /** 是否應顯示教學（沿用 BottomSheet 的 SharedPreferences 規則） */
