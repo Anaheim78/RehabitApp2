@@ -1214,6 +1214,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                         } else if (d < 8000) {
                             // 4~9s：藍
+                            uiStatus = CircleOverlayView.Status.DEMO;  // ← 在這裡切換成藍框
                             statusText.setText(
                                     "藍色階段（4–8 秒）\n" +
                                             "請輕鬆做一次「" + motionLabelZh(trainingLabel) + "」"
