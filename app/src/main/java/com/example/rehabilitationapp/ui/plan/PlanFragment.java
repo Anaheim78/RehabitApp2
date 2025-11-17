@@ -16,6 +16,7 @@ import android.util.Log;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
+import com.example.rehabilitationapp.ui.plan.AddPlanActivity;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.util.List;
@@ -71,6 +72,7 @@ public class PlanFragment extends Fragment {
 
                 if (getActivity() != null && isAdded()) {
                     requireActivity().runOnUiThread(() -> {
+                        //lamda是要看傳到物件(PlanAdapter)的第幾格，那一格一定要是指有一個method的interface
                         PlanAdapter adapter = new PlanAdapter(plans, plan -> {
                             Log.d("test_PlanDetail", "=== Clicked plan ID: " + plan.id + " ===");
                             // 跳轉到詳細頁面
@@ -79,7 +81,13 @@ public class PlanFragment extends Fragment {
                             intent.putExtra("plan_description", plan.description);
                             intent.putExtra("plan_id", plan.id);
                             startActivity(intent);
-                        });
+                        },
+                                () -> {
+                                    Intent intent = new Intent(getContext(), AddPlanActivity.class);
+                                    startActivity(intent);
+                                }
+
+                        );
                         recyclerView.setAdapter(adapter);
                     });
                 }

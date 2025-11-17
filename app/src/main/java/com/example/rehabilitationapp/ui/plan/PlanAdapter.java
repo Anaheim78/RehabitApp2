@@ -30,20 +30,24 @@ public class PlanAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void onItemClick(TrainingPlan plan);
 
         // 這個是 footer 專用（你之後想分開就能用）
-        default void onAddClick() {}
+    }
+    public interface OnAddClickListener{
+         void onAddClick() ;
     }
 
     private final List<TrainingPlan> planList;
     private final OnItemClickListener listener;
+    private final OnAddClickListener addClickListener;
 
     // ★ 兩種 view 類型
     private static final int VIEW_TYPE_NORMAL = 0;
     private static final int VIEW_TYPE_FOOTER = 1;
 
     public PlanAdapter(@NonNull List<TrainingPlan> planList,
-                       OnItemClickListener listener) {
+                       OnItemClickListener listener,OnAddClickListener addClickListener) {
         this.planList = planList;
         this.listener = listener;
+        this.addClickListener = addClickListener;
     }
 
     /**
@@ -82,8 +86,7 @@ public class PlanAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
      * Footer 不需要資料 → 直接 return
      */
     @Override
-    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder,
-                                 int position) {
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
 
         if (getItemViewType(position) == VIEW_TYPE_FOOTER) {
             // footer 不需要 bind 資料
@@ -159,8 +162,8 @@ public class PlanAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             fabAddInside = itemView.findViewById(R.id.fabAddInside);
 
             fabAddInside.setOnClickListener(v -> {
-                if (listener != null) {
-                    listener.onAddClick();
+                if (addClickListener != null) {
+                    addClickListener.onAddClick();
                 }
             });
         }
