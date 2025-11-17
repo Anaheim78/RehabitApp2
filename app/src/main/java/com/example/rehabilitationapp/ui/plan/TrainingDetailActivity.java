@@ -35,11 +35,13 @@ public class TrainingDetailActivity extends AppCompatActivity {
     private ExecutorService executor;
     private boolean isCreateMode = false;  // 新增：模式標記
 
+    //plan_detail_menu先棄用
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (!isCreateMode) {
             long planId = getIntent().getIntExtra("plan_id", -1);
             if (planId >= 3) {
+//                getMenuInflater().inflate(R.menu.plan_detail_menu, menu);
                 getMenuInflater().inflate(R.menu.plan_detail_menu, menu);
             } else {
                 Log.d("Menu", "預設計畫，不顯示刪除選單");
@@ -83,6 +85,7 @@ public class TrainingDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        //20251117目前基礎/進階計劃_跑這邊
         setContentView(R.layout.activity_training_detail);
 
         executor = Executors.newSingleThreadExecutor();
