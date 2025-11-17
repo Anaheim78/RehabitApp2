@@ -105,9 +105,9 @@ public class NotificationsFragment extends Fragment {
 
                 // 時間 HH:mm
                 String time = HHMM.format(h.createAt);
+                int count = h.achievedTimes;
 
-                // 塞進 UiRow
-                display.add(new TrainingCardAdapter.UiRow(name, time));
+                display.add(new TrainingCardAdapter.UiRow(name, time, count));
             }
 
             requireActivity().runOnUiThread(() -> trainingAdapter.setItems(display));
