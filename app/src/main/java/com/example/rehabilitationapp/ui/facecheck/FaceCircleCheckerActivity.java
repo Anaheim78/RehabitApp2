@@ -1699,7 +1699,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //                            "請輕鬆做一次「" + motionLabelZh(trainingLabel) + "」";
 //                    break;
                 case MAINTAINING:
-                    text = trainingLabel + "\n請重複動作，保持自然的間隔，約15秒。";
+                    text = trainingLabel + "\n請重複動作，保持自然的間隔，約20秒。";
                     break;
                 case OUT_OF_BOUNDS:
                 default:

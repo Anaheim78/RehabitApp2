@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp.ui.home;
 
+import androidx.appcompat.app.AlertDialog;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
@@ -127,14 +128,131 @@ public class HomeFragment extends Fragment {
             Toast.makeText(getContext(), "請先選擇一個訓練項目", Toast.LENGTH_SHORT).show();
             return;
         }
+
         TrainingItem item = items.get(selectedTrainingType);
 
-        Toast.makeText(getContext(), "開始 " + item.title + " 影片說明！", Toast.LENGTH_SHORT).show();
-//  TODO .. 改成播放GIF影像
-//        Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
-//        intent.putExtra("training_type", item.analysisType); // 用 DB 裡的 type
-//        intent.putExtra("training_label", item.title);
-//        startActivity(intent);
+        // 根據「目前選到的卡片」決定要顯示哪一段說明文字
+        String message = getTrainingDescription(selectedTrainingType, item);
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(item.title)      // 小框標題：用卡片標題
+                .setMessage(message)       // 說明文字（你在下面函式改）
+                .setPositiveButton("知道了", (dialog, which) -> {
+                    // 按關閉後如果要真的開始訓練，就放這裡
+                    // 例如未來要進 FaceCircleCheckerActivity：
+                    // Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
+                    // intent.putExtra("training_type", item.analysisType);
+                    // intent.putExtra("training_label", item.title);
+                    // startActivity(intent);
+                })
+                .show();
+    }
+
+
+    // 依照「選到第幾個卡片」回傳對應說明文字
+    private String getTrainingDescription(int index, TrainingItem item) {
+        switch (index) {
+            case 0:
+                // 第 1 種動作
+                return "1. 請先取下眼鏡等會遮住臉部的物品。\n" +
+                        "2. 鼓起兩側臉頰並保持至少 1.5~3 秒，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次鼓起臉頰的動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+            case 1:
+                // 第 2 種動作
+                return "1. 請先取下眼鏡等會遮住臉部的物品。\n" +
+                        "2. 縮起兩側臉頰並保持至少 1.5~3 秒，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次縮起臉頰的動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            case 2:
+                // 第 3 種動作
+                return  "1. 嘴唇往前嘟起並保持至少 1.5~3 秒，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次嘟嘴動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            case 3:
+                // 第 4 種動作
+                return  "1. 雙脣往內縮並保持至少 1.5~3 秒，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次抿嘴動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            case 4:
+                // 第 5 種動作
+                return  "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中，若疲累也可先閉上再張嘴。\n" +
+                        "2. 舌頭往左並保持至少 1.5~3 秒，並回到初始位置，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次舌頭往左動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+
+            case 5:
+                // 第 6 種動作
+                return  "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中，若疲累也可先閉上再張嘴。\n" +
+                        "2. 舌頭往右並保持至少 1.5~3 秒，並回到初始位置，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次舌頭往右動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            case 6:
+                // 第 7 種動作
+                return  "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中，若疲勞也可先閉上再張嘴。\n" +
+                        "2. 舌頭往前並保持至少 1.5~3 秒，並回到初始位置，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次舌頭往前動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            case 7:
+                // 第 8 種動作
+                return  "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中，若疲累也可先閉上再張嘴。\n" +
+                        "2. 舌頭往上並保持至少 1.5~3 秒，並回到初始位置，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次舌頭往上動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            case 8:
+                // 第 9 種動作
+                return  "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中，若疲累也可先閉上再張嘴。\n" +
+                        "2. 舌頭往下並保持至少 1.5~3 秒，並回到初始位置，每次動作間隔約 1 秒。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色（11～7 秒）：校正階段，請保持不動。\n" +
+                        "．藍色（7～3 秒）：請做一次舌頭往下動作，提供系統作為參考。\n" +
+                        "．再次變回黃色：約 3 秒，再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依上面方式進行復健動作。";
+
+            default:
+                // 安全預設（理論上不會到這裡）
+                return "此訓練的說明尚未設定，請之後補上內容。";
+        }
     }
 
     private void selectCard(View card, int trainingType) {
