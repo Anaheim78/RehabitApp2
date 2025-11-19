@@ -16,7 +16,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="80dp"
         android:gravity="center"
-        android:text="變更密碼"
+        android:text=""
         android:textColor="@android:color/black"
         android:textSize="24sp"
         android:textStyle="bold"
@@ -41,100 +41,15 @@
         <!-- Row：Email -->
 
         <!-- Row：姓名 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="20dp">
-
-            <TextView
-                android:layout_width="72dp"
-                android:layout_height="wrap_content"
-                android:gravity="end|center_vertical"
-                android:text="舊密碼"
-                android:textColor="@android:color/black"
-                android:textSize="16sp" />
-
-            <EditText
-                android:id="@+id/etName"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:background="@drawable/bg_field_input"
-                android:paddingHorizontal="8dp"
-                android:hint="請輸入原密碼"
-                android:textSize="14sp" />
-        </LinearLayout>
 
         <!-- Row：生日 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="2dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="0dp"
-            android:background="#FFD600" />
 
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="16dp"
-            >
-
-            <TextView
-                android:layout_width="72dp"
-                android:layout_height="wrap_content"
-                android:gravity="end|center_vertical"
-                android:text="新密碼"
-                android:textColor="@android:color/black"
-                android:textSize="16sp"
-
-                />
-
-            <EditText
-                android:id="@+id/etBirthday01"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:background="@drawable/bg_field_input"
-                android:paddingHorizontal="8dp"
-                android:textSize="14sp" />
-        </LinearLayout>
 
         <!-- Row：性別 滑塊 -->
 
         <!-- 標籤：介面風格 -->
         <!-- 黃色線 -->
         <!-- Row：介面風格 滑塊 -->
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="16dp"
-            >
-
-            <TextView
-                android:layout_width="72dp"
-                android:layout_height="wrap_content"
-                android:gravity="end|center_vertical"
-                android:text="再次確認"
-                android:textColor="@android:color/black"
-                android:textSize="16sp" />
-
-            <EditText
-                android:id="@+id/etBirthday"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_field_input"
-                android:paddingHorizontal="8dp"
-                android:textSize="14sp" />
-        </LinearLayout>
 
         <EditText
             android:id="@+id/etBirthday3"
@@ -150,8 +65,8 @@
         <FrameLayout
             android:id="@+id/styleSegment"
             android:layout_width="match_parent"
-            android:layout_height="65dp"
-            android:layout_marginTop="8dp"
+            android:layout_height="124dp"
+            android:layout_marginTop="0dp"
             android:background="@drawable/segment_track">
 
             <View
@@ -162,11 +77,14 @@
 
             <TextView
                 android:id="@+id/msg"
+                android:textIsSelectable="true"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:gravity="center"
-                android:text="密碼長度需至少 8 個字，需包含英文字母與數字"
+                android:singleLine="false"
+                android:text="聯絡資訊 :\n長庚大學資訊工程系\n智能感測與系統設計研究室
+ \n電話 : (03)211-8800 分機 : 3697 "
                 android:textColor="@android:color/black"
                 android:textSize="14sp" />
 
@@ -202,7 +120,7 @@
         android:layout_height="50dp"
         android:layout_marginBottom="90dp"
         android:stateListAnimator="@null"
-        android:text="確認"
+        android:text="返回"
         android:textColor="@android:color/black"
         android:textSize="14sp"
         app:cornerRadius="10dp"

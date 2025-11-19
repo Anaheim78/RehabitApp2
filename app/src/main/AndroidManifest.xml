@@ -29,6 +29,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:screenOrientation="portrait"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -36,36 +37,50 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".ui.plan.TrainingDetailActivity" />
+        <activity android:name=".ui.plan.TrainingDetailActivity"
+            android:screenOrientation="portrait"/>
+        <activity android:name=".ui.plan.AddPlanActivity"
+            android:screenOrientation="portrait"/>
 
         <activity android:name=".ui.facecheck.FaceCircleCheckerActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
             android:name=".ui.results.AnalysisResultActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
 
         <!-- 🔧 DEBUG: 加入這個 -->
         <activity
             android:name=".ui.debug.DebugPeakVisualizationActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
 
         <!-- 個人設定與修改的2個Activity -->
         <!-- 個人設定與修改的2個Activity -->
-        <activity android:name=".ui.results.TrainingResultActivity" />
-
+        <activity android:name=".ui.results.TrainingResultActivity"
+            android:screenOrientation="portrait"/>
         <activity android:name=".ui.setting.EditProfileActivity"
+            android:screenOrientation="portrait"
             android:exported="false"/>
+        <activity android:name=".ui.setting.EditPwdActivity"
+            android:screenOrientation="portrait"
+            android:exported="false"/>
+        <activity android:name=".ui.setting.EditContactActivity"
+            android:screenOrientation="portrait"
+            android:exported="false"/>
+
+
+
         <activity
             android:name=".ui.setting.ProfileActivity"
+            android:screenOrientation="portrait"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
         </activity>
 
         <activity
             android:name="com.example.rehabilitationapp.ui.results.CurveChartActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
     </application>
 

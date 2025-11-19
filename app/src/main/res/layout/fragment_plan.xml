@@ -69,7 +69,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="1dp"
-                android:text="點選復健項目開始你的訓練"
+                android:text="點選您想進行的訓練計畫"
                 android:textAlignment="center"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"/>
@@ -81,20 +81,10 @@
                 android:layout_weight="1"
                 android:clipToPadding="false"
                 android:paddingBottom="96dp"/>
+
+
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- 右下角 FAB，錨定在整個內容區 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabAddPlan"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_margin="20dp"
-        app:layout_anchor="@id/content_container"
-        app:layout_anchorGravity="bottom|end"
-        app:backgroundTint="#FFC107"
-        app:tint="@android:color/black"
-        app:borderWidth="0dp"
-        app:srcCompat="@drawable/ic_add_24"
-        android:contentDescription="新增"/>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

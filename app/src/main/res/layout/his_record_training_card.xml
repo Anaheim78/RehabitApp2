@@ -38,12 +38,36 @@
             android:textColor="@android:color/black"/>
 
         <!-- ③ 開始時間 HH:mm -->
-        <TextView
-            android:id="@+id/tvTime"
+        <!-- ③ 時間 + 次數 水平排列 -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="08:02"
-            android:textSize="12sp"
-            android:textColor="@android:color/black"/>
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- 時間 HH:mm -->
+            <TextView
+                android:id="@+id/tvTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="08:02"
+                android:textSize="12sp"
+                android:textColor="@android:color/black"/>
+
+            <!-- 加一點距離 -->
+            <Space
+                android:layout_width="8dp"
+                android:layout_height="wrap_content"/>
+
+            <!-- 完成次數 -->
+            <TextView
+                android:id="@+id/tvCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0次"
+                android:textSize="12sp"
+                android:textColor="@android:color/black"/>
+        </LinearLayout>
+
     </LinearLayout>
 </androidx.cardview.widget.CardView>
