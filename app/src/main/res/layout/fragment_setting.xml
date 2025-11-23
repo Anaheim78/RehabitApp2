@@ -13,6 +13,8 @@
     <!-- 個人資訊卡（完全透明，只用來排版） -->
     <androidx.cardview.widget.CardView
         android:id="@+id/userInfoCard"
+        android:clickable="false"
+        android:focusable="false"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"

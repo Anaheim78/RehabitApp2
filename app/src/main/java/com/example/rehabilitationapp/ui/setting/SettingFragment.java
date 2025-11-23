@@ -61,72 +61,6 @@ public class SettingFragment extends Fragment {
 
         // ---- DB ----
         userDao = AppDatabase.getInstance(requireContext()).userDao();
-
-        // ---- 初次載入 ----
-        loadUserAndUpdateUI();
-
-        // ---- 進入編輯 ----
-        btnEditProfile.setOnClickListener(v -> {
-            // 以防 currentUserId 還沒載完，這裡再保險查一次
-            new Thread(() -> {
-                String uid = currentUserId;
-                if (uid == null || uid.isEmpty()) {
-                    User me = userDao.findLoggedInOne();
-                    if (me != null) uid = me.userId;
-                }
-                if (uid == null) return;
-
-                final String finalUid = uid;
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> {
-                    Intent i = new Intent(requireContext(), EditProfileActivity.class);
-                    i.putExtra("EXTRA_USER_ID", finalUid);
-                    startActivity(i);
-                });
-            }).start();
-        });
-
-        //--進入修改密碼--
-        btnChangePassword.setOnClickListener( v ->{
-            // 以防 currentUserId 還沒載完，這裡再保險查一次
-            new Thread(() -> {
-                String uid = currentUserId;
-                if (uid == null || uid.isEmpty()) {
-                    User me = userDao.findLoggedInOne();
-                    if (me != null) uid = me.userId;
-                }
-                if (uid == null) return;
-
-                final String finalUid = uid;
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> {
-                    Intent i = new Intent(requireContext(), EditPwdActivity.class);
-                    i.putExtra("EXTRA_USER_ID", finalUid);
-                    startActivity(i);
-                });
-            }).start();
-        });
-
-
-        btnContact.setOnClickListener( v ->{
-            // 以防 currentUserId 還沒載完，這裡再保險查一次
-            new Thread(() -> {
-                String uid = currentUserId;
-                if (uid == null || uid.isEmpty()) {
-                    User me = userDao.findLoggedInOne();
-                    if (me != null) uid = me.userId;
-                }
-                if (uid == null) return;
-
-                final String finalUid = uid;
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> {
-                    Intent i = new Intent(requireContext(), EditContactActivity.class);
-                    i.putExtra("EXTRA_USER_ID", finalUid);
-                    startActivity(i);
-                });
-            }).start();
-        });
     }
 
 
@@ -158,7 +92,6 @@ public class SettingFragment extends Fragment {
 
                 // ---- UI Style 滑塊 ----
                 if (segmentUi != null && thumbUi != null) {
-                    // 等 segment 量到寬度後再設定 thumb
                     segmentUi.post(() -> {
                         int segmentWidth = segmentUi.getWidth();
                         int half = segmentWidth / 2;
@@ -167,13 +100,34 @@ public class SettingFragment extends Fragment {
                         lp.width = half;
                         thumbUi.setLayoutParams(lp);
 
-                        // "F" → 右側；預設 "M" → 左側
                         thumbUi.setX("F".equalsIgnoreCase(me.uiStyle) ? half : 0);
                     });
                 }
+
+                // ---- 在這裡綁三個按鈕（永遠用最新的 me.userId）----
+                final String uid = me.userId;
+
+                btnEditProfile.setOnClickListener(v -> {
+                    Intent i = new Intent(requireContext(), EditProfileActivity.class);
+                    i.putExtra("EXTRA_USER_ID", uid);
+                    startActivity(i);
+                });
+
+                btnChangePassword.setOnClickListener(v -> {
+                    Intent i = new Intent(requireContext(), EditPwdActivity.class);
+                    i.putExtra("EXTRA_USER_ID", uid);
+                    startActivity(i);
+                });
+
+                btnContact.setOnClickListener(v -> {
+                    Intent i = new Intent(requireContext(), EditContactActivity.class);
+                    i.putExtra("EXTRA_USER_ID", uid);
+                    startActivity(i);
+                });
             });
         }).start();
     }
+
 
     private static String nz(String s) { return s == null ? "" : s; }
 }
