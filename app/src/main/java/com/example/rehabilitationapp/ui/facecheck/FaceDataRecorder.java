@@ -1,6 +1,7 @@
 package com.example.rehabilitationapp.ui.facecheck;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Environment;
 import android.util.Log;
 import android.widget.Toast;
@@ -128,9 +129,20 @@ public class FaceDataRecorder {
         // 🔥 記錄開始時間
         this.startTime = System.currentTimeMillis();
         // 建立檔案名稱
+//        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+//        String timestamp = sdf.format(new Date());
+//        this.fileName = String.format("FaceTraining_%s_%s.csv", trainingLabel, timestamp);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
         String timestamp = sdf.format(new Date());
-        this.fileName = String.format("FaceTraining_%s_%s.csv", trainingLabel, timestamp);
+
+// 從 SharedPreferences 拿現在登入的 userId
+        SharedPreferences prefs =
+                context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        String userId = prefs.getString("current_user_id", "guest");
+
+// 在檔名前面加 userId
+        this.fileName = String.format("%s_FaceTraining_%s_%s.csv", userId, trainingLabel, timestamp);
+
         // 初始化 CSV 標題
         initializeCSV();
         // 寫入Log

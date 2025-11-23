@@ -71,6 +71,8 @@ import com.example.rehabilitationapp.data.model.User;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.dao.TrainingHistoryDao;
 import com.example.rehabilitationapp.data.model.TrainingHistory;
+import android.content.SharedPreferences;
+
 
 
 //光流
@@ -1881,12 +1883,26 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         try {
+//            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+//            String timestamp = sdf.format(new Date());
+//            String fileName = "Training_" + trainingLabel + "_" + timestamp + ".mp4";
+//
+//            File videoFile = new File(getExternalFilesDir(null), fileName);
+//            videoFilePath = videoFile.getAbsolutePath();
+
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
             String timestamp = sdf.format(new Date());
-            String fileName = "Training_" + trainingLabel + "_" + timestamp + ".mp4";
+
+// 從 SharedPreferences 拿 userId
+            SharedPreferences prefs =
+                    getSharedPreferences("user_prefs", MODE_PRIVATE);
+            String userId = prefs.getString("current_user_id", "guest");
+
+// 在檔名前面加 userId
+            String fileName = userId + "_Training_" + trainingLabel + "_" + timestamp + ".mp4";
 
             File videoFile = new File(getExternalFilesDir(null), fileName);
-            videoFilePath = videoFile.getAbsolutePath();
+
 
             FileOutputOptions outputOptions = new FileOutputOptions.Builder(videoFile).build();
 
