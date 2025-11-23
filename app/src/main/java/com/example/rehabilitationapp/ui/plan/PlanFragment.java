@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp.ui.plan;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -64,22 +65,52 @@ public class PlanFragment extends Fragment {
 
         TextView homeText = root.findViewById(R.id.home_text);
 
+
+
         homeText.setOnClickListener(v -> {
 
-            // 1. 清除現在登入的 userId（登出）
-            SharedPreferences prefs =
-                    requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-            prefs.edit().remove("current_user_id").apply();
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("確認登出")
+                    .setMessage("你確定要登出並回到登入頁面嗎？")
+                    .setPositiveButton("登出", (dialog, which) -> {
 
-            // 2. 關閉目前的資料庫
-            com.example.rehabilitationapp.data.DatabaseProvider.close();
+                        // 1. 清除現在登入的 userId
+                        SharedPreferences prefs =
+                                requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                        prefs.edit().remove("current_user_id").apply();
 
-            // 3. 回到 LoginFragment（你的登入 UI）
-            if (getActivity() instanceof MainActivity) {
-                ((MainActivity) getActivity()).switchFragment(new LoginFragment());
-                ((MainActivity) getActivity()).selectTab(R.id.tab_home); // 如果要顯示首頁 icon 倒回第一頁
-            }
+                        // 2. 關閉目前的資料庫
+                        com.example.rehabilitationapp.data.DatabaseProvider.close();
+
+                        // 3. 回到登入頁面
+                        if (getActivity() instanceof MainActivity) {
+                            ((MainActivity) getActivity()).switchFragment(new LoginFragment());
+                            ((MainActivity) getActivity()).selectTab(R.id.tab_home);
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
         });
+
+
+//        homeText.setOnClickListener(v -> {
+//
+////            // 1. 清除現在登入的 userId（登出）
+////            SharedPreferences prefs =
+////                    requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+////            prefs.edit().remove("current_user_id").apply();
+////
+////            // 2. 關閉目前的資料庫
+////            com.example.rehabilitationapp.data.DatabaseProvider.close();
+////
+////            // 3. 回到 LoginFragment（你的登入 UI）
+////            if (getActivity() instanceof MainActivity) {
+////                ((MainActivity) getActivity()).switchFragment(new LoginFragment());
+////                ((MainActivity) getActivity()).selectTab(R.id.tab_home); // 如果要顯示首頁 icon 倒回第一頁
+////            }
+//
+//
+//        });
 
 
 

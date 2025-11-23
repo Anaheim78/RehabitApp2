@@ -14,11 +14,14 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.LinearLayout;
+
+import com.example.rehabilitationapp.MainActivity;
 import com.example.rehabilitationapp.R;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import com.example.rehabilitationapp.ui.login.LoginFragment;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.DatabaseReference;
 
@@ -65,6 +68,9 @@ public class HomeFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+
+
+
         // 在這裡設定標題
         requireActivity().setTitle("首頁");  // 或 "訓練計畫"
         //binding.titleGreeting.setText("Hi, Allen!");
@@ -101,6 +107,38 @@ public class HomeFragment extends Fragment {
 
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
+
+        //20251123 登出功能
+        TextView homeText = root.findViewById(R.id.home_text);
+
+
+
+        homeText.setOnClickListener(v -> {
+
+            new android.app.AlertDialog.Builder(requireContext())
+                    .setTitle("確認登出")
+                    .setMessage("你確定要登出並回到登入頁面嗎？")
+                    .setPositiveButton("登出", (dialog, which) -> {
+
+                        // 1. 清除現在登入的 userId
+                        SharedPreferences prefs =
+                                requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                        prefs.edit().remove("current_user_id").apply();
+
+                        // 2. 關閉目前的資料庫
+                        com.example.rehabilitationapp.data.DatabaseProvider.close();
+
+                        // 3. 回到登入頁面
+                        if (getActivity() instanceof MainActivity) {
+                            ((MainActivity) getActivity()).switchFragment(new LoginFragment());
+                            ((MainActivity) getActivity()).selectTab(R.id.tab_home);
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
+
+
         // 初始化界面
         initializeUI();
         return root;

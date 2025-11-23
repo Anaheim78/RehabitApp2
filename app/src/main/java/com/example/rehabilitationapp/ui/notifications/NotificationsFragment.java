@@ -1,21 +1,28 @@
 // app/src/main/java/com/example/rehabilitationapp/ui/notifications/NotificationsFragment.java
 package com.example.rehabilitationapp.ui.notifications;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CalendarView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 
+import com.example.rehabilitationapp.MainActivity;
+import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.model.TrainingHistoryWithTitle;
 import com.example.rehabilitationapp.databinding.FragmentNotificationsBinding;
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.model.TrainingHistory;
 import com.example.rehabilitationapp.data.model.TrainingItem;
+import com.example.rehabilitationapp.ui.login.LoginFragment;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -40,6 +47,37 @@ public class NotificationsFragment extends Fragment {
 
         binding = FragmentNotificationsBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
+
+        //20251123 登出
+        TextView homeText = root.findViewById(R.id.home_text);
+
+
+
+        homeText.setOnClickListener(v -> {
+
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("確認登出")
+                    .setMessage("你確定要登出並回到登入頁面嗎？")
+                    .setPositiveButton("登出", (dialog, which) -> {
+
+                        // 1. 清除現在登入的 userId
+                        SharedPreferences prefs =
+                                requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                        prefs.edit().remove("current_user_id").apply();
+
+                        // 2. 關閉目前的資料庫
+                        com.example.rehabilitationapp.data.DatabaseProvider.close();
+
+                        // 3. 回到登入頁面
+                        if (getActivity() instanceof MainActivity) {
+                            ((MainActivity) getActivity()).switchFragment(new LoginFragment());
+                            ((MainActivity) getActivity()).selectTab(R.id.tab_home);
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
+
 
         // RecyclerView：4 欄 Grid（外觀不變）
         trainingAdapter = new TrainingCardAdapter();
