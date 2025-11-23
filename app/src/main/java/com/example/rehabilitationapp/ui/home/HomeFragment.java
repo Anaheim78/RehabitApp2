@@ -1,6 +1,8 @@
 package com.example.rehabilitationapp.ui.home;
 
 import androidx.appcompat.app.AlertDialog;
+
+import android.content.SharedPreferences;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
@@ -75,6 +77,11 @@ public class HomeFragment extends Fragment {
                     requireActivity().runOnUiThread(() -> {
                         String displayName = (user.name != null && !user.name.isEmpty()) ? user.name : user.userId;
                         binding.titleGreeting.setText("Hi, " + displayName + "!");
+
+
+
+
+
                     });
                 } else {
                     requireActivity().runOnUiThread(() -> binding.titleGreeting.setText("Hi!"));

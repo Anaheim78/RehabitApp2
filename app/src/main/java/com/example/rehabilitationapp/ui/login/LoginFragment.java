@@ -1,5 +1,7 @@
 package com.example.rehabilitationapp.ui.login;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;   // ✅ 要 import
 import android.view.LayoutInflater;
@@ -144,6 +146,11 @@ public class LoginFragment extends Fragment {
                                             Log.d(TAG, "更新本地 DB 登入狀態: " + id);
                                         }
                                     }).start();
+
+
+                                    SharedPreferences prefs = requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                                    prefs.edit().putString("current_user_id", id).apply();
+                                    Log.d(TAG, "已將 current_user_id 寫入 SharedPreferences: " + id);
 
                                     requireActivity().runOnUiThread(() -> {
                                         if (getActivity() instanceof MainActivity) {

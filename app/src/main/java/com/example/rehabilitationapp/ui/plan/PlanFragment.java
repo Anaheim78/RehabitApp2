@@ -1,6 +1,8 @@
 package com.example.rehabilitationapp.ui.plan;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -12,10 +14,13 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.util.Log;
+import android.widget.TextView;
 
+import com.example.rehabilitationapp.MainActivity;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.model.TrainingPlan;
+import com.example.rehabilitationapp.ui.login.LoginFragment;
 import com.example.rehabilitationapp.ui.plan.AddPlanActivity;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -56,6 +61,27 @@ public class PlanFragment extends Fragment {
 //            Intent intent = new Intent(requireContext(), TrainingDetailActivity.class);
 //            startActivity(intent);
 //        });
+
+        TextView homeText = root.findViewById(R.id.home_text);
+
+        homeText.setOnClickListener(v -> {
+
+            // 1. 清除現在登入的 userId（登出）
+            SharedPreferences prefs =
+                    requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            prefs.edit().remove("current_user_id").apply();
+
+            // 2. 關閉目前的資料庫
+            com.example.rehabilitationapp.data.DatabaseProvider.close();
+
+            // 3. 回到 LoginFragment（你的登入 UI）
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).switchFragment(new LoginFragment());
+                ((MainActivity) getActivity()).selectTab(R.id.tab_home); // 如果要顯示首頁 icon 倒回第一頁
+            }
+        });
+
+
 
         loadPlans();
 

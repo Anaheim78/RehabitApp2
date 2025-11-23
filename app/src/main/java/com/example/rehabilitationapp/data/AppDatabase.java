@@ -2,6 +2,7 @@
 package com.example.rehabilitationapp.data;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -89,52 +90,105 @@ public abstract class AppDatabase extends RoomDatabase {
     };
 
 
+    //20251123 多DB
+    public static AppDatabase buildDatabase(Context context, String dbName) {
+
+        AppDatabase db = Room.databaseBuilder(
+                        context.getApplicationContext(),
+                        AppDatabase.class,
+                        dbName
+                )
+                .addMigrations(
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6
+                )
+                .build();
+
+        // ★ 你的預載資料這段要完整搬進來（照抄即可）
+        new Thread(() -> {
+            try {
+                TrainingItemDao itemDao = db.trainingItemDao();
+                TrainingPlanDao planDao = db.trainingPlanDao();
+
+                int count = itemDao.count();
+
+                if (count == 0) {
+                    itemDao.insertAll(Preload.getDefaultItems());
+
+                    for (TrainingPlan plan : Preload.getDefaultPlans()) {
+                        planDao.insertPlan(plan);
+                    }
+                    for (var ref : Preload.getDefaultPlanItemLinks()) {
+                        planDao.insertCrossRef(ref);
+                    }
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
+
+        return db;
+    }
 
     public static AppDatabase getInstance(Context context) {
-        Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
-        if (INSTANCE == null) {
-            synchronized (AppDatabase.class) {
-                if (INSTANCE == null) {
-                    Log.d(DB_DEBUG_TAG, "=== Creating new database instance ===");
-                    INSTANCE = Room.databaseBuilder(
-                                    context.getApplicationContext(),
-                                    AppDatabase.class,
-                                    "rehab_db_2"
-                            )
-                            // ★ 不要用 fallbackToDestructiveMigration()，會清庫
-                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4, MIGRATION_4_5,MIGRATION_5_6) // ★ 加上 Migration
-                            .build();
 
-                    // ===== 下面是你原本的預載資料邏輯，維持不動 =====
-                    new Thread(() -> {
-                        try {
-                            TrainingItemDao itemDao = INSTANCE.trainingItemDao();
-                            TrainingPlanDao planDao = INSTANCE.trainingPlanDao();
+        SharedPreferences prefs =
+                context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
 
-                            int count = itemDao.count();
-                            Log.d(DB_DEBUG_TAG, "=== Current item count: " + count + " ===");
+        String userId = prefs.getString("current_user_id", "local");
 
-                            if (count == 0) {
-                                Log.d(DB_DEBUG_TAG, "=== Inserting default data ===");
+        if (userId == null || userId.isEmpty()) userId = "local";
 
-                                itemDao.insertAll(Preload.getDefaultItems());
-
-                                for (TrainingPlan plan : Preload.getDefaultPlans()) {
-                                    planDao.insertPlan(plan);
-                                }
-                                for (var ref : Preload.getDefaultPlanItemLinks()) {
-                                    planDao.insertCrossRef(ref);
-                                }
-                                Log.d(DB_DEBUG_TAG, "=== Default data inserted successfully ===");
-                            }
-                        } catch (Exception e) {
-                            Log.e(DB_DEBUG_TAG, "=== Error inserting data: " + e.getMessage() + " ===");
-                            e.printStackTrace();
-                        }
-                    }).start();
-                }
-            }
-        }
-        return INSTANCE;
+        return DatabaseProvider.getDatabase(context, userId);
     }
+
+
+
+//    public static AppDatabase getInstance(Context context) {
+//        Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
+//        if (INSTANCE == null) {
+//            synchronized (AppDatabase.class) {
+//                if (INSTANCE == null) {
+//                    Log.d(DB_DEBUG_TAG, "=== Creating new database instance ===");
+//                    INSTANCE = Room.databaseBuilder(
+//                                    context.getApplicationContext(),
+//                                    AppDatabase.class,
+//                                    "rehab_db_2"
+//                            )
+//                            // ★ 不要用 fallbackToDestructiveMigration()，會清庫
+//                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4, MIGRATION_4_5,MIGRATION_5_6) // ★ 加上 Migration
+//                            .build();
+//
+//                    // ===== 下面是你原本的預載資料邏輯，維持不動 =====
+//                    new Thread(() -> {
+//                        try {
+//                            TrainingItemDao itemDao = INSTANCE.trainingItemDao();
+//                            TrainingPlanDao planDao = INSTANCE.trainingPlanDao();
+//
+//                            int count = itemDao.count();
+//                            Log.d(DB_DEBUG_TAG, "=== Current item count: " + count + " ===");
+//
+//                            if (count == 0) {
+//                                Log.d(DB_DEBUG_TAG, "=== Inserting default data ===");
+//
+//                                itemDao.insertAll(Preload.getDefaultItems());
+//
+//                                for (TrainingPlan plan : Preload.getDefaultPlans()) {
+//                                    planDao.insertPlan(plan);
+//                                }
+//                                for (var ref : Preload.getDefaultPlanItemLinks()) {
+//                                    planDao.insertCrossRef(ref);
+//                                }
+//                                Log.d(DB_DEBUG_TAG, "=== Default data inserted successfully ===");
+//                            }
+//                        } catch (Exception e) {
+//                            Log.e(DB_DEBUG_TAG, "=== Error inserting data: " + e.getMessage() + " ===");
+//                            e.printStackTrace();
+//                        }
+//                    }).start();
+//                }
+//            }
+//        }
+//        return INSTANCE;
+//    }
 }
