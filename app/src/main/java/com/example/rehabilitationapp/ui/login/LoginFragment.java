@@ -78,8 +78,6 @@ public class LoginFragment extends Fragment {
         Button btnLogin = view.findViewById(R.id.btnLogin);
 
         FirebaseFirestore db = FirebaseFirestore.getInstance();
-        AppDatabase localDb = AppDatabase.getInstance(requireContext());
-        UserDao userDao = localDb.userDao();
 
         btnLogin.setOnClickListener(v -> {
             String id = etId.getText().toString().trim();
@@ -97,80 +95,86 @@ public class LoginFragment extends Fragment {
                     .whereEqualTo("password", password)
                     .get()
                     .addOnCompleteListener(task -> {
-                        if (task.isSuccessful()) {
-                            Log.d(TAG, "Firestore 查詢成功，筆數: " + task.getResult().size());
-
-                            for (DocumentSnapshot doc : task.getResult()) {
-                                Log.d(TAG, "文件內容: " + doc.getData());
-                            }
-
-                            if (!task.getResult().isEmpty()) {
-                                DocumentSnapshot doc = task.getResult().getDocuments().get(0);
-                                try {
-                                    long createdAt = doc.getLong("createdAt") != null
-                                            ? doc.getLong("createdAt") : System.currentTimeMillis();
-                                    String createdAtFormatted = doc.getString("createdAtFormatted");
-
-                                    String email = doc.getString("email");
-                                    String name = doc.getString("name");
-                                    String birthday = doc.getString("birthday");
-                                    String gender = doc.getString("gender");
-                                    String uiStyle = doc.getString("ui_style");
-
-                                    Log.d(TAG, "解析後 → createdAt=" + createdAt
-                                            + ", formatted=" + createdAtFormatted
-                                            + ", email=" + email
-                                            + ", name=" + name
-                                            + ", birthday=" + birthday
-                                            + ", gender=" + gender
-                                            + ", uiStyle=" + uiStyle);
-
-                                    new Thread(() -> {
-                                        User existing = userDao.findById(id);
-                                        if (existing == null) {
-                                            User u = new User();
-                                            u.userId = id;
-                                            u.password = password;
-                                            u.createdAt = createdAt;
-                                            u.createdAtFormatted = createdAtFormatted;
-                                            u.loginStatus = 1;
-                                            u.email = email;
-                                            u.name = name;
-                                            u.birthday = birthday;
-                                            u.gender = gender;
-                                            u.uiStyle = uiStyle;
-                                            userDao.insert(u);
-                                            Log.d(TAG, "新使用者已寫入本地 DB: " + u.userId);
-                                        } else {
-                                            userDao.updateLoginStatus(id, 1);
-                                            Log.d(TAG, "更新本地 DB 登入狀態: " + id);
-                                        }
-                                    }).start();
-
-
-                                    SharedPreferences prefs = requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-                                    prefs.edit().putString("current_user_id", id).apply();
-                                    Log.d(TAG, "已將 current_user_id 寫入 SharedPreferences: " + id);
-
-                                    requireActivity().runOnUiThread(() -> {
-                                        if (getActivity() instanceof MainActivity) {
-                                            ((MainActivity) getActivity()).switchFragment(new HomeFragment());
-                                            ((MainActivity) getActivity()).selectTab(R.id.tab_home);
-                                        }
-                                    });
-
-                                } catch (Exception e) {
-                                    Log.e(TAG, "文件解析錯誤", e);
-                                }
-                            } else {
-                                Log.w(TAG, "查無符合帳密 → Firestore 無文件");
-                                Toast.makeText(getContext(), "帳號或密碼錯誤", Toast.LENGTH_SHORT).show();
-                            }
-                        } else {
-                            Log.e(TAG, "Firestore 查詢失敗", task.getException());
+                        if (!task.isSuccessful()) {
                             Toast.makeText(getContext(), "登入失敗，請稍後再試", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        if (task.getResult().isEmpty()) {
+                            Toast.makeText(getContext(), "帳號或密碼錯誤", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        DocumentSnapshot doc = task.getResult().getDocuments().get(0);
+
+                        try {
+                            long createdAt = doc.getLong("createdAt") != null
+                                    ? doc.getLong("createdAt") : System.currentTimeMillis();
+                            String createdAtFormatted = doc.getString("createdAtFormatted");
+
+                            String email = doc.getString("email");
+                            String name = doc.getString("name");
+                            String birthday = doc.getString("birthday");
+                            String gender = doc.getString("gender");
+                            String uiStyle = doc.getString("ui_style");
+
+                            // =====================================================
+                            // STEP 1：先寫入 current_user_id（一定要最早）
+                            // =====================================================
+                            SharedPreferences prefs =
+                                    requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                            prefs.edit().putString("current_user_id", id).apply();
+
+                            // =====================================================
+                            // STEP 2：寫完 userId → 重新取得正確 User DB
+                            // =====================================================
+                            AppDatabase userDb = AppDatabase.getInstance(requireContext());
+                            UserDao userDao = userDb.userDao();
+
+                            // =====================================================
+                            // STEP 3：開始更新/新增 User（現在會寫到正確 DB）
+                            // =====================================================
+                            new Thread(() -> {
+                                User existing = userDao.findById(id);
+
+                                if (existing == null) {
+                                    User u = new User();
+                                    u.userId = id;
+                                    u.password = password;
+                                    u.createdAt = createdAt;
+                                    u.createdAtFormatted = createdAtFormatted;
+                                    u.loginStatus = 1;
+                                    u.email = email;
+                                    u.name = name;
+                                    u.birthday = birthday;
+                                    u.gender = gender;
+                                    u.uiStyle = uiStyle;
+
+                                    userDao.insert(u);
+                                    Log.d(TAG, "新使用者已寫入正確 DB: " + u.userId);
+
+                                } else {
+                                    userDao.updateLoginStatus(id, 1);
+                                    Log.d(TAG, "更新登入狀態: " + id);
+                                }
+                            }).start();
+
+                            // =====================================================
+                            // STEP 4：切換到 Home
+                            // =====================================================
+                            requireActivity().runOnUiThread(() -> {
+                                if (getActivity() instanceof MainActivity) {
+                                    ((MainActivity) getActivity()).switchFragment(new HomeFragment());
+                                    ((MainActivity) getActivity()).selectTab(R.id.tab_home);
+                                }
+                            });
+
+                        } catch (Exception e) {
+                            Log.e(TAG, "文件解析錯誤", e);
                         }
                     });
         });
     }
+
+
 }

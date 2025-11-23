@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp.ui.setting;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -165,6 +166,25 @@ public class EditProfileActivity extends AppCompatActivity {
             });
         }).start();
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // 取得目前登入使用者 ID
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        String userId = prefs.getString("current_user_id", null);
+
+        if (userId == null) {
+            finish();
+            return;
+        }
+
+        // 顯示在畫面上
+        TextView tvId = findViewById(R.id.tvIdReadonly);
+        tvId.setText(userId);
+    }
+
 
     // 小工具：null → 空字串，避免 setText(null) 異常
     private static String nz(String s) { return (s == null) ? "" : s; }
