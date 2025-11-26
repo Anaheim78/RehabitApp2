@@ -5,6 +5,27 @@ import pandas as pd
 from scipy.signal import butter, filtfilt
 from scipy.signal import correlate, find_peaks
 
+# PC版
+# import matplotlib.pyplot as plt
+# from matplotlib.ticker import MultipleLocator, FuncFormatter
+# import os
+# from matplotlib import rcParams
+
+# # 設定中文字型
+# rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Arial Unicode MS', 'sans-serif']
+# rcParams['axes.unicode_minus'] = False  # 解決負號顯示問題
+
+# === DEMO 能量參數 ===
+DEMO_SIDE_SEC = 2.0
+R_DEMO = 0.3  # 🔥 改用 R_DEMO（門檻 = DEMO 能量的倍數）
+MIN_ACTION_DURATION = 0.4  # 🔥 新增：最小動作時間
+MAX_ACTION_DURATION = 3.0  # 🔥 新增：最大動作時間
+MIN_DEMO_ENERGY = 1e-5  # 🔥 新增：DEMO 最小能量門檻
+
+# PC=== 畫圖快取 ===
+# _plot_cache = None
+
+
 def auto_cutoff_from_signal(t, r, fs,
                             min_period_sec=0.5,
                             max_period_sec=5.0,
@@ -52,6 +73,7 @@ def auto_cutoff_from_signal(t, r, fs,
         segments.append({"start": t_mid-2.5, "end": t_mid+2.5, "cutoff": float(cutoff_seg)})
         local_cuts.append(cutoff_seg)
     cutoff_final = np.median(local_cuts) if local_cuts else cutoff_main
+    cutoff_final = 2.0  # 🔥 寫死 1.0 Hz（跟嘟嘴一樣）
     print(f"✅ 自動cutoff完成 → 最終={cutoff_final:.2f}Hz, 區段數={len(segments)}")
     return cutoff_final, segments
 
@@ -151,6 +173,8 @@ def lowpass_filter(x, fs=25.0, cutoff=0.5, order=4):
 
 # ===== 移動平均（基線估計）=====
 def moving_average(x, win_samples=20):
+    # 🔥 加入安全檢查
+    win_samples = max(3, min(win_samples, len(x) // 2))
     kernel = np.ones(win_samples) / win_samples
     pad_width = win_samples // 2
     x_padded = np.pad(x, pad_width, mode='edge')
@@ -176,94 +200,143 @@ def zero_crossings(x, t, deadband=0.0, min_interval=10):
     return crossings_all
 
 # ===== 半波分析：正半波（峰值）=====
-def analyze_high_peaks(i, zc_all, r_detrend, t, threshold, spans):
-    """分析正半波，計算峰值與相鄰谷值的差值"""
+def analyze_high_peaks(i, zc_all, r_detrend, t, fs, energy_threshold, dir_eff, spans):
     s, e = zc_all[i], zc_all[i + 1]
     seg = r_detrend[s:e]
+    seg_t = t[s:e]
 
-    peak_val = np.max(seg)
-    peak_idx = np.argmax(seg)
-    peak_time = t[zc_all[i] + peak_idx]
+    # 🔥 時間限制檢查
+    duration = seg_t[-1] - seg_t[0]
 
-    # 計算與前後谷值的差值
-    prev_min = np.min(r_detrend[zc_all[i-1]:zc_all[i]]) if i - 1 >= 0 else np.nan
-    next_min = np.min(r_detrend[zc_all[i+1]:zc_all[i+2]]) if i + 2 < len(zc_all) else np.nan
+    if duration < MIN_ACTION_DURATION:
+        return spans
 
-    diffs = []
-    if np.isfinite(prev_min):
-        diffs.append(peak_val - prev_min)
-    if np.isfinite(next_min):
-        diffs.append(peak_val - next_min)
+    if duration > MAX_ACTION_DURATION:
+        print(f"⚠️ 異常：動作持續 {duration:.1f}秒")
+        return spans
 
-    if any(d >= threshold for d in diffs):
-        diff_max = max(diffs)
+    # 計算能量密度
+    seg_energy = energy_density_interval_dir(
+        seg, seg_t, fs, seg_t[0], seg_t[-1], dir_eff
+    )
+
+    # 用能量判定
+    if seg_energy >= energy_threshold:
+        peak_val = np.max(seg)
+        peak_idx = np.argmax(seg)
+        peak_time = t[s + peak_idx]
+
         st, ed = t[s], t[e]
         spans.append({
             "start_time": round(st, 3),
             "end_time": round(ed, 3),
             "peak_time": round(peak_time, 3),
             "peak_value": round(peak_val, 6),
-            "diff_max": round(diff_max, 6),
+            "energy": round(seg_energy, 10),
+            "energy_thr": round(energy_threshold, 10),
             "duration": round(ed - st, 3)
         })
     return spans
 
 # ===== 半波分析：負半波（谷值）=====
-def analyze_low_troughs(i, zc_all, r_detrend, t, threshold, spans):
-    """分析負半波，計算谷值與相鄰峰值的差值"""
+def analyze_low_troughs(i, zc_all, r_detrend, t, fs, energy_threshold, dir_eff, spans):
+    """用能量密度判定負半波"""
     s, e = zc_all[i], zc_all[i + 1]
     seg = r_detrend[s:e]
+    seg_t = t[s:e]
 
-    trough_val = np.min(seg)
-    trough_idx = np.argmin(seg)
-    trough_time = t[zc_all[i] + trough_idx]
+    # 計算能量密度
+    seg_energy = energy_density_interval_dir(
+        seg, seg_t, fs, seg_t[0], seg_t[-1], dir_eff
+    )
 
-    # 計算與前後峰值的差值
-    prev_max = np.max(r_detrend[zc_all[i-1]:zc_all[i]]) if i - 1 >= 0 else np.nan
-    next_max = np.max(r_detrend[zc_all[i+1]:zc_all[i+2]]) if i + 2 < len(zc_all) else np.nan
+    # 用能量判定
+    if seg_energy >= energy_threshold:
+        trough_val = np.min(seg)
+        trough_idx = np.argmin(seg)
+        trough_time = t[s + trough_idx]
 
-    diffs = []
-    if np.isfinite(prev_max):
-        diffs.append(prev_max - trough_val)
-    if np.isfinite(next_max):
-        diffs.append(next_max - trough_val)
-
-    if any(d >= threshold for d in diffs):
-        diff_max = max(diffs)
         st, ed = t[s], t[e]
         spans.append({
             "start_time": round(st, 3),
             "end_time": round(ed, 3),
             "trough_time": round(trough_time, 3),
             "trough_value": round(trough_val, 6),
-            "diff_max": round(diff_max, 6),
+            "energy": round(seg_energy, 10),
+            "energy_thr": round(energy_threshold, 10),
             "duration": round(ed - st, 3)
         })
     return spans
+
+def energy_density_interval_dir(x, t, fs, t0, t1, dir_eff):
+    """計算指定時間區間內的能量密度（考慮方向）"""
+    mask = (t >= t0) & (t <= t1)
+    if not np.any(mask):
+        return 0.0
+    seg = x[mask]
+
+    if dir_eff == "N":
+        vals = -seg[seg < 0]
+    else:
+        vals = seg[seg > 0]
+
+    if vals.size == 0:
+        return 0.0
+
+    total = np.sum(vals)  # 🔥 不除 fs（跟嘟嘴一致）
+    dur = vals.size / fs
+    return float(total / max(dur, 1e-9))
+
+def compute_demo_energy_from_baseline(t_all, r_all, mask_demo, r_all_detrend, fs, dir_eff):
+    """用全段統一的 detrend 計算 DEMO 能量"""
+    if mask_demo is None or mask_demo.sum() < 3:
+        return 0.0
+
+    idx_demo = np.flatnonzero(mask_demo)
+    if idx_demo.size < 2:
+        return 0.0
+
+    t_demo_start = float(t_all[idx_demo[0]])
+    t_demo_end = float(t_all[idx_demo[-1]])
+
+    # 🔥 取 DEMO 前 2 秒當靜止基準
+    t_ref_start = t_demo_start - DEMO_SIDE_SEC
+    t_ref_end = t_demo_start
+
+    mask_ref = (t_all >= t_ref_start) & (t_all < t_ref_end)
+
+    if np.sum(mask_ref) < int(fs * 0.5):
+        print("⚠️ DEMO 前資料不足")
+        return 0.0
+
+    r_ref_det = r_all_detrend[mask_ref]
+    baseline_ref = np.mean(r_ref_det)
+
+    mask_demo_t = (t_all >= t_demo_start) & (t_all <= t_demo_end)
+    t_demo = t_all[mask_demo_t]
+    r_demo_det = r_all_detrend[mask_demo_t] - baseline_ref
+
+    E_demo = energy_density_interval_dir(r_demo_det, t_demo, fs, t_demo_start, t_demo_end, dir_eff)
+
+    # 🔥 DEMO 品質檢查
+    if E_demo < MIN_DEMO_ENERGY:
+        print(f"❌ DEMO 品質極差（能量 = {E_demo:.2e} < {MIN_DEMO_ENERGY:.2e}）")
+    elif E_demo < MIN_DEMO_ENERGY * 10:
+        print(f"⚠️ DEMO 品質不佳（能量 = {E_demo:.2e}）")
+    else:
+        print(f"✅ DEMO 能量 = {E_demo:.4e}")
+
+    return float(E_demo)
 
 # ===== 主分析流程 =====
 def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
                 threshold: float = 0.0008, dir_default: str = "N") -> dict:
     """
     分析 CSV 檔案，自動判斷方向並計算動作次數
-
-    Parameters:
-    -----------
-    file_path : str
-        CSV 檔案路徑
-    cutoff : float
-        低通濾波截止頻率 (Hz)
-    order : int
-        濾波器階數
-    threshold : float
-        動作閾值（半波差值）
-    dir_default : str
-        預設方向 ("P" 或 "N")，當無法從 DEMO 判斷時使用
-
-    Returns:
-    --------
-    dict : 包含分析結果的字典
     """
+    # PC
+    # global _plot_cache
+
     try:
         # 讀取 CSV
         df = pd.read_csv(file_path)
@@ -311,7 +384,18 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
         m = np.isfinite(t) & np.isfinite(r)
         t, r = t[m], r[m]
 
+        # 自動計算取樣率
+        fs = calculate_fs_from_csv(file_path)
+
+        # === 全段資料（用於畫圖）===
+        t_all_full = pd.to_numeric(df_all[cols["time_seconds"]], errors="coerce").to_numpy()
+        r_all_full = pd.to_numeric(df_all[cols[point_name]], errors="coerce").to_numpy()
+        m_full = np.isfinite(t_all_full) & np.isfinite(r_all_full)
+        t_all_full, r_all_full = t_all_full[m_full], r_all_full[m_full]
+
         if len(t) < 2:
+            # PC
+            # _plot_cache = None
             return {
                 "status": "OK",
                 "action_count": 0,
@@ -330,51 +414,57 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
                 }
             }
 
-        # 自動計算取樣率
-        fs = calculate_fs_from_csv(file_path)
-
         # 濾波
-        # 自動估cutoff
-        cutoff_final, segments = auto_cutoff_from_signal(t, r, fs)
-        r_filt_mixed = np.zeros_like(r)
+        # 🔥 改用全段統一處理
+        cutoff_final, _ = auto_cutoff_from_signal(t, r, fs)
 
-        for seg in segments:
-            m = (t >= seg["start"]) & (t <= seg["end"])
-            if np.sum(m) < int(1.0 * fs):
-                continue
-            r_seg = r[m]
-            r_filt_seg = lowpass_filter(r_seg, fs=fs, cutoff=seg["cutoff"], order=order)
-            r_filt_mixed[m] = r_filt_seg
+        # 濾波全段
+        r_all_filt = lowpass_filter(r_all_full, fs=fs, cutoff=cutoff_final, order=order)
 
-        # 若仍有空洞區塊，補上濾波（防 filtfilt 報錯）
-        if np.sum(r_filt_mixed == 0) > 0:
-            m_missing = (r_filt_mixed == 0)
-            idx_missing = np.flatnonzero(m_missing)
-            if len(idx_missing) > 0:
-                start = idx_missing[0]
-                blocks = []
-                for i in range(1, len(idx_missing)):
-                    if idx_missing[i] != idx_missing[i-1] + 1:
-                        blocks.append((start, idx_missing[i-1]))
-                        start = idx_missing[i]
-                blocks.append((start, idx_missing[-1]))
+        # 全段 baseline
+        baseline_window = max(3, min(int(4.0 * fs), len(r_all_filt) // 2))
+        baseline_all = moving_average(r_all_filt, baseline_window)
 
-                for st, ed in blocks:
-                    seg = r[st:ed+1]
-                    if len(seg) < 16:
-                        r_filt_mixed[st:ed+1] = seg
-                    else:
-                        r_filt_mixed[st:ed+1] = lowpass_filter(seg, fs=fs, cutoff=cutoff_final, order=order)
+        # 全段 detrend
+        r_all_detrend = r_all_filt - baseline_all
 
-        r_filt = r_filt_mixed
+        # 只取 MAINTAINING 的部分
+        mask_maintaining = np.zeros(len(t_all_full), dtype=bool)
+        if "state" in cols:
+            s_all = df_all[cols["state"]].astype(str)
+            mask_maintaining_all = s_all.str.contains("MAINTAINING", case=False, na=False).to_numpy()
+            mask_maintaining = mask_maintaining_all[m_full]
 
+        t_main = t_all_full[mask_maintaining]
+        r_detrend = r_all_detrend[mask_maintaining]
+        r_filt = r_all_filt[mask_maintaining]
+        baseline = baseline_all[mask_maintaining]
 
-        # 基線扣除
-        baseline = moving_average(r_filt, int(4.0 * fs))
-        r_detrend = r_filt - baseline
+        # 零交叉
+        zc_all = zero_crossings(r_detrend, t_main, deadband=0.0, min_interval=int(0.2 * fs))
 
-        # 零交叉檢測
-        zc_all = zero_crossings(r_detrend, t, deadband=0.0, min_interval=int(0.2 * fs))
+        mask_demo = None
+        if "state" in cols:
+            s_all = df_all[cols["state"]].astype(str)
+            mask_demo_all = s_all.str.contains("DEMO", case=False, na=False).to_numpy()
+            mask_demo = mask_demo_all[m_full]
+
+        # 🔥 新版：計算 DEMO 能量
+        demo_E = compute_demo_energy_from_baseline(
+            t_all_full, r_all_full, mask_demo, r_all_detrend, fs, dir_eff
+        )
+
+        # # 🔥 DEMO 品質檢查
+        # if demo_E < MIN_DEMO_ENERGY:
+        #     return {
+        #         "status": "ERROR",
+        #         "action_count": 0,
+        #         "error": f"DEMO 品質不足（能量 = {demo_E:.2e}）",
+        #     }
+
+        # 🔥 新版門檻
+        energy_threshold = R_DEMO * demo_E
+        print(f"🔥 門檻 = {energy_threshold:.4e} ({R_DEMO} × DEMO)")
 
         # 分析半波
         spans = []
@@ -388,9 +478,9 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
 
             # 根據方向選擇正或負半波
             if dir_eff == "P" and seg_mean > 0:
-                spans = analyze_high_peaks(i, zc_all, r_detrend, t, threshold, spans)
+                spans = analyze_high_peaks(i, zc_all, r_detrend, t, fs, energy_threshold, dir_eff, spans)
             elif dir_eff == "N" and seg_mean < 0:
-                spans = analyze_low_troughs(i, zc_all, r_detrend, t, threshold, spans)
+                spans = analyze_low_troughs(i, zc_all, r_detrend, t, fs, energy_threshold, dir_eff, spans)
 
         # 計算總動作時間
         total_action_time = round(sum(action["duration"] for action in spans), 3)
@@ -398,7 +488,7 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
         # 建立斷點列表
         breakpoints = [action["end_time"] for action in spans]
 
-        # 轉換成 segments 格式（與 Java 期望的格式一致）
+        # 轉換成 segments 格式
         segments = []
         for i, action in enumerate(spans):
             segments.append({
@@ -408,7 +498,48 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
                 "duration": action["duration"]
             })
 
-        # 返回與 count_sip_lips.py 完全相同的格式
+        # === 提取 state 相關資訊（用於畫圖）===
+        cal_start = cal_end = action_start = None
+        if "state" in cols:
+            s_all = df_all[cols["state"]].astype(str)
+            mask_cal_all = s_all.str.contains("CAL", case=False, na=False).to_numpy()
+            mask_act_all = s_all.str.contains("MAINTAINING", case=False, na=False).to_numpy()
+
+            mask_cal = mask_cal_all[m_full]
+            mask_act = mask_act_all[m_full]
+
+            idx_cal = np.flatnonzero(mask_cal)
+            if idx_cal.size > 0:
+                cal_start = float(t_all_full[idx_cal[0]])
+                cal_end = float(t_all_full[idx_cal[-1]])
+
+            idx_act = np.flatnonzero(mask_act)
+            if idx_act.size > 0:
+                action_start = float(t_all_full[idx_act[0]])
+
+        # === 存畫圖快取 ===
+        # _plot_cache = {
+        #     "csv_path": file_path,
+        #     "t_all": t_all_full,
+        #     "r_all": r_all_full,
+        #     "t": t,
+        #     "r_filt": r_filt,
+        #     "baseline": baseline,
+        #     "r_detrend": r_detrend,
+        #     "zc_all": zc_all,
+        #     "spans": spans,
+        #     "dir_eff": dir_eff,
+        #     "fs": fs,
+        #     "cutoff_final": cutoff_final,
+        #     "cal_start": cal_start,
+        #     "cal_end": cal_end,
+        #     "action_start": action_start,
+        #     "mask_demo": mask_demo,
+        #     "energy_threshold": energy_threshold,
+        #     "output_name": output_name,
+        # }
+
+        # 返回結果
         return {
             "status": "OK",
             "action_count": len(spans),
@@ -420,15 +551,21 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
                 "cutoff": cutoff_final,
                 "order": order,
                 "zc_all": len(zc_all),
-                "zc_up": 0,  # 嘟嘴/抿嘴不區分上下交叉，統一給 0
+                "zc_up": 0,
                 "zc_down": 0,
-                "deadband": 0.0,  # 嘟嘴/抿嘴沒使用 deadband，統一給 0.0
-                "min_interval": int(0.2 * fs)
+                "deadband": 0.0,
+                "min_interval": int(0.2 * fs),
+                "demo_E": demo_E,
+                "demo_E_noise": 0.0,  # 新版沒算，填 0
+                "demo_E_thr": demo_E * (R_DEMO / 6.0),  # 相容舊格式
+                "energy_threshold": energy_threshold,
             }
         }
 
     except Exception as e:
         import traceback
+        # PC
+        # _plot_cache = None
         error_msg = str(e)
         return {
             "status": "ERROR",
@@ -441,12 +578,148 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
         }
 
 
+# ===== 畫圖函數 =====
+# def plot_lips_analysis(csv_path, t_all, r_all, t, r_filt, baseline, r_detrend,
+#                        zc_all, spans, dir_eff, fs, cutoff_final,
+#                        cal_start, cal_end, action_start, mask_demo,
+#                        energy_threshold, output_name):
+
+#     fig, ax = plt.subplots(figsize=(14, 5))
+
+#     # ========== 背景 (DEMO) ==========
+#     if mask_demo is not None and mask_demo.any():
+#         idx_demo = np.flatnonzero(mask_demo)
+#         cuts = np.where(np.diff(idx_demo) > 1)[0] + 1
+#         for g in np.split(idx_demo, cuts):
+#             st, ed = t_all[g[0]], t_all[g[-1]]
+#             ax.axvspan(st, ed, facecolor="#FFF3CD", alpha=0.45, zorder=0)
+
+#     # ========== 主曲線 ==========
+#     ax.plot(t_all, r_all, label="raw", color="#1976D2", linewidth=1.0, alpha=0.7)
+#     ax.plot(t, r_filt, label=f"filt({cutoff_final:.2f}Hz)", color="#FB8C00", linewidth=1.1)
+#     ax.plot(t, baseline, label="baseline", color="#43A047", linewidth=1.3)
+#     ax.plot(t, r_detrend, label="detrended", color="red", linewidth=1.2)
+
+#     # ========== 能量門檻虛線 ==========
+#     ax.axhline(+energy_threshold, color="#9C27B0", linestyle="--", linewidth=1.2, alpha=0.8,
+#                label=f"+E_thr={energy_threshold:.2e}")
+#     ax.axhline(-energy_threshold, color="#9C27B0", linestyle="--", linewidth=1.2, alpha=0.8,
+#                label=f"-E_thr={energy_threshold:.2e}")
+
+#     # 中心線
+#     ax.axhline(0, color="black", linestyle="--", linewidth=1.0, alpha=0.6)
+
+#     # y 偏移給文字
+#     if len(r_detrend) > 0:
+#         yr = max(np.max(r_detrend) - np.min(r_detrend), 1e-12)
+#         y_offset = 0.04 * yr
+#     else:
+#         y_offset = 1e-6
+
+#     # ========== 強調通過門檻的動作 ==========
+#     for d in spans:
+#         if "peak_time" in d:  # 正半波
+#             ax.axvspan(d["start_time"], d["end_time"],
+#                        facecolor="crimson", alpha=0.45)
+#             ax.text(d["peak_time"], d["peak_value"] + y_offset,
+#                     f"E={d['energy']:.2e}",
+#                     color="crimson", fontsize=8, ha="center")
+#         elif "trough_time" in d:  # 負半波
+#             ax.axvspan(d["start_time"], d["end_time"],
+#                        facecolor="royalblue", alpha=0.45)
+#             ax.text(d["trough_time"], d["trough_value"] - y_offset,
+#                     f"E={d['energy']:.2e}",
+#                     color="royalblue", fontsize=8, ha="center")
+
+#     # ========== 零交叉 ==========
+#     for idx in zc_all:
+#         if 0 <= idx < len(t):
+#             ax.axvline(t[idx], color="#42A5F5", linestyle="-", linewidth=0.7, alpha=0.7)
+
+#     # ========== 標題 ==========
+#     ax.set_title(
+#         f"{output_name} | dir={dir_eff} | cutoff={cutoff_final:.2f}Hz | fs={fs:.1f}Hz | α={alpha}"
+#     )
+
+#     ax.set_ylabel("signal value")
+#     ax.legend(loc="upper left", fontsize=8)
+
+#     # ========== X 軸格式 ==========
+#     ax.set_xlim(float(np.floor(t_all.min())), float(np.ceil(t_all.max())))
+#     ax.xaxis.set_major_locator(MultipleLocator(1.0))
+
+#     def piece_fmt(x, pos=None):
+#         if (cal_start is not None) and (cal_end is not None) and (x <= cal_end):
+#             return str(int(round(x - cal_start)))
+#         if (action_start is not None) and (x >= action_start):
+#             return str(int(round(26 - (x - action_start))))
+#         return str(int(round(x)))
+
+#     ax.xaxis.set_major_formatter(FuncFormatter(piece_fmt))
+#     ax.grid(True, axis='x', linestyle='--', alpha=0.25)
+
+#     fig.tight_layout()
+
+#     # ========== 存檔 ==========
+#     out_dir = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\抿嘴跑圖"
+#     os.makedirs(out_dir, exist_ok=True)
+#     base = os.path.splitext(os.path.basename(csv_path))[0]
+#     out_path = os.path.join(out_dir, f"{base}_修正版_plot.png")
+#     fig.savefig(out_path, dpi=300)
+
+#     print("✔ 圖片輸出：", out_path)
+
+#     plt.show()
+#     plt.close(fig)
+
+
+# def debug_plot_last():
+#     """
+#     用 analyze_csv() 算完後存的 _plot_cache 來畫圖
+#     """
+
+#     #PC
+#     # global _plot_cache
+#     if _plot_cache is None:
+#         print("⚠️ 沒有可畫圖的快取資料（先呼叫 analyze_csv 才能畫）")
+#         return
+
+#     d = _plot_cache
+#     plot_lips_analysis(
+#         csv_path=d["csv_path"],
+#         t_all=d["t_all"],
+#         r_all=d["r_all"],
+#         t=d["t"],
+#         r_filt=d["r_filt"],
+#         baseline=d["baseline"],
+#         r_detrend=d["r_detrend"],
+#         zc_all=d["zc_all"],
+#         spans=d["spans"],
+#         dir_eff=d["dir_eff"],
+#         fs=d["fs"],
+#         cutoff_final=d["cutoff_final"],
+#         cal_start=d["cal_start"],
+#         cal_end=d["cal_end"],
+#         action_start=d["action_start"],
+#         mask_demo=d["mask_demo"],
+#         energy_threshold=d["energy_threshold"],
+#         output_name=d["output_name"],
+#     )
+
+
 # ===== 測試 =====
 if __name__ == "__main__":
     # 測試範例
-    file_path = "FaceTraining_SIP_LIPS_20251029_131942_blue.csv"
+    # ===== SIP_LIPS 測試檔案 =====
 
-    result = analyze_csv(file_path, cutoff=0.8, order=4, threshold=0.0008)
+    # CSV_PATH = r"C:\Users\plus1\Downloads\1118從S24取出資料\FaceTraining_SIP_LIPS_20251117_184358.csv" #6/6
+    # CSV_PATH = r"C:\Users\plus1\Downloads\1118從S24取出資料\FaceTraining_SIP_LIPS_20251113_145556.csv" # 9/9
+    # CSV_PATH = r"C:\Users\plus1\Downloads\1118從S24取出資料\FaceTraining_SIP_LIPS_20251104_035124.csv" # 9/9
+    # CSV_PATH = r"C:\Users\plus1\Downloads\1118從S24取出資料\FaceTraining_SIP_LIPS_20251103_175603.csv" # 5/6
+    # CSV_PATH = r"C:\Users\plus1\Downloads\1118從S24取出資料\FaceTraining_SIP_LIPS_20251103_140958.csv" # 10/10
+    # CSV_PATH = r"C:\Users\plus1\Downloads\1118從S24取出資料\FaceTraining_SIP_LIPS_20251102_190714.csv" # 10/10
+
+    result = analyze_csv(CSV_PATH, cutoff=0.8, order=4, threshold=0.0008)
 
     print("\n===== 分析結果 =====")
     print(f"狀態: {result.get('status')}")
@@ -454,13 +727,19 @@ if __name__ == "__main__":
     print(f"總動作時間: {result.get('total_action_time')} 秒")
     print(f"\n斷點時間: {result.get('breakpoints', [])}")
 
-    if result.get('segments'):
-        print(f"\n===== 動作明細 =====")
-        for seg in result.get('segments', []):
-            print(f"動作 {seg['index']}:")
-            print(f"  時間範圍: {seg['start_time']} ~ {seg['end_time']} 秒")
-            print(f"  持續時間: {seg['duration']} 秒")
+    if result.get('status') == 'ERROR':
+        print(f"\n❌ 錯誤: {result.get('error')}")
+        if 'traceback' in result:
+            print(f"\n完整錯誤:\n{result['traceback']}")
 
-    print(f"\n===== Debug 資訊 =====")
-    for key, value in result.get('debug', {}).items():
-        print(f"{key}: {value}")
+    if "debug" in result:
+        debug = result["debug"]
+        print(f"\n🔧 Debug Info:")
+        print(f"  - FS: {debug.get('fs_hz')} Hz")
+        print(f"  - Cutoff: {debug.get('cutoff')} Hz")
+        print(f"  - E_demo: {debug.get('demo_E')}")
+        print(f"  - E_thr: {debug.get('demo_E_thr')}")
+        print(f"  - Energy threshold: {debug.get('energy_threshold')}")
+
+    # 畫圖
+    # debug_plot_last()
