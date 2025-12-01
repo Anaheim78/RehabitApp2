@@ -573,6 +573,8 @@ def analyze_csv(file_path: str, cutoff: float = 0.8, order: int = 4,
                 "cutoff": cutoff_final,
                 "order": order,
                 "zc_all": len(zc_all),
+                "zc_up": 0,      # ← 補這個
+                "zc_down": 0,    # ← 補這個
                 "deadband": 0.0,
                 "min_interval": int(0.5 * fs),
                 "demo_E": demo_E,

@@ -25,15 +25,15 @@ MIN_ACTION_DURATION = 0.3   # 最短動作時間（秒）
 MAX_ACTION_DURATION = 6.0   # 最長動作時間（秒）
 
 # ==== DEMO ===
-K_DEMO_ENERGY  = 0.1  # DEMO 能量比門檻的 K 值（E_thr = max(K*E_demo, E_noise)）
+K_DEMO_ENERGY  = 0.1  # 【棄用】 DEMO 能量比門檻的 K 值（E_thr = max(K*E_demo, E_noise)）
 DEMO_SIDE_SEC  = 2.0   # DEMO 左右各幾秒當「校正」
-alpha = 6.0   # 可調參數（能量比越大越嚴格）
-R_DEMO = 0.2  # 與 LIPS 統一的能量門檻比例
+alpha = 6.0   # 【棄用】 可調參數（能量比越大越嚴格）
+R_DEMO = 0.4  # 能量門檻比例
 
 # 〈同向波合併〉參數
 MERGE_ENABLE          = True
-BRIDGE_MAX_SEC        = 0.8
-BRIDGE_MAX_RANGE_RATE = 0.6
+BRIDGE_MAX_SEC        = 0.2
+BRIDGE_MAX_RANGE_RATE = 0.6 #【棄用】
 
 
 # ===== 自動計算 FS =====
@@ -85,7 +85,7 @@ def lowpass_filter(x, fs=FS_DEFAULT, cutoff=CUTOFF_DEFAULT, order=ORDER):
 
 
 def moving_average(x, win_samples):
-    win = max(1, min(int(win_samples), len(x) // 2)) 
+    win = max(1, min(int(win_samples), len(x) // 2))
     ker = np.ones(win) / win
     pad = win // 2
     xpad = np.pad(x, pad, mode='edge')
@@ -137,7 +137,7 @@ def auto_cutoff_from_signal(t, r, fs,
         f0 = 1.0 / max(period, 1e-9)
         cutoff = gain_over_f0 * f0
         cutoff = float(np.clip(cutoff, min_cut, min(max_cut_cap, 0.49*fs)))
-        cutoff = 2.0  # 固定使用 2.0
+        cutoff = 1.0  # 固定使用 2.0
         return cutoff
 
     print(f"⚠️ [AUTO-CUTOFF] autocorr failed -> fallback cutoff={CUTOFF_DEFAULT:.2f}Hz")
@@ -273,13 +273,9 @@ def build_segments_from_zc(zc_all, r_detrend, t):
 
 # ===== 合併同向波（與 LIPS 統一結構）=====
 def merge_segments_by_time(segs, max_bridge_sec=BRIDGE_MAX_SEC):
-    """
-    合併相鄰同向波段（gap ≤ max_bridge_sec）
-    與 LIPS 版本結構統一
-    """
     if not MERGE_ENABLE or len(segs) < 2:
         return segs
-    
+
     changed = True
     while changed:
         changed = False
@@ -289,25 +285,26 @@ def merge_segments_by_time(segs, max_bridge_sec=BRIDGE_MAX_SEC):
             if i + 1 < len(segs):
                 s0, s1 = segs[i], segs[i+1]
                 gap = s1["st"] - s0["ed"]
-                # 同向且間隔夠小 → 合併
                 if s0["dir"] == s1["dir"] and gap <= max_bridge_sec:
                     merged = {
-                        "i": s0["i"],
+                        "i": s0.get("i", 0),
                         "s_idx": s0["s_idx"],
                         "e_idx": s1["e_idx"],
                         "st": s0["st"],
                         "ed": s1["ed"],
+                        "duration": s1["ed"] - s0["st"],  # ← 重算 duration
                         "dir": s0["dir"],
-                        "is_pos": s0["is_pos"],
-                        # 合併能量（如果有的話）
+                        "is_pos": s0.get("is_pos", s0["dir"] == "P"),  # ← 安全取值
                         "energy": s0.get("energy", 0) + s1.get("energy", 0),
                     }
                     # 保留極值
                     if "peak_val" in s0 or "peak_val" in s1:
                         merged["peak_val"] = max(s0.get("peak_val", -np.inf), s1.get("peak_val", -np.inf))
+                        merged["peak_time"] = s0.get("peak_time") if s0.get("peak_val", -np.inf) >= s1.get("peak_val", -np.inf) else s1.get("peak_time")
                     if "trough_val" in s0 or "trough_val" in s1:
                         merged["trough_val"] = min(s0.get("trough_val", np.inf), s1.get("trough_val", np.inf))
-                    
+                        merged["trough_time"] = s0.get("trough_time") if s0.get("trough_val", np.inf) <= s1.get("trough_val", np.inf) else s1.get("trough_time")
+
                     out.append(merged)
                     i += 2
                     changed = True
@@ -388,32 +385,34 @@ def analyze_high_peaks(r_detrend, t, fs, seg, energy_threshold, dir_eff="P"):
     s_idx, e_idx = seg["s_idx"], seg["e_idx"]
     seg_data = r_detrend[s_idx:e_idx]
     seg_t = t[s_idx:e_idx]
-    
+
     if seg_data.size == 0:
         return spans
-    
+
     # === 時間驗證 ===
     duration = seg_t[-1] - seg_t[0]
     if duration < MIN_ACTION_DURATION:
         return spans
     if duration > MAX_ACTION_DURATION:
         return spans
-    
+
     # 計算能量密度
     seg_energy = energy_density_interval_dir(
         seg_data, seg_t, fs,
         seg_t[0], seg_t[-1],
         dir_eff
     )
-    
+
     if seg_energy >= energy_threshold:
         peak_val = np.max(seg_data)
         peak_idx = np.argmax(seg_data)
         peak_time = t[s_idx + peak_idx]
-        
+
         spans.append({
             "type": "P",
             "dir": "P",
+            "i": seg["i"],
+            "is_pos": True,
             "s_idx": s_idx,
             "e_idx": e_idx,
             "st": float(seg_t[0]),
@@ -424,7 +423,7 @@ def analyze_high_peaks(r_detrend, t, fs, seg, energy_threshold, dir_eff="P"):
             "peak_time": float(peak_time),
             "peak_val": float(peak_val),
         })
-    
+
     return spans
 
 
@@ -438,32 +437,34 @@ def analyze_low_troughs(r_detrend, t, fs, seg, energy_threshold, dir_eff="N"):
     s_idx, e_idx = seg["s_idx"], seg["e_idx"]
     seg_data = r_detrend[s_idx:e_idx]
     seg_t = t[s_idx:e_idx]
-    
+
     if seg_data.size == 0:
         return spans
-    
+
     # === 時間驗證（之前 LIPS 的 bug 修復）===
     duration = seg_t[-1] - seg_t[0]
     if duration < MIN_ACTION_DURATION:
         return spans
     if duration > MAX_ACTION_DURATION:
         return spans
-    
+
     # 計算能量密度
     seg_energy = energy_density_interval_dir(
         seg_data, seg_t, fs,
         seg_t[0], seg_t[-1],
         dir_eff
     )
-    
+
     if seg_energy >= energy_threshold:
         trough_val = np.min(seg_data)
         trough_idx = np.argmin(seg_data)
         trough_time = t[s_idx + trough_idx]
-        
+
         spans.append({
             "type": "N",
             "dir": "N",
+            "i": seg["i"],
+            "is_pos": False,
             "s_idx": s_idx,
             "e_idx": e_idx,
             "st": float(seg_t[0]),
@@ -474,135 +475,136 @@ def analyze_low_troughs(r_detrend, t, fs, seg, energy_threshold, dir_eff="N"):
             "trough_time": float(trough_time),
             "trough_val": float(trough_val),
         })
-    
+
     return spans
-
-
-# ===== 畫圖函數（與 LIPS 完全一致的結構）=====
-def plot_analysis(t, r_raw, r_filt, baseline, r_detrend, 
+def plot_analysis(t, r_raw, r_filt, baseline, r_detrend,
                   zc_all, zc_up, zc_down,
-                  segments, action_spans, 
+                  segments, action_spans,
                   dir_eff, demo_energy, energy_threshold,
                   t_all, r_all, mask_demo,
                   fs, cutoff, title="CHEEK Analysis"):
     """
-    畫出與 LIPS 完全一致結構的分析圖
-    
+    畫出完整分析圖（包含 DEMO 校正區）
+
     子圖配置：
-    1. 原始信號 + baseline + DEMO區間
-    2. 濾波後信號 + baseline
+    1. 全段原始信號 + DEMO 區間標記
+    2. MAINTAINING 濾波後信號 + baseline
     3. Detrend信號 + 零交叉點 + 動作標記
     4. 能量分析（各段能量 vs 門檻）
     """
     if not HAS_PLOT:
         return
 
-    fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(14, 12))
     fig.suptitle(f"{title}\nDir={dir_eff}, FS={fs:.1f}Hz, Cutoff={cutoff:.2f}Hz", fontsize=12)
-    
-    # ===== 子圖1: 原始信號 + DEMO =====
+
+    # ===== 子圖1: 全段原始信號（包含 DEMO）=====
     ax1 = axes[0]
-    ax1.plot(t, r_raw, 'b-', alpha=0.5, label='Raw Curvature', linewidth=0.8)
-    ax1.plot(t, baseline, 'r--', label='Baseline', linewidth=1.5)
-    ax1.set_ylabel('Curvature')
-    ax1.set_title('Raw Signal + Baseline')
-    ax1.legend(loc='upper right')
-    ax1.grid(True, alpha=0.3)
-    
-    # 標記 DEMO 區間（如果有的話）
+    ax1.plot(t_all, r_all, 'b-', alpha=0.6, label='Raw Curvature (Full)', linewidth=0.8)
+
+    # 標記 DEMO 區間
     if mask_demo is not None and np.any(mask_demo):
         idx_demo = np.flatnonzero(mask_demo)
         if idx_demo.size > 0:
             demo_start = t_all[idx_demo[0]]
             demo_end = t_all[idx_demo[-1]]
-            # 找出在 MAINTAINING 範圍內的 DEMO
-            if demo_start <= t[-1] and demo_end >= t[0]:
-                ax1.axvspan(max(demo_start, t[0]), min(demo_end, t[-1]), 
-                           alpha=0.2, color='yellow', label='DEMO')
-    
-    # ===== 子圖2: 濾波後信號 =====
+            ax1.axvspan(demo_start, demo_end, alpha=0.3, color='yellow', label='DEMO')
+
+            # 標記校正區（DEMO 前後 DEMO_SIDE_SEC 秒）
+            ax1.axvspan(demo_start - DEMO_SIDE_SEC, demo_start,
+                       alpha=0.2, color='orange', label='Left Calib')
+            ax1.axvspan(demo_end, demo_end + DEMO_SIDE_SEC,
+                       alpha=0.2, color='orange', label='Right Calib')
+
+    # 標記 MAINTAINING 區間
+    if len(t) > 0:
+        ax1.axvspan(t[0], t[-1], alpha=0.1, color='green', label='MAINTAINING')
+
+    ax1.set_ylabel('Curvature')
+    ax1.set_title('Full Signal (with DEMO + Calibration Zones)')
+    ax1.legend(loc='upper right', fontsize=8)
+    ax1.grid(True, alpha=0.3)
+
+    # ===== 子圖2: MAINTAINING 濾波後信號 =====
     ax2 = axes[1]
     ax2.plot(t, r_filt, 'g-', label='Filtered', linewidth=1)
     ax2.plot(t, baseline, 'r--', label='Baseline', linewidth=1.5)
     ax2.set_ylabel('Curvature')
-    ax2.set_title('Filtered Signal + Baseline')
+    ax2.set_title('Filtered Signal + Baseline (MAINTAINING only)')
     ax2.legend(loc='upper right')
     ax2.grid(True, alpha=0.3)
-    
+
     # ===== 子圖3: Detrend + 零交叉 + 動作標記 =====
     ax3 = axes[2]
     ax3.plot(t, r_detrend, 'b-', label='Detrended', linewidth=1)
     ax3.axhline(y=0, color='k', linestyle='-', linewidth=0.5)
-    
+
     # 零交叉點
     if len(zc_up) > 0:
         ax3.scatter(t[zc_up], r_detrend[zc_up], c='green', s=30, marker='^', label='ZC Up', zorder=5)
     if len(zc_down) > 0:
         ax3.scatter(t[zc_down], r_detrend[zc_down], c='red', s=30, marker='v', label='ZC Down', zorder=5)
-    
+
     # 標記有效動作段
     for i, span in enumerate(action_spans):
         color = 'lime' if span["dir"] == "P" else 'cyan'
         ax3.axvspan(span["st"], span["ed"], alpha=0.3, color=color)
-        
+
         # 標記峰/谷
         if "peak_time" in span:
-            ax3.scatter([span["peak_time"]], [span["peak_val"]], 
+            ax3.scatter([span["peak_time"]], [span["peak_val"]],
                        c='red', s=100, marker='*', zorder=10)
             ax3.annotate(f'#{i+1}', (span["peak_time"], span["peak_val"]),
                         textcoords="offset points", xytext=(0, 10), ha='center', fontsize=8)
         if "trough_time" in span:
-            ax3.scatter([span["trough_time"]], [span["trough_val"]], 
+            ax3.scatter([span["trough_time"]], [span["trough_val"]],
                        c='blue', s=100, marker='*', zorder=10)
             ax3.annotate(f'#{i+1}', (span["trough_time"], span["trough_val"]),
                         textcoords="offset points", xytext=(0, -15), ha='center', fontsize=8)
-    
+
     ax3.set_ylabel('Detrended')
     ax3.set_title(f'Detrended Signal + Actions (Count={len(action_spans)})')
     ax3.legend(loc='upper right')
     ax3.grid(True, alpha=0.3)
-    
+
     # ===== 子圖4: 能量分析 =====
     ax4 = axes[3]
-    
-    # 繪製所有段的能量（柱狀圖）
+
     seg_centers = []
     seg_energies = []
     seg_colors = []
-    
+
     for seg in segments:
         center = (seg["st"] + seg["ed"]) / 2
         energy = seg.get("energy", 0)
         seg_centers.append(center)
         seg_energies.append(energy)
-        
-        # 判斷是否為有效動作
+
         is_action = any(
-            (span["st"] == seg["st"] and span["ed"] == seg["ed"]) 
+            (span["st"] == seg["st"] and span["ed"] == seg["ed"])
             for span in action_spans
         )
         if is_action:
             seg_colors.append('lime' if seg["dir"] == "P" else 'cyan')
         else:
             seg_colors.append('gray')
-    
+
     if seg_centers:
         bar_width = np.min(np.diff(seg_centers)) * 0.8 if len(seg_centers) > 1 else 0.5
         ax4.bar(seg_centers, seg_energies, width=bar_width, color=seg_colors, alpha=0.7, edgecolor='black')
-    
-    # 能量門檻線
+
     ax4.axhline(y=energy_threshold, color='red', linestyle='--', linewidth=2, label=f'Threshold={energy_threshold:.2e}')
     ax4.axhline(y=demo_energy, color='orange', linestyle=':', linewidth=2, label=f'DEMO Energy={demo_energy:.2e}')
-    
+
     ax4.set_xlabel('Time (s)')
     ax4.set_ylabel('Energy Density')
     ax4.set_title('Segment Energy Analysis')
     ax4.legend(loc='upper right')
     ax4.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     plt.show()
-    
+
     return fig
 
 
@@ -610,11 +612,11 @@ def plot_analysis(t, r_raw, r_filt, baseline, r_detrend,
 def analyze_csv(file_path: str, plot: bool = True) -> dict:
     """
     分析 CHEEK CSV 檔案（電腦版，帶畫圖功能）
-    
+
     參數:
         file_path: CSV 檔案路徑
         plot: 是否畫圖（預設 True）
-    
+
     回傳:
         dict 格式的分析結果
     """
@@ -687,7 +689,7 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
 
         # === 零交叉 ===
         std = float(np.std(r_detrend)) if len(r_detrend) else 0.0
-        deadband = 0.005 * std if std > 0 else 0.0
+        deadband = 0.000 * std if std > 0 else 0.0
         min_interval = int(0.5 * fs)  # 與 LIPS 統一
         zc_all, zc_up, zc_down = zero_crossings(r_detrend, min_interval, deadband)
 
@@ -703,15 +705,15 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
         # === 分析各段，計算能量並標記動作 ===
         action_spans = []
         pos_waves = neg_waves = 0
-        
+
         for seg in segments:
             s_idx, e_idx = seg["s_idx"], seg["e_idx"]
             seg_data = r_detrend[s_idx:e_idx]
             seg_t = t[s_idx:e_idx]
-            
+
             if seg_data.size == 0:
                 continue
-            
+
             # 計算該段能量
             seg_energy = energy_density_interval_dir(
                 seg_data, seg_t, fs,
@@ -719,24 +721,24 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
                 seg["dir"]
             )
             seg["energy"] = seg_energy
-            
+
             if seg["is_pos"]:
                 pos_waves += 1
             else:
                 neg_waves += 1
-            
+
             # P 方向分析
             if dir_eff == "P" and seg["is_pos"]:
                 spans = analyze_high_peaks(r_detrend, t, fs, seg, energy_threshold, "P")
                 action_spans.extend(spans)
-            
+
             # N 方向分析
             if dir_eff == "N" and not seg["is_pos"]:
                 spans = analyze_low_troughs(r_detrend, t, fs, seg, energy_threshold, "N")
                 action_spans.extend(spans)
 
         # === 合併（可選）===
-        # action_spans = merge_segments_by_time(action_spans, BRIDGE_MAX_SEC)
+        action_spans = merge_segments_by_time(action_spans, BRIDGE_MAX_SEC)
 
         # === 統計 ===
         action_count = len(action_spans)
@@ -776,6 +778,7 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
             "debug": {
                 "fs_hz": fs,
                 "cutoff": round(cutoff_auto, 3),
+                "order": ORDER,
                 "direction": dir_eff,
                 "demo_energy": round(demo_energy, 10),
                 "energy_threshold": round(energy_threshold, 10),
@@ -785,6 +788,8 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
                 "zc_all": len(zc_all),
                 "zc_up": len(zc_up),
                 "zc_down": len(zc_down),
+                "deadband": deadband,
+                "min_interval": min_interval,
                 "min_action_duration": MIN_ACTION_DURATION,
                 "max_action_duration": MAX_ACTION_DURATION,
             }
@@ -807,14 +812,14 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_171829_Anw3.csv"
 #     CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_153910_shein_REDO.csv"
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_140758_SUM.csv"
-    
-    
+
+
 #     # === 十月底 PUFF CHEEK CSV 測試檔案  ，沒DEMO ===
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_132845_講話臉頰9.csv"
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_132937_臉頰_呼吸8次.csv"
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_133220_臉頰_脫眼鏡9_呼吸.csv"
 
-   
+
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_133322_臉頰_4變7.csv"
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_135550_藍色框_鼓臉頰.csv"
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_152616_4便6.csv"
@@ -828,11 +833,11 @@ def analyze_csv(file_path: str, plot: bool = True) -> dict:
 
 #     # === 十月底 REDUCE CHEEK CSV 測試檔案 ===
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251030_201935.csv"
-    
+
 #     #感覺是兩段 縮完股回來有點像股臉
 #     #DEMO廢掉
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_122842_5變4.csv"
-    
+
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_123535_5變5.csv"
 #     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_155323_S24_10變1.csv"
 
@@ -881,9 +886,9 @@ r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining
 r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_171659.csv",
 r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_171539.csv",
 r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_153910.csv",
-r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_140758.csv"
-
-
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_140758.csv",
+ r"C:\Users\plus1\Downloads\user01_FaceTraining_PUFF_CHEEK_20251201_154622.csv",
+ r"C:\Users\plus1\Downloads\testuser01_FaceTraining_PUFF_CHEEK_20251201_160825_3"
     ]
 
 # REDUCE
@@ -902,34 +907,34 @@ r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining
 
     print("=" * 80)
     all_results = {}
-    
+
     for i, csv_path in enumerate(csv_files, 1):
         filename = csv_path.split("\\")[-1]
-        
+
         print(f"\n[{i}/{len(csv_files)}] 📁 {filename}")
         print("-" * 80)
-        
-        result = analyze_csv(csv_path, plot=True)  # plot=True 開啟畫圖
+
+        result = analyze_csv(csv_path, plot=False)  # plot=True 開啟畫圖
         all_results[filename] = result
-        
+
         print(f"狀態: {result.get('status')}")
         print(f"動作次數: {result.get('action_count')}")
         print(f"總動作時間: {result.get('total_action_time')} 秒")
-        
+
         if result.get('status') == 'ERROR':
             print(f"❌ 錯誤: {result.get('error')}")
-    
+
     # 總結
     print("\n" + "=" * 80)
     print("📊 總結")
     print("=" * 80)
-    
+
     total_actions = 0
     for filename, result in all_results.items():
         count = result.get('action_count', 0)
         total_actions += count
         status = "✅" if result.get('status') == 'OK' else "❌"
         print(f"{filename:<70} {status} {count}")
-    
+
     print(f"\n總動作數: {total_actions}")
     print("=" * 80)
