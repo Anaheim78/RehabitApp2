@@ -106,7 +106,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
     //<=========【影片錄製】==========
-    private static final boolean ENABLE_VIDEO_RECORDING = false; // ← 改 false 就關閉錄影
+    private static final boolean ENABLE_VIDEO_RECORDING = true; // ← 改 false 就關閉錄影
     private VideoCapture<Recorder> videoCapture;
     private Recording currentRecording;
     private String videoFilePath;
@@ -138,7 +138,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //<========【舌頭】 ========
     //推論頻率控制（可自行調整）
     private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
-    private static final int YOLO_EVERY   = 3;  // 每 3 幀跑一次 YOLO
+    private static final int YOLO_EVERY   = 2;  // 每 3 幀跑一次 YOLO
     private long firstMetricTime = 0;
 
     // 周邊物件
@@ -1624,6 +1624,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     // 安排下一步（用 if/else 寫死 2 秒），並根據 trainingLabel 換字
+    //20251127 先取消文字
     private void postNextCue(long delayMs) {
         if (mainHandler == null) return;
         final int segMs = Math.max(1, CUE_SEGMENT_SEC) * 1000;
@@ -1651,6 +1652,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 if (cueText != null) cueText.setText("回到放鬆" + tail); // 例：噘嘴｜放鬆
                 mainHandler.postDelayed(() -> { cueStep = 0; postNextCue(0); }, segMs);
             }
+
+            cueText.setText(" ");
         };
         mainHandler.postDelayed(cueRunnable, delayMs);
     }
