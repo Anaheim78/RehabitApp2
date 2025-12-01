@@ -3,6 +3,13 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt, correlate, find_peaks
 
+# === 自動偵測 matplotlib ===
+try:
+    import matplotlib.pyplot as plt
+    HAS_PLOT = True
+except ImportError:
+    HAS_PLOT = False
+
 # === cheek landmark sets ===
 LEFT_CHEEK_IDXS  = [117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186]
 RIGHT_CHEEK_IDXS = [164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266]
@@ -13,17 +20,20 @@ CUTOFF_DEFAULT     = 2.0   # 自動 cutoff 失敗時的備援值
 ORDER              = 4
 THRESHOLD          = 2e-6
 
-#==== DEMO ===
+# ==== 時間驗證參數（與 LIPS 統一）====
+MIN_ACTION_DURATION = 0.3   # 最短動作時間（秒）
+MAX_ACTION_DURATION = 6.0   # 最長動作時間（秒）
+
+# ==== DEMO ===
 K_DEMO_ENERGY  = 0.1  # DEMO 能量比門檻的 K 值（E_thr = max(K*E_demo, E_noise)）
 DEMO_SIDE_SEC  = 2.0   # DEMO 左右各幾秒當「校正」
 alpha = 6.0   # 可調參數（能量比越大越嚴格）
-
+R_DEMO = 0.2  # 與 LIPS 統一的能量門檻比例
 
 # 〈同向波合併〉參數
 MERGE_ENABLE          = True
 BRIDGE_MAX_SEC        = 0.8
 BRIDGE_MAX_RANGE_RATE = 0.6
-
 
 
 # ===== 自動計算 FS =====
@@ -62,6 +72,7 @@ def calculate_fs_from_csv(file_path: str) -> float:
         print(f"⚠️ FS calculation error: {e}, using default {FS_DEFAULT}")
         return FS_DEFAULT
 
+
 # ===== 濾波 & 前處理 =====
 def lowpass_filter(x, fs=FS_DEFAULT, cutoff=CUTOFF_DEFAULT, order=ORDER):
     x = np.asarray(x, dtype=float)
@@ -72,35 +83,32 @@ def lowpass_filter(x, fs=FS_DEFAULT, cutoff=CUTOFF_DEFAULT, order=ORDER):
     b, a = butter(order, cutoff / (fs / 2), btype='low')
     return filtfilt(b, a, x)
 
+
 def moving_average(x, win_samples):
-    win = max(1, min(int(win_samples), len(x) // 2))
+    win = max(1, min(int(win_samples), len(x) // 2)) 
     ker = np.ones(win) / win
     pad = win // 2
     xpad = np.pad(x, pad, mode='edge')
     base = np.convolve(xpad, ker, mode='same')
     return base[pad:-pad]
 
+
 # ===== 自動估 cutoff（核心功能）=====
 def auto_cutoff_from_signal(t, r, fs,
-                            min_period_sec=0.5,   # 允許的動作最短週期（快動作）
-                            max_period_sec=4.0,   # 允許的動作最長週期（慢動作）
-                            gain_over_f0=1.5,     # cutoff = gain * f0（略高於主頻）
-                            min_cut=0.25,         # 底限（Hz）
-                            max_cut_cap=2.0       # 上限（Hz），避免過大
+                            min_period_sec=0.5,
+                            max_period_sec=4.0,
+                            gain_over_f0=1.5,
+                            min_cut=0.25,
+                            max_cut_cap=2.0
                             ):
     """
-    用「實際 MAINTAINING 段」估主週期：
-      1) detrend（2s移動平均）
-      2) 自相關找第一個顯著峰（落在 min~max 週期範圍）
-      3) 失敗則直接用 CUTOFF_DEFAULT（不使用零交叉備援法）
-      4) cutoff = clamp(gain * f0, [min_cut, max_cut_cap, 0.49*fs])
+    用「實際 MAINTAINING 段」估主週期
     """
     x = np.asarray(r, dtype=float)
     if x.size < max(16, int(1.5*fs)):
         print("[AUTO-CUTOFF] data too short -> fallback cutoff")
         return CUTOFF_DEFAULT
 
-    # 粗濾 + 去趨勢
     x_f = lowpass_filter(x, fs=fs, cutoff=min(1.5, 0.49*fs), order=ORDER)
     base = moving_average(x_f, int(max(3, 2.0 * fs)))
     xd = x_f - base
@@ -111,11 +119,9 @@ def auto_cutoff_from_signal(t, r, fs,
         return CUTOFF_DEFAULT
     xn = (xd - np.mean(xd)) / std
 
-    # 自相關（只看正延遲）
     ac = correlate(xn, xn, mode='full')
-    ac = ac[ac.size//2:]   # 從 lag=0 往後
+    ac = ac[ac.size//2:]
 
-    # 搜尋範圍（秒→樣本）
     min_lag = int(min_period_sec * fs)
     max_lag = int(max_period_sec * fs)
     min_lag = max(min_lag, 1)
@@ -124,7 +130,6 @@ def auto_cutoff_from_signal(t, r, fs,
         print("[AUTO-CUTOFF] bad lag window -> fallback cutoff")
         return CUTOFF_DEFAULT
 
-    # 找第一個顯著峰
     peaks, props = find_peaks(ac[min_lag:max_lag+1], prominence=0.05)
     if peaks.size > 0:
         lag = peaks[0] + min_lag
@@ -132,13 +137,12 @@ def auto_cutoff_from_signal(t, r, fs,
         f0 = 1.0 / max(period, 1e-9)
         cutoff = gain_over_f0 * f0
         cutoff = float(np.clip(cutoff, min_cut, min(max_cut_cap, 0.49*fs)))
-        # print(f"✅ [AUTO-CUTOFF] autocorr: period≈{period:.2f}s f0≈{f0:.2f}Hz -> cutoff={cutoff:.2f}Hz")
-        cutoff = 2.0
+        cutoff = 2.0  # 固定使用 2.0
         return cutoff
 
-    # 自相關失敗 → 直接用固定值（移除零交叉備援法）
     print(f"⚠️ [AUTO-CUTOFF] autocorr failed -> fallback cutoff={CUTOFF_DEFAULT:.2f}Hz")
     return CUTOFF_DEFAULT
+
 
 # ===== 曲率計算 =====
 def fit_quadratic_surface_xyz(x, y, z):
@@ -148,8 +152,10 @@ def fit_quadratic_surface_xyz(x, y, z):
     coef, *_ = np.linalg.lstsq(A, z, rcond=None)
     return tuple(coef)
 
+
 def curvature_proxy_from_quad(a, b, c):
     return math.sqrt((2*a)**2 + (2*c)**2 + 2*(b**2))
+
 
 def cheek_patch_curvature(points3d):
     points3d = np.asarray(points3d, dtype=float)
@@ -158,6 +164,7 @@ def cheek_patch_curvature(points3d):
     x, y, z = points3d[:, 0], points3d[:, 1], points3d[:, 2]
     a, b, c, _, _, _ = fit_quadratic_surface_xyz(x, y, z)
     return curvature_proxy_from_quad(a, b, c)
+
 
 def _row_points3d(row, idxs):
     pts = []
@@ -168,6 +175,7 @@ def _row_points3d(row, idxs):
             float(row[f"point{k}_z"])
         ])
     return np.asarray(pts, dtype=float)
+
 
 # ===== 零交叉 =====
 def zero_crossings(x, min_interval, deadband=0.0):
@@ -183,13 +191,11 @@ def zero_crossings(x, min_interval, deadband=0.0):
         xi_1, xi = x[i-1], x[i]
         if np.isnan(xi_1) or np.isnan(xi):
             continue
-        # 負→正
         if xi_1 <= 0 and xi > 0 and abs(xi) > deadband:
             if i - last >= min_interval:
                 z_all.append(i)
                 z_up.append(i)
                 last = i
-        # 正→負
         elif xi_1 >= 0 and xi < 0 and abs(xi) > deadband:
             if i - last >= min_interval:
                 z_all.append(i)
@@ -197,15 +203,15 @@ def zero_crossings(x, min_interval, deadband=0.0):
                 last = i
     return z_all, z_up, z_down
 
+
 # ===== 方向判斷 (從 DEMO 段) =====
 def infer_dir_from_demo_by_series(t_all, r_all, mask_demo, side_sec=2.0):
     """
-    方向判斷（新版穩定版）：
-    - 取 DEMO 段前 side_sec 秒 與 後 side_sec 秒
-    - 各自取平均曲率，連成一條線
-    - 比較 DEMO 段曲線相對這條線的面積：
-        若上方面積 > 下方面積 → 'P'（往外鼓）
-        否則 → 'N'（往內吸）
+    方向判斷（面積法）：
+    - 取 DEMO 段前後各 side_sec 秒的平均值連成基準線
+    - 比較 DEMO 段曲線相對基準線的上下面積
+    - 上方面積 > 下方面積 → 'P'（往外鼓）
+    - 否則 → 'N'（往內縮）
     """
     if mask_demo is None or mask_demo.sum() < 6:
         print("[DIR] DEMO too short -> fallback 'N'")
@@ -224,15 +230,12 @@ def infer_dir_from_demo_by_series(t_all, r_all, mask_demo, side_sec=2.0):
         print("[DIR] not enough side data -> fallback 'N'")
         return None
 
-    # 左右平均值
     r_left_avg  = np.mean(r_all[idx_left])
     r_right_avg = np.mean(r_all[idx_right])
 
-    # DEMO 段內資料
     t_demo = t_all[idx_demo]
     r_demo = r_all[idx_demo]
 
-    # 基準線（外兩秒平均連線）
     base = r_left_avg + (r_right_avg - r_left_avg) * (t_demo - t_demo[0]) / (t_demo[-1] - t_demo[0])
     diff = r_demo - base
 
@@ -242,6 +245,7 @@ def infer_dir_from_demo_by_series(t_all, r_all, mask_demo, side_sec=2.0):
 
     print(f"[DIR] Lavg={r_left_avg:.3e}, Ravg={r_right_avg:.3e}, pos={pos_area:.2e}, neg={neg_area:.2e} -> dir={d}")
     return d
+
 
 # ===== 建立波段 =====
 def build_segments_from_zc(zc_all, r_detrend, t):
@@ -263,100 +267,102 @@ def build_segments_from_zc(zc_all, r_detrend, t):
         })
     for s in segs:
         s["is_pos"] = (s["mean"] >= 0.0)
+        s["dir"] = "P" if s["is_pos"] else "N"  # 與 LIPS 統一
     return segs
 
-# ===== 合併同向波 =====
-def merge_same_direction_waves(segs, r_detrend, t, dir_eff, fs,
-                               bridge_max_sec=BRIDGE_MAX_SEC,
-                               bridge_max_range=BRIDGE_MAX_RANGE_RATE * THRESHOLD):
-    if not MERGE_ENABLE or len(segs) < 3:
-        return segs
 
-    target_is_pos = (dir_eff == "P")
+# ===== 合併同向波（與 LIPS 統一結構）=====
+def merge_segments_by_time(segs, max_bridge_sec=BRIDGE_MAX_SEC):
+    """
+    合併相鄰同向波段（gap ≤ max_bridge_sec）
+    與 LIPS 版本結構統一
+    """
+    if not MERGE_ENABLE or len(segs) < 2:
+        return segs
+    
     changed = True
     while changed:
         changed = False
         out = []
         i = 0
         while i < len(segs):
-            if i + 2 < len(segs):
-                s0, s1, s2 = segs[i], segs[i+1], segs[i+2]
-                # 左右同向且都是目標方向,中間為反向且很小
-                if (s0["is_pos"] == s2["is_pos"] == target_is_pos) and (s1["is_pos"] != target_is_pos):
-                    dur_bridge = t[s1["e_idx"]] - t[s1["s_idx"]]
-                    bridge_data = r_detrend[s1["s_idx"]:s1["e_idx"]]
-                    amp_range = float(np.max(bridge_data) - np.min(bridge_data)) if bridge_data.size else 0.0
-
-                    if (dur_bridge <= bridge_max_sec) and (amp_range <= bridge_max_range):
-                        # 合併 s0~s2
-                        ms = {
-                            "i": s0["i"],
-                            "s_idx": s0["s_idx"],
-                            "e_idx": s2["e_idx"],
-                            "st": s0["st"],
-                            "ed": s2["ed"],
-                        }
-                        data = r_detrend[ms["s_idx"]:ms["e_idx"]]
-                        ms["mean"] = float(np.mean(data)) if data.size else 0.0
-                        ms["is_pos"] = (ms["mean"] >= 0)
-                        out.append(ms)
-                        i += 3
-                        changed = True
-                        continue
+            if i + 1 < len(segs):
+                s0, s1 = segs[i], segs[i+1]
+                gap = s1["st"] - s0["ed"]
+                # 同向且間隔夠小 → 合併
+                if s0["dir"] == s1["dir"] and gap <= max_bridge_sec:
+                    merged = {
+                        "i": s0["i"],
+                        "s_idx": s0["s_idx"],
+                        "e_idx": s1["e_idx"],
+                        "st": s0["st"],
+                        "ed": s1["ed"],
+                        "dir": s0["dir"],
+                        "is_pos": s0["is_pos"],
+                        # 合併能量（如果有的話）
+                        "energy": s0.get("energy", 0) + s1.get("energy", 0),
+                    }
+                    # 保留極值
+                    if "peak_val" in s0 or "peak_val" in s1:
+                        merged["peak_val"] = max(s0.get("peak_val", -np.inf), s1.get("peak_val", -np.inf))
+                    if "trough_val" in s0 or "trough_val" in s1:
+                        merged["trough_val"] = min(s0.get("trough_val", np.inf), s1.get("trough_val", np.inf))
+                    
+                    out.append(merged)
+                    i += 2
+                    changed = True
+                    continue
             out.append(segs[i])
             i += 1
         segs = out
     return segs
 
 
-# 20251125_新增DEMO處理函數
+# ===== DEMO 能量計算 =====
 def compute_demo_features(t_all, r_all, mask_demo, fs, cutoff, dir_eff):
     """
-    DEMO 能量 / 噪音能量 / 斜率特徵
-    👉 只用 [DEMO_start - DEMO_SIDE_SEC, DEMO_end + DEMO_SIDE_SEC] 這一小段來做 detrend，
-       不使用更前面或更後面的資料。
+    計算 DEMO 段的能量密度
     """
     if mask_demo is None or mask_demo.sum() < 3:
-        return 0.0, 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0
 
     idx_demo = np.flatnonzero(mask_demo)
     if idx_demo.size < 2:
-        return 0.0, 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0
 
-    # DEMO 起訖時間
     t_demo_start = float(t_all[idx_demo[0]])
     t_demo_end   = float(t_all[idx_demo[-1]])
 
-    # 只取 DEMO 前後各 DEMO_SIDE_SEC 秒這一小窗
     win_t0 = t_demo_start - DEMO_SIDE_SEC
     win_t1 = t_demo_end   + DEMO_SIDE_SEC
 
     mask_win = (t_all >= win_t0) & (t_all <= win_t1)
     if not np.any(mask_win):
-        # 理論上不會發生，但防呆
-        return 0.0, 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0
 
     t_win = t_all[mask_win]
     r_win = r_all[mask_win]
 
-    # 在這一窗裡面重新做一次濾波 + baseline + detrend
     r_win_filt = lowpass_filter(r_win, fs=fs, cutoff=cutoff, order=ORDER)
-    base_win   = moving_average(r_win_filt, int(5.0 * fs))
+    base_win   = moving_average(r_win_filt, int(7.0 * fs))
     r_win_det  = r_win_filt - base_win
 
-    # ===== DEMO 能量（方向只看 P 或 N）=====
     E_demo = energy_density_interval_dir(
         r_win_det, t_win, fs,
         t_demo_start, t_demo_end, dir_eff
     )
 
-    # ===== 能量門檻 =====
-    #先不管抖動
-    energy_thr = K_DEMO_ENERGY * E_demo
+    energy_thr = R_DEMO * E_demo  # 使用 R_DEMO（與 LIPS 統一）
     return float(E_demo), float(energy_thr)
 
-# ===== DEMO 能量密度（用 detrend）=====
+
+# ===== 能量密度計算 =====
 def energy_density_interval_dir(x, t, fs, t0, t1, dir_eff):
+    """
+    計算指定方向的能量密度
+    dir_eff = "P": 只計正值
+    dir_eff = "N": 只計負值（取絕對值）
+    """
     mask = (t >= t0) & (t <= t1)
     if not np.any(mask):
         return 0.0
@@ -367,33 +373,250 @@ def energy_density_interval_dir(x, t, fs, t0, t1, dir_eff):
         vals = seg[seg > 0]
     if vals.size == 0:
         return 0.0
-    total = np.sum(vals) / fs  # ← 除了一次 fs
-    dur = vals.size / fs        # ← 又除了一次 fs
+    total = np.sum(vals) / fs
+    dur = vals.size / fs
     return float(total / max(dur, 1e-9))
 
 
-# ===== 主分析函數 =====
-def analyze_csv(file_path: str) -> dict:
+# ===== 分析高峰（P方向）=====
+def analyze_high_peaks(r_detrend, t, fs, seg, energy_threshold, dir_eff="P"):
     """
-    輸入: CSV 檔案路徑
-    輸出: dict 格式 (標準格式)
-    {
-        "status": "OK" | "ERROR",
-        "action_count": int,
-        "total_action_time": float,
-        "breakpoints": [float, ...],
-        "segments": [{"index": int, "start_time": float, "end_time": float, "duration": float}, ...],
-        "curve": [{"t": float, "v": str}, ...],
-        "debug": {dict}
-    }
+    分析正半波（P方向）
+    包含時間驗證（MIN/MAX_ACTION_DURATION）
+    """
+    spans = []
+    s_idx, e_idx = seg["s_idx"], seg["e_idx"]
+    seg_data = r_detrend[s_idx:e_idx]
+    seg_t = t[s_idx:e_idx]
+    
+    if seg_data.size == 0:
+        return spans
+    
+    # === 時間驗證 ===
+    duration = seg_t[-1] - seg_t[0]
+    if duration < MIN_ACTION_DURATION:
+        return spans
+    if duration > MAX_ACTION_DURATION:
+        return spans
+    
+    # 計算能量密度
+    seg_energy = energy_density_interval_dir(
+        seg_data, seg_t, fs,
+        seg_t[0], seg_t[-1],
+        dir_eff
+    )
+    
+    if seg_energy >= energy_threshold:
+        peak_val = np.max(seg_data)
+        peak_idx = np.argmax(seg_data)
+        peak_time = t[s_idx + peak_idx]
+        
+        spans.append({
+            "type": "P",
+            "dir": "P",
+            "s_idx": s_idx,
+            "e_idx": e_idx,
+            "st": float(seg_t[0]),
+            "ed": float(seg_t[-1]),
+            "duration": float(duration),
+            "energy": float(seg_energy),
+            "energy_thr": float(energy_threshold),
+            "peak_time": float(peak_time),
+            "peak_val": float(peak_val),
+        })
+    
+    return spans
 
-    內部邏輯:
-    - 自動計算 FS
-    - 自動計算 cutoff（使用自相關法）
-    - 自動判斷方向 (P/N) 從 DEMO 段
-    - 同向波合併
-    - Delta 閾值篩選
-    - 只統計符合方向且 Delta >= THRESHOLD 的動作
+
+# ===== 分析低谷（N方向）=====
+def analyze_low_troughs(r_detrend, t, fs, seg, energy_threshold, dir_eff="N"):
+    """
+    分析負半波（N方向）
+    包含時間驗證（MIN/MAX_ACTION_DURATION）
+    """
+    spans = []
+    s_idx, e_idx = seg["s_idx"], seg["e_idx"]
+    seg_data = r_detrend[s_idx:e_idx]
+    seg_t = t[s_idx:e_idx]
+    
+    if seg_data.size == 0:
+        return spans
+    
+    # === 時間驗證（之前 LIPS 的 bug 修復）===
+    duration = seg_t[-1] - seg_t[0]
+    if duration < MIN_ACTION_DURATION:
+        return spans
+    if duration > MAX_ACTION_DURATION:
+        return spans
+    
+    # 計算能量密度
+    seg_energy = energy_density_interval_dir(
+        seg_data, seg_t, fs,
+        seg_t[0], seg_t[-1],
+        dir_eff
+    )
+    
+    if seg_energy >= energy_threshold:
+        trough_val = np.min(seg_data)
+        trough_idx = np.argmin(seg_data)
+        trough_time = t[s_idx + trough_idx]
+        
+        spans.append({
+            "type": "N",
+            "dir": "N",
+            "s_idx": s_idx,
+            "e_idx": e_idx,
+            "st": float(seg_t[0]),
+            "ed": float(seg_t[-1]),
+            "duration": float(duration),
+            "energy": float(seg_energy),
+            "energy_thr": float(energy_threshold),
+            "trough_time": float(trough_time),
+            "trough_val": float(trough_val),
+        })
+    
+    return spans
+
+
+# ===== 畫圖函數（與 LIPS 完全一致的結構）=====
+def plot_analysis(t, r_raw, r_filt, baseline, r_detrend, 
+                  zc_all, zc_up, zc_down,
+                  segments, action_spans, 
+                  dir_eff, demo_energy, energy_threshold,
+                  t_all, r_all, mask_demo,
+                  fs, cutoff, title="CHEEK Analysis"):
+    """
+    畫出與 LIPS 完全一致結構的分析圖
+    
+    子圖配置：
+    1. 原始信號 + baseline + DEMO區間
+    2. 濾波後信號 + baseline
+    3. Detrend信號 + 零交叉點 + 動作標記
+    4. 能量分析（各段能量 vs 門檻）
+    """
+    if not HAS_PLOT:
+        return
+
+    fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
+    fig.suptitle(f"{title}\nDir={dir_eff}, FS={fs:.1f}Hz, Cutoff={cutoff:.2f}Hz", fontsize=12)
+    
+    # ===== 子圖1: 原始信號 + DEMO =====
+    ax1 = axes[0]
+    ax1.plot(t, r_raw, 'b-', alpha=0.5, label='Raw Curvature', linewidth=0.8)
+    ax1.plot(t, baseline, 'r--', label='Baseline', linewidth=1.5)
+    ax1.set_ylabel('Curvature')
+    ax1.set_title('Raw Signal + Baseline')
+    ax1.legend(loc='upper right')
+    ax1.grid(True, alpha=0.3)
+    
+    # 標記 DEMO 區間（如果有的話）
+    if mask_demo is not None and np.any(mask_demo):
+        idx_demo = np.flatnonzero(mask_demo)
+        if idx_demo.size > 0:
+            demo_start = t_all[idx_demo[0]]
+            demo_end = t_all[idx_demo[-1]]
+            # 找出在 MAINTAINING 範圍內的 DEMO
+            if demo_start <= t[-1] and demo_end >= t[0]:
+                ax1.axvspan(max(demo_start, t[0]), min(demo_end, t[-1]), 
+                           alpha=0.2, color='yellow', label='DEMO')
+    
+    # ===== 子圖2: 濾波後信號 =====
+    ax2 = axes[1]
+    ax2.plot(t, r_filt, 'g-', label='Filtered', linewidth=1)
+    ax2.plot(t, baseline, 'r--', label='Baseline', linewidth=1.5)
+    ax2.set_ylabel('Curvature')
+    ax2.set_title('Filtered Signal + Baseline')
+    ax2.legend(loc='upper right')
+    ax2.grid(True, alpha=0.3)
+    
+    # ===== 子圖3: Detrend + 零交叉 + 動作標記 =====
+    ax3 = axes[2]
+    ax3.plot(t, r_detrend, 'b-', label='Detrended', linewidth=1)
+    ax3.axhline(y=0, color='k', linestyle='-', linewidth=0.5)
+    
+    # 零交叉點
+    if len(zc_up) > 0:
+        ax3.scatter(t[zc_up], r_detrend[zc_up], c='green', s=30, marker='^', label='ZC Up', zorder=5)
+    if len(zc_down) > 0:
+        ax3.scatter(t[zc_down], r_detrend[zc_down], c='red', s=30, marker='v', label='ZC Down', zorder=5)
+    
+    # 標記有效動作段
+    for i, span in enumerate(action_spans):
+        color = 'lime' if span["dir"] == "P" else 'cyan'
+        ax3.axvspan(span["st"], span["ed"], alpha=0.3, color=color)
+        
+        # 標記峰/谷
+        if "peak_time" in span:
+            ax3.scatter([span["peak_time"]], [span["peak_val"]], 
+                       c='red', s=100, marker='*', zorder=10)
+            ax3.annotate(f'#{i+1}', (span["peak_time"], span["peak_val"]),
+                        textcoords="offset points", xytext=(0, 10), ha='center', fontsize=8)
+        if "trough_time" in span:
+            ax3.scatter([span["trough_time"]], [span["trough_val"]], 
+                       c='blue', s=100, marker='*', zorder=10)
+            ax3.annotate(f'#{i+1}', (span["trough_time"], span["trough_val"]),
+                        textcoords="offset points", xytext=(0, -15), ha='center', fontsize=8)
+    
+    ax3.set_ylabel('Detrended')
+    ax3.set_title(f'Detrended Signal + Actions (Count={len(action_spans)})')
+    ax3.legend(loc='upper right')
+    ax3.grid(True, alpha=0.3)
+    
+    # ===== 子圖4: 能量分析 =====
+    ax4 = axes[3]
+    
+    # 繪製所有段的能量（柱狀圖）
+    seg_centers = []
+    seg_energies = []
+    seg_colors = []
+    
+    for seg in segments:
+        center = (seg["st"] + seg["ed"]) / 2
+        energy = seg.get("energy", 0)
+        seg_centers.append(center)
+        seg_energies.append(energy)
+        
+        # 判斷是否為有效動作
+        is_action = any(
+            (span["st"] == seg["st"] and span["ed"] == seg["ed"]) 
+            for span in action_spans
+        )
+        if is_action:
+            seg_colors.append('lime' if seg["dir"] == "P" else 'cyan')
+        else:
+            seg_colors.append('gray')
+    
+    if seg_centers:
+        bar_width = np.min(np.diff(seg_centers)) * 0.8 if len(seg_centers) > 1 else 0.5
+        ax4.bar(seg_centers, seg_energies, width=bar_width, color=seg_colors, alpha=0.7, edgecolor='black')
+    
+    # 能量門檻線
+    ax4.axhline(y=energy_threshold, color='red', linestyle='--', linewidth=2, label=f'Threshold={energy_threshold:.2e}')
+    ax4.axhline(y=demo_energy, color='orange', linestyle=':', linewidth=2, label=f'DEMO Energy={demo_energy:.2e}')
+    
+    ax4.set_xlabel('Time (s)')
+    ax4.set_ylabel('Energy Density')
+    ax4.set_title('Segment Energy Analysis')
+    ax4.legend(loc='upper right')
+    ax4.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return fig
+
+
+# ===== 主分析函數（電腦版，帶畫圖）=====
+def analyze_csv(file_path: str, plot: bool = True) -> dict:
+    """
+    分析 CHEEK CSV 檔案（電腦版，帶畫圖功能）
+    
+    參數:
+        file_path: CSV 檔案路徑
+        plot: 是否畫圖（預設 True）
+    
+    回傳:
+        dict 格式的分析結果
     """
     try:
         df = pd.read_csv(file_path)
@@ -454,124 +677,87 @@ def analyze_csv(file_path: str) -> dict:
         # === 自動計算 FS ===
         fs = calculate_fs_from_csv(file_path)
 
-        # === 自動計算 cutoff（核心新增功能）===
+        # === 自動計算 cutoff ===
         cutoff_auto = auto_cutoff_from_signal(t, r, fs)
 
-        # === 濾波/基線/去趨勢（使用 cutoff = 2.0），Maintain用 ===
+        # === 濾波/基線/去趨勢 ===
         r_filt = lowpass_filter(r, fs=fs, cutoff=cutoff_auto, order=ORDER)
-        baseline = moving_average(r_filt, int(4.0 * fs))
+        baseline = moving_average(r_filt, int(7.0 * fs))
         r_detrend = r_filt - baseline
 
         # === 零交叉 ===
         std = float(np.std(r_detrend)) if len(r_detrend) else 0.0
         deadband = 0.005 * std if std > 0 else 0.0
-        min_interval = int(0.2 * fs)
+        min_interval = int(0.5 * fs)  # 與 LIPS 統一
         zc_all, zc_up, zc_down = zero_crossings(r_detrend, min_interval, deadband)
 
-        # === 建段 & 合併 ===
+        # === 建段 ===
         segments = build_segments_from_zc(zc_all, r_detrend, t)
-        segments = merge_same_direction_waves(segments, r_detrend, t, dir_eff, fs)
 
-        # === 計算 Delta 並統計 ===
+        # === DEMO 能量 ===
+        demo_energy, energy_threshold = compute_demo_features(
+            t_all, r_all, mask_demo, fs, cutoff_auto, dir_eff
+        )
+        print(f"[ENERGY] DEMO={demo_energy:.2e}, Threshold={energy_threshold:.2e}")
+
+        # === 分析各段，計算能量並標記動作 ===
+        action_spans = []
         pos_waves = neg_waves = 0
-        action_count = 0
-        deltas_info = []
-        total_action_time = 0.0
-
-        # DEMO 能量門檻 2025/11/25
-        # 能量門檻（使用前面算好的 demo_E_thr）
-
-
-        # === DEMO 能量 / 斜率（全段 detrend，用同一套參數）===
-        demo_E_dir,demo_E_thr = \
-            compute_demo_features(t_all, r_all, mask_demo, fs, cutoff_auto, dir_eff)
-        energy_threshold = alpha * demo_E_thr
-
-        for i, seg in enumerate(segments):
-            st, ed = seg["st"], seg["ed"]
+        
+        for seg in segments:
             s_idx, e_idx = seg["s_idx"], seg["e_idx"]
             seg_data = r_detrend[s_idx:e_idx]
-
+            seg_t = t[s_idx:e_idx]
+            
             if seg_data.size == 0:
                 continue
-
+            
+            # 計算該段能量
+            seg_energy = energy_density_interval_dir(
+                seg_data, seg_t, fs,
+                seg_t[0], seg_t[-1],
+                seg["dir"]
+            )
+            seg["energy"] = seg_energy
+            
             if seg["is_pos"]:
                 pos_waves += 1
             else:
                 neg_waves += 1
-
-            # === 正半波 (P 方向)===
+            
+            # P 方向分析
             if dir_eff == "P" and seg["is_pos"]:
-                # 計算這個波段的能量密度
-                seg_t = t[s_idx:e_idx]
-                seg_energy = energy_density_interval_dir(
-                    seg_data, seg_t, fs,
-                    seg_t[0], seg_t[-1],
-                    dir_eff
-                )
-
-                seg["energy"] = float(seg_energy)
-
-                # 只用能量判定
-                if seg_energy >= energy_threshold:
-                    action_count += 1
-                    total_action_time += (ed - st)
-
-                    peak_val = np.max(seg_data)
-                    peak_idx = np.argmax(seg_data)
-                    peak_time = t[s_idx + peak_idx]
-
-                    deltas_info.append({
-                        "type": "P",
-                        "energy": round(seg_energy, 10),
-                        "energy_thr": round(energy_threshold, 10),
-                        "peak_time": round(peak_time, 3),
-                        "peak_val": round(peak_val, 10),
-                        "segment_start": round(st, 3),
-                        "segment_end": round(ed, 3),
-                        "duration": round(ed - st, 3),
-                    })
-
-            # === 負半波 (N 方向)===
+                spans = analyze_high_peaks(r_detrend, t, fs, seg, energy_threshold, "P")
+                action_spans.extend(spans)
+            
+            # N 方向分析
             if dir_eff == "N" and not seg["is_pos"]:
-                # 計算這個波段的能量密度
-                seg_t = t[s_idx:e_idx]
-                seg_energy = energy_density_interval_dir(
-                    seg_data, seg_t, fs,
-                    seg_t[0], seg_t[-1],
-                    dir_eff
-                )
+                spans = analyze_low_troughs(r_detrend, t, fs, seg, energy_threshold, "N")
+                action_spans.extend(spans)
 
-                seg["energy"] = float(seg_energy)
+        # === 合併（可選）===
+        # action_spans = merge_segments_by_time(action_spans, BRIDGE_MAX_SEC)
 
-                # 只用能量判定
-                if seg_energy >= energy_threshold:
-                    action_count += 1
-                    total_action_time += (ed - st)
+        # === 統計 ===
+        action_count = len(action_spans)
+        total_action_time = sum(span["duration"] for span in action_spans)
 
-                    trough_val = np.min(seg_data)
-                    trough_idx = np.argmin(seg_data)
-                    trough_time = t[s_idx + trough_idx]
+        # === 畫圖 ===
+        if plot and HAS_PLOT:
+            filename = file_path.split("\\")[-1].split("/")[-1]
+            plot_analysis(
+                t, r, r_filt, baseline, r_detrend,
+                zc_all, zc_up, zc_down,
+                segments, action_spans,
+                dir_eff, demo_energy, energy_threshold,
+                t_all, r_all, mask_demo,
+                fs, cutoff_auto,
+                title=f"CHEEK: {filename}"
+            )
 
-                    deltas_info.append({
-                        "type": "N",
-                        "energy": round(seg_energy, 10),
-                        "energy_thr": round(energy_threshold, 10),
-                        "trough_time": round(trough_time, 3),
-                        "trough_val": round(trough_val, 10),
-                        "segment_start": round(st, 3),
-                        "segment_end": round(ed, 3),
-                        "duration": round(ed - st, 3),
-                    })
+        # === 輸出 ===
+        breakpoints = [round(span["ed"], 3) for span in action_spans]
 
-
-        # === 輸出曲線資料 ===
-        curve = [{"t": round(float(tt), 3), "v": f"{vv:.10f}"} for tt, vv in zip(t, r_detrend)]
-
-        # === 產生 breakpoints (所有段的結束時間) ===
-        breakpoints = [round(seg["ed"], 3) for seg in segments]
-
-        # === 組裝輸出 (標準格式) ===
         return {
             "status": "OK",
             "action_count": action_count,
@@ -580,28 +766,27 @@ def analyze_csv(file_path: str) -> dict:
             "segments": [
                 {
                     "index": i,
-                    "start_time": round(seg["st"], 3),
-                    "end_time": round(seg["ed"], 3),
-                    "duration": round(seg["ed"] - seg["st"], 3)
+                    "start_time": round(span["st"], 3),
+                    "end_time": round(span["ed"], 3),
+                    "duration": round(span["duration"], 3),
+                    "energy": round(span["energy"], 10),
                 }
-                for i, seg in enumerate(segments)
+                for i, span in enumerate(action_spans)
             ],
-            #"curve": curve,
             "debug": {
                 "fs_hz": fs,
-                "cutoff": round(cutoff_auto, 3),  # 新增：顯示自動計算的 cutoff
-                "cutoff_default": CUTOFF_DEFAULT,
-                "order": ORDER,
-                "threshold": THRESHOLD,
+                "cutoff": round(cutoff_auto, 3),
+                "direction": dir_eff,
+                "demo_energy": round(demo_energy, 10),
+                "energy_threshold": round(energy_threshold, 10),
                 "total_segments": len(segments),
                 "pos_waves": pos_waves,
                 "neg_waves": neg_waves,
                 "zc_all": len(zc_all),
                 "zc_up": len(zc_up),
                 "zc_down": len(zc_down),
-                "deadband": round(deadband, 6),
-                "min_interval": min_interval,
-                "direction": dir_eff
+                "min_action_duration": MIN_ACTION_DURATION,
+                "max_action_duration": MAX_ACTION_DURATION,
             }
         }
 
@@ -614,66 +799,137 @@ def analyze_csv(file_path: str) -> dict:
         }
 
 
-# ===== 測試用 =====
+# ===== 測試用（保留原始註解）=====
+# if __name__ == "__main__":
+#     # 測試範例
+#     # CSV_PATH = r"C:\Users\plus1\Downloads\FaceTraining_PUFF_CHEEK_20251030_160710_4變5.csv"
+#     # CSV_PATH 換成你自己要測的檔案
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_171829_Anw3.csv"
+#     CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_153910_shein_REDO.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_140758_SUM.csv"
+    
+    
+#     # === 十月底 PUFF CHEEK CSV 測試檔案  ，沒DEMO ===
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_132845_講話臉頰9.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_132937_臉頰_呼吸8次.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_133220_臉頰_脫眼鏡9_呼吸.csv"
+
+   
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_133322_臉頰_4變7.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_135550_藍色框_鼓臉頰.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_152616_4便6.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_155036_便0.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_160710_4變5.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_192930_4便3.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_195305_6變5.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_201854.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251031_124339_+X變成2_真的大客可能是硬....csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251031_124504_9變4_CUTTOFF關係.csv"
+
+#     # === 十月底 REDUCE CHEEK CSV 測試檔案 ===
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251030_201935.csv"
+    
+#     #感覺是兩段 縮完股回來有點像股臉
+#     #DEMO廢掉
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_122842_5變4.csv"
+    
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_123535_5變5.csv"
+#     # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_155323_S24_10變1.csv"
+
+
+#     #6/6
+#     #4/4
+#     #7/7
+#     #8/8
+#     #10/10
+
+
+#     test_file = CSV_PATH
+#     result = analyze_csv(test_file)
+
+#     print("\n" + "="*60)
+#     print("📊 Analysis Result (with AUTO CUTOFF):")
+#     print("="*60)
+#     print(f"Status: {result.get('status')}")
+#     print(f"Action Count: {result.get('action_count')}")
+#     print(f"Total Action Time: {result.get('total_action_time')}s")
+#     print(f"Total Segments: {len(result.get('segments', []))}")
+#     print(f"Breakpoints: {len(result.get('breakpoints', []))}")
+
+#     if 'debug' in result:
+#         debug = result['debug']
+#         print(f"\n🔧 Debug Info:")
+#         print(f"  - FS: {debug.get('fs_hz')} Hz")
+#         print(f"  - Auto Cutoff: {debug.get('cutoff_auto')} Hz")
+#         print(f"  - Direction: {debug.get('direction')}")
+#         print(f"  - Pos Waves: {debug.get('pos_waves')}")
+#         print(f"  - Neg Waves: {debug.get('neg_waves')}")
+
+#     print("\n" + "="*60)
+
+
 if __name__ == "__main__":
-    # 測試範例
-    # CSV_PATH = r"C:\Users\plus1\Downloads\FaceTraining_PUFF_CHEEK_20251030_160710_4變5.csv"
-    # CSV_PATH 換成你自己要測的檔案
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_171829_Anw3.csv"
-    CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_153910_shein_REDO.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\FaceTraining_PUFF_CHEEK_20251103_140758_SUM.csv"
+    # 直接列出所有要分析的檔案
+    # PUFF
+    csv_files = [
+
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251117_184731.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251117_184611.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251117_184535.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251104_035313.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_171829.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_171659.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_171539.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_153910.csv",
+r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\PUFF_CHEEK\FaceTraining_PUFF_CHEEK_20251103_140758.csv"
 
 
-    # === 十月底 PUFF CHEEK CSV 測試檔案  ，沒DEMO ===
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_132845_講話臉頰9.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_132937_臉頰_呼吸8次.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_133220_臉頰_脫眼鏡9_呼吸.csv"
+    ]
+
+# REDUCE
+    # csv_files = [
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251117_190115.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251117_190036.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251117_185937.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251117_185857.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251104_035420.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251103_175709.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251103_171947.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251103_155009.csv",
+    # r"C:\Users\plus1\Downloads\1118從S24取出資料_分類\REDUCE_CHEEK\FaceTraining_REDUCE_CHEEK_20251103_140909.csv"
+    # ]
 
 
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251027_133322_臉頰_4變7.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_135550_藍色框_鼓臉頰.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_152616_4便6.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251029_155036_便0.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_160710_4變5.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_192930_4便3.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_195305_6變5.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251030_201854.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251031_124339_+X變成2_真的大客可能是硬....csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_PUFF_CHEEK_20251031_124504_9變4_CUTTOFF關係.csv"
-
-    # === 十月底 REDUCE CHEEK CSV 測試檔案 ===
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251030_201935.csv"
-
-    #感覺是兩段 縮完股回來有點像股臉
-    #DEMO廢掉
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_122842_5變4.csv"
-
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_123535_5變5.csv"
-    # CSV_PATH = r"C:\Users\plus1\OneDrive\Desktop\0519\測試區\0918_meeting\sim_debug_plots\REALcsv\十月底\csv\FaceTraining_REDUCE_CHEEK_20251031_155323_S24_10變1.csv"
-
-
-
-
-
-    test_file = CSV_PATH
-    result = analyze_csv(test_file)
-
-    print("\n" + "="*60)
-    print("📊 Analysis Result (with AUTO CUTOFF):")
-    print("="*60)
-    print(f"Status: {result.get('status')}")
-    print(f"Action Count: {result.get('action_count')}")
-    print(f"Total Action Time: {result.get('total_action_time')}s")
-    print(f"Total Segments: {len(result.get('segments', []))}")
-    print(f"Breakpoints: {len(result.get('breakpoints', []))}")
-
-    if 'debug' in result:
-        debug = result['debug']
-        print(f"\n🔧 Debug Info:")
-        print(f"  - FS: {debug.get('fs_hz')} Hz")
-        print(f"  - Auto Cutoff: {debug.get('cutoff_auto')} Hz")
-        print(f"  - Direction: {debug.get('direction')}")
-        print(f"  - Pos Waves: {debug.get('pos_waves')}")
-        print(f"  - Neg Waves: {debug.get('neg_waves')}")
-
-    print("\n" + "="*60)
+    print("=" * 80)
+    all_results = {}
+    
+    for i, csv_path in enumerate(csv_files, 1):
+        filename = csv_path.split("\\")[-1]
+        
+        print(f"\n[{i}/{len(csv_files)}] 📁 {filename}")
+        print("-" * 80)
+        
+        result = analyze_csv(csv_path, plot=True)  # plot=True 開啟畫圖
+        all_results[filename] = result
+        
+        print(f"狀態: {result.get('status')}")
+        print(f"動作次數: {result.get('action_count')}")
+        print(f"總動作時間: {result.get('total_action_time')} 秒")
+        
+        if result.get('status') == 'ERROR':
+            print(f"❌ 錯誤: {result.get('error')}")
+    
+    # 總結
+    print("\n" + "=" * 80)
+    print("📊 總結")
+    print("=" * 80)
+    
+    total_actions = 0
+    for filename, result in all_results.items():
+        count = result.get('action_count', 0)
+        total_actions += count
+        status = "✅" if result.get('status') == 'OK' else "❌"
+        print(f"{filename:<70} {status} {count}")
+    
+    print(f"\n總動作數: {total_actions}")
+    print("=" * 80)
