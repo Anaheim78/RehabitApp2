@@ -202,7 +202,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private java.lang.Runnable cueRunnable;
     private boolean cueRunning = false;
     private int cueStep = 0; // 循環，根據餘數顯示
-    public int CUE_SEGMENT_SEC = 3; // 可調：導引文字間隔秒數（預設 3 秒）
+    public int CUE_SEGMENT_SEC = 4; // 可調：導引文字間隔秒數（預設 3 秒）
     private android.widget.TextView cueTextView; // 畫面上的導引提示文字
     private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成相對指引內文
     //===============================================
@@ -1176,74 +1176,70 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         long currentTime = System.currentTimeMillis();
 
         switch (currentState) {
-//            case CALIBRATING:
-//                if (faceInside) {
-//                    if (calibrationStartTime == 0) {
-//                        calibrationStartTime = currentTime;
-//                        startCalibrationTimer();
-//                    }
-//                    overlayView.setStatus(CircleOverlayView.Status.CALIBRATING);
-//                } else {
-//                    resetCalibration();
-//                    overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
-//                    currentState = AppState.OUT_OF_BOUNDS;
-//                }
-//                break;
             case CALIBRATING:
                 if (faceInside) {
-                    // 進入/重新進入校正區：啟動校正計時、重置示範旗標（讓本輪只播一次）
                     if (calibrationStartTime == 0) {
                         calibrationStartTime = currentTime;
                         startCalibrationTimer();
-
                         demoStarted = false;
                         demoFinished = false;
                     }
 
-                    // 預設：黃（CALIBRATING）
                     CircleOverlayView.Status uiStatus = CircleOverlayView.Status.CALIBRATING;
 
-                    // 在 CALIBRATING 中用「時間片段」決定顏色：黃4s → 藍5s → 黃4s →（之後維持黃）
                     if (demoEnabled && !demoFinished) {
                         if (!demoStarted) {
                             demoStarted = true;
-                            demoStartMs = currentTime; // ms
+                            demoStartMs = currentTime;
                         }
-                        long d = currentTime - demoStartMs; // 經過毫秒
+                        long d = currentTime - demoStartMs;
+
+                        // 統一設定 cueText 大小
+                        if (cueText != null) {
+                            cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
+                        }
 
                         if (d < 4000) {
-                            // 0~4s：黃
+                            // 0~4s：黃框 - 放鬆校正
+                            if (statusText != null) statusText.setVisibility(android.view.View.GONE);  // 隱藏
+
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
-                        } else if (d < 8000) {
-                            // 4~9s：藍
-                            uiStatus = CircleOverlayView.Status.DEMO;  // ← 在這裡切換成藍框
-                            statusText.setText(
-                                    "藍色階段（4–8 秒）\n" +
-                                            "請輕鬆做一次「" + motionLabelZh(trainingLabel) + "」"
-                            );
-                            isDemoPhase = true;
-                        } else if (d < 11000) {
+                            if (statusText != null) statusText.setText("校正中");
+                            if (cueText != null) cueText.setText("放鬆，保持不動");
                             isDemoPhase = false;
-                            // 9~13s：黃
+
+                        } else if (d < 8000) {
+                            // 4~8s：藍框 - 示範動作
+                            uiStatus = CircleOverlayView.Status.DEMO;
+                            String zh = motionLabelZh(trainingLabel);
+                            if (statusText != null) statusText.setText("校正中");
+                            if (cueText != null) cueText.setText("請" + zh + "");
+                            isDemoPhase = true;
+
+                        } else if (d < 11000) {
+                            // 8~11s：黃框 - 準備開始
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
+                            if (statusText != null) statusText.setText("校正中");
+                            if (cueText != null) cueText.setText("放鬆，保持不動");
+                            isDemoPhase = false;
+
                         } else {
-                            // 播完一次就固定黃（避免重播）
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                             demoFinished = true;
                         }
                     }
 
-                    // 單一出口設定顏色，避免被別處覆寫
                     overlayView.setStatus(uiStatus);
 
                 } else {
-                    // 離開圓框 → 依原邏輯轉出界，並重置示範旗標（下次回來會重新播放）
+                    // 離開圓框
                     resetCalibration();
                     overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
                     currentState = AppState.OUT_OF_BOUNDS;
-
                     demoStarted = false;
                     demoFinished = false;
+                    if (statusText != null) statusText.setText("超出邊界");
+                    if (cueText != null) cueText.setText("請回到圓框內");
                 }
                 break;
 
@@ -1628,32 +1624,26 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void postNextCue(long delayMs) {
         if (mainHandler == null) return;
         final int segMs = Math.max(1, CUE_SEGMENT_SEC) * 1000;
-        String tail = (currentState == AppState.MAINTAINING) ? "" : "--";
 
         cueRunnable = () -> {
-            if (!cueRunning) return;
+            // ★ 加入這個檢查：訓練完成就不要再更新
+            if (!cueRunning || cueText == null || isTrainingCompleted) return;
 
-            // ★ 依 trainingLabel 轉成中文口令
             String zh = motionLabelZh(trainingLabel);
+            cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
 
-            if (cueStep == 0) {
-                if (cueText != null) cueText.setText("保持" +zh +  tail);     // 例：請噘嘴
-                mainHandler.postDelayed(() -> { cueStep = 1; postNextCue(0); }, segMs);
-
-            } else if (cueStep == 1) {
-                if (cueText != null) cueText.setText("回到放鬆" + tail);   // 例：噘嘴放鬆
-                mainHandler.postDelayed(() -> { cueStep = 2; postNextCue(0); }, segMs);
-
-            } else if (cueStep == 2) {
-                if (cueText != null) cueText.setText("保持" +zh +  tail); // 例：噘嘴｜動作
-                mainHandler.postDelayed(() -> { cueStep = 3; postNextCue(0); }, segMs);
-
-            } else { // cueStep == 3
-                if (cueText != null) cueText.setText("回到放鬆" + tail); // 例：噘嘴｜放鬆
-                mainHandler.postDelayed(() -> { cueStep = 0; postNextCue(0); }, segMs);
+            if (cueStep % 2 == 0) {
+                cueText.setText("保持 " + zh);
+            } else {
+                cueText.setText("放鬆");
             }
 
-            cueText.setText(" ");
+            cueStep++;
+
+            // ★ 也在這裡檢查一次
+            if (!isTrainingCompleted) {
+                mainHandler.postDelayed(() -> postNextCue(0), segMs);
+            }
         };
         mainHandler.postDelayed(cueRunnable, delayMs);
     }
@@ -1687,33 +1677,23 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //置頂狀態說明文字
     private void updateStatusDisplay() {
         if (statusText == null) return;
-        if (isDemoPhase) {
-            return;  // 不要蓋掉藍色階段的文字
-        }
 
-        String text;
+        statusText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
+
         if (isTrainingCompleted) {
-            text = "✅ 訓練完成！\n正在進行峰值分析...";
-        } else {
-            switch (currentState) {
-                case CALIBRATING:
-                    text = "校正中\n請正對鏡頭，並保持鼻尖在圓框內";
-                    break;
-//                case DEMO:
-//                    text = "藍色階段（4–8 秒）\n" +
-//                            "請輕鬆做一次「" + motionLabelZh(trainingLabel) + "」";
-//                    break;
-                case MAINTAINING:
-                    text = trainingLabel + "\n請重複動作，保持自然的間隔，約20秒。";
-                    break;
-                case OUT_OF_BOUNDS:
-                default:
-                    text = "偵測到臉部超出區域\n請讓鼻尖回到圓框內，重新校正";
-                    break;
+            statusText.setText("完成");
+            if (cueText != null) {
+                cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
+                cueText.setText("✅ 訓練完成！");
             }
+        } else if (currentState == AppState.MAINTAINING) {
+            statusText.setText("訓練中");
+        } else if (currentState == AppState.OUT_OF_BOUNDS) {
+            statusText.setText("超出邊界");
         }
-        statusText.setText(text);
+        // CALIBRATING 在 handleFacePosition() 處理
     }
+
 
     private void updateTimerDisplay() {
         if (timerText == null) return;
@@ -1767,11 +1747,34 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 2) 把代號變中文顯示文字
     private String motionLabelZh(String label) {
-        String c = canonicalMotion(label);
-        if ("poutLip".equals(c))          return "嘟嘴";
-        if ("closeLip".equals(c))         return "抿嘴唇";
-        if ("TONGUE_LEFT".equals(c))      return "舌頭往左";
-        return "動作";
+        if (label == null) return "動作";
+
+        switch (label) {
+            // 嘴唇
+            case "POUT_LIPS":
+            case "poutLip":
+                return "嘟嘴";
+            case "SIP_LIPS":
+            case "closeLip":
+                return "抿嘴";
+
+            // 舌頭
+            case "TONGUE_LEFT":     return "舌頭往左";
+            case "TONGUE_RIGHT":    return "舌頭往右";
+            case "TONGUE_FOWARD":
+            case "TONGUE_FORWARD":  return "舌頭前伸";
+            case "TONGUE_BACK":     return "舌頭後縮";
+            case "TONGUE_UP":       return "舌頭上抬";
+            case "TONGUE_DOWN":     return "舌頭下壓";
+
+            // 臉頰
+            case "PUFF_CHEEK":      return "鼓臉頰";
+            case "REDUCE_CHEEK":    return "縮臉頰";
+
+
+
+            default:                return "動作";
+        }
     }
     // ★ 新增：把各種寫法歸一成 poutLip / closeLip
     private String canonicalMotion(String s) {
