@@ -144,6 +144,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 周邊物件
     private TongueYoloDetector tongueDetector;
     private TongueYoloDetectorLR tongueDetectorLR;
+    private volatile boolean isYoloProcessing = false;  // 🔥 新增：YOLO 忙碌旗標
+
     private boolean isYoloEnabled = false;
     // ROI快取給YOLO（Overlay/Bitmap 兩套座標系）
     private Rect lastOverlayRoi = null;
@@ -531,20 +533,42 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         try {
+            long t0, t1, t2, t3, t4, t5;
             int rotationDegrees = imageProxy.getImageInfo().getRotationDegrees();
+
+            t0 = System.nanoTime();
             Bitmap rawBitmap = imageProxyToBitmap(imageProxy);
+            t1 = System.nanoTime();
+
             if (rawBitmap != null) {
                 Bitmap rotatedBitmap = rotateBitmap(rawBitmap, rotationDegrees);
+                t2 = System.nanoTime();
+
                 Bitmap mirroredBitmap = mirrorBitmap(rotatedBitmap);
+                t3 = System.nanoTime();
 
                 MPImage mpImage = new BitmapImageBuilder(mirroredBitmap).build();
                 FaceLandmarkerResult result = faceLandmarker.detect(mpImage);
+                t4 = System.nanoTime();
 
                 if (result != null && !result.faceLandmarks().isEmpty()) {
                     Log.d(TAG, "檢測到人臉，關鍵點數量: " + result.faceLandmarks().get(0).size());
                 }
                 //checkFacePosition進入後會根據動作分流
                 checkFacePosition(result, mirroredBitmap.getWidth(), mirroredBitmap.getHeight(), mirroredBitmap);
+                t5 = System.nanoTime();
+
+                // ===== 印出各階段耗時 =====
+                Log.d("PERF_TIMING", String.format(
+                        "Frame#%d | toBitmap=%.1fms | rotate=%.1fms | mirror=%.1fms | MediaPipe=%.1fms | checkPos=%.1fms | TOTAL=%.1fms",
+                        frameId,
+                        (t1 - t0) / 1_000_000f,
+                        (t2 - t1) / 1_000_000f,
+                        (t3 - t2) / 1_000_000f,
+                        (t4 - t3) / 1_000_000f,
+                        (t5 - t4) / 1_000_000f,
+                        (t5 - t0) / 1_000_000f
+                ));
 
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     rawBitmap.recycle();
@@ -810,6 +834,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             if ((frameId % YOLO_EVERY) != 0) return;
             if (overlayRoi == null || bitmapRoi == null) return;
 
+            // 🔥 新增：如果 YOLO 還在忙，跳過這幀（取代原本的 YOLO_EVERY 檢查）
+            if (isYoloProcessing) return;
+            isYoloProcessing = true;
+
             int overlayWidth = overlayView.getWidth();
             int overlayHeight = overlayView.getHeight();
 
@@ -945,11 +973,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 xNorm, yNorm
                         );
                     }
+
+                    isYoloProcessing = false;  // 🔥 新增：發生錯誤也要解除
                 });
             });
 
         } catch (Exception e) {
             Log.e(TAG, "處理舌頭模式時發生錯誤", e);
+            isYoloProcessing = false;  // 🔥 新增：發生錯誤也要解除
         }
     }
 
