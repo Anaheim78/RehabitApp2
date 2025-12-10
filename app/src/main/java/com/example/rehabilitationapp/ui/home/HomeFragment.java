@@ -1,7 +1,7 @@
 package com.example.rehabilitationapp.ui.home;
 
 import androidx.appcompat.app.AlertDialog;
-
+import android.widget.VideoView;
 import android.content.SharedPreferences;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -176,21 +176,79 @@ public class HomeFragment extends Fragment {
 
         TrainingItem item = items.get(selectedTrainingType);
 
-        // 根據「目前選到的卡片」決定要顯示哪一段說明文字
-        String message = getTrainingDescription(selectedTrainingType, item);
+        // 顯示影片 + 文字對話框
+        showTutorialDialog(selectedTrainingType, item);
+    }
 
-        new AlertDialog.Builder(requireContext())
-                .setTitle(item.title)      // 小框標題：用卡片標題
-                .setMessage(message)       // 說明文字（你在下面函式改）
-                .setPositiveButton("知道了", (dialog, which) -> {
-                    // 按關閉後如果要真的開始訓練，就放這裡
-                    // 例如未來要進 FaceCircleCheckerActivity：
-                    // Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
-                    // intent.putExtra("training_type", item.analysisType);
-                    // intent.putExtra("training_label", item.title);
-                    // startActivity(intent);
+//    private void onStartClicked() {
+//        if (selectedTrainingType == -1 || items == null || selectedTrainingType >= items.size()) {
+//            Toast.makeText(getContext(), "請先選擇一個訓練項目", Toast.LENGTH_SHORT).show();
+//            return;
+//        }
+//
+//        TrainingItem item = items.get(selectedTrainingType);
+//
+//        // 根據「目前選到的卡片」決定要顯示哪一段說明文字
+//        String message = getTrainingDescription(selectedTrainingType, item);
+//
+//        new AlertDialog.Builder(requireContext())
+//                .setTitle(item.title)      // 小框標題：用卡片標題
+//                .setMessage(message)       // 說明文字（你在下面函式改）
+//                .setPositiveButton("知道了", (dialog, which) -> {
+//                    // 按關閉後如果要真的開始訓練，就放這裡
+//                    // 例如未來要進 FaceCircleCheckerActivity：
+//                    // Intent intent = new Intent(getActivity(), FaceCircleCheckerActivity.class);
+//                    // intent.putExtra("training_type", item.analysisType);
+//                    // intent.putExtra("training_label", item.title);
+//                    // startActivity(intent);
+//                })
+//                .show();
+//    }
+
+    private void showTutorialDialog(int index, TrainingItem item) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_tutorial, null);
+        builder.setView(dialogView);
+
+        // 取得元件
+        VideoView videoView = dialogView.findViewById(R.id.tutorial_video);
+        TextView descriptionText = dialogView.findViewById(R.id.tutorial_description);
+
+        // 設定文字說明
+        descriptionText.setText(getTrainingDescription(index, item));
+
+        // 設定影片
+        int videoResId = getVideoResourceId(index);
+        if (videoResId != 0) {
+            String videoPath = "android.resource://" + requireContext().getPackageName() + "/" + videoResId;
+            videoView.setVideoURI(android.net.Uri.parse(videoPath));
+            videoView.setOnPreparedListener(mp -> {
+                mp.setLooping(true);
+                videoView.start();
+            });
+        }
+
+        // 只有「知道了」按鈕
+        AlertDialog dialog = builder
+                .setTitle(item.title)
+                .setPositiveButton("知道了", (d, which) -> {
+                    videoView.stopPlayback();
                 })
-                .show();
+                .create();
+
+        dialog.setOnDismissListener(d -> videoView.stopPlayback());
+        dialog.show();
+    }
+
+    private int getVideoResourceId(int index) {
+        switch (index) {
+            case 0: return R.raw.puffcheek_class;
+            case 1: return R.raw.reduce_cheek_class;
+            case 2: return R.raw.loutlip_class;
+            case 3: return R.raw.siplip_class;
+            // 其他的之後再加
+            default: return 0;
+        }
     }
 
 
