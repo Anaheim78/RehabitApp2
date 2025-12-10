@@ -548,6 +548,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 t3 = System.nanoTime();
 
                 MPImage mpImage = new BitmapImageBuilder(mirroredBitmap).build();
+                // 🔥 縮小圖片加速 MediaPipe 嘗試改小張240
+//                Bitmap smallBitmap = Bitmap.createScaledBitmap(mirroredBitmap, 240, 320, true);
+//                MPImage mpImage = new BitmapImageBuilder(smallBitmap).build();
+
                 FaceLandmarkerResult result = faceLandmarker.detect(mpImage);
                 t4 = System.nanoTime();
 
