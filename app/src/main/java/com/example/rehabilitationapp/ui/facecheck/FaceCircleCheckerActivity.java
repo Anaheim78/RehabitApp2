@@ -138,7 +138,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //<========【舌頭】 ========
     //推論頻率控制（可自行調整）
     private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
-    private static final int YOLO_EVERY   = 2;  // 每 3 幀跑一次 YOLO
+    private static final int YOLO_EVERY   = 1;  // 每 3 幀跑一次 YOLO
     private long firstMetricTime = 0;
 
     // 周邊物件
@@ -994,6 +994,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             if ((frameId % YOLO_EVERY) != 0) return;
             if (overlayRoi == null || bitmapRoi == null) return;
 
+            // 🔥 新增：如果 YOLO 還在忙，跳過這幀
+            if (isYoloProcessing) return;
+            isYoloProcessing = true;
+
             int overlayWidth = overlayView.getWidth();
             int overlayHeight = overlayView.getHeight();
 
@@ -1130,11 +1134,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                                 xNorm, yNorm
                         );
                     }
+                    isYoloProcessing = false;
                 });
             });
 
         } catch (Exception e) {
             Log.e(TAG, "處理舌頭模式時發生錯誤", e);
+            isYoloProcessing = false;
         }
     }
 
