@@ -1,6 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             android:layout_width="match_parent"
-             android:layout_height="match_parent">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- 影片（裁切黑邊） -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="350dp"
+        android:clipChildren="true"
+        android:layout_marginBottom="16dp">
+
+        <VideoView
+            android:id="@+id/tutorial_video"
+            android:layout_width="500dp"
+            android:layout_height="350dp"
+            android:layout_gravity="center" />
+    </FrameLayout>
+
+    <!-- 文字說明（可滾動） -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="150dp">
+
+        <TextView
+            android:id="@+id/tutorial_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:lineSpacingExtra="4dp" />
+    </ScrollView>
+
+</LinearLayout>
