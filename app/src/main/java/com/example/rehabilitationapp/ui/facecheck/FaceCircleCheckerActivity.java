@@ -13,9 +13,16 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import android.app.Dialog;
+import android.os.CountDownTimer;
+import android.widget.VideoView;
+import androidx.appcompat.app.AlertDialog;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -181,6 +188,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     //===========【UX顯示區塊相關】===============>
 
+    // 🆕【教學與倒數相關】
+    private boolean tutorialShown = false;      // 是否已顯示過教學
+    private boolean countdownFinished = false;  // 倒數是否完成
+    // 倒數對話框
+    private LinearLayout countdownContainer;
+    private TextView countdownNumber;
+    private TextView countdownHint;
+
     //<==============計時設計常數==============
     private static final int CALIBRATION_TIME = 11000;         // 校正時間(毫秒)
     private static final int MAINTAIN_TIME_TOTAL = 20000;     // 維持時間(毫秒)
@@ -261,6 +276,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         timerText   = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
         cueText     = findViewById(R.id.cue_text);
+        countdownContainer = findViewById(R.id.countdown_container);
+        countdownNumber = findViewById(R.id.countdown_number);
+        countdownHint = findViewById(R.id.countdown_hint);
 
         // 初始化追蹤示意模式 : 舌頭顯示BBox，其他顯示Landmark
         if ("舌頭".equals(trainingLabel) ||
@@ -288,6 +306,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         // 相機權限處理：有就打開，沒有就請求。
         if (checkCameraPermission()) {
             startCamera();
+            // 🆕 顯示教學彈窗（相機啟動後）
+            showTutorialDialog();
         } else {
             requestCameraPermission();
         }
@@ -297,6 +317,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+
         // 🎥 如果還在錄影且訓練未完成，刪除影片
         if (currentRecording != null) {
             currentRecording.stop();
@@ -463,6 +484,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startCamera();
+                // 🆕 顯示教學彈窗
+                showTutorialDialog();
             } else {
                 Toast.makeText(this, "需要相機權限才能使用此功能", Toast.LENGTH_LONG).show();
                 finish();
@@ -1213,6 +1236,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //處理時間顯示
     private void handleFacePosition(boolean faceInside) {
         if (isTrainingCompleted) return;
+
+        // 🆕 如果倒數還沒完成，不進行校正流程
+        if (!countdownFinished) {
+            overlayView.setStatus(CircleOverlayView.Status.NO_FACE);
+            return;
+        }
 
         long currentTime = System.currentTimeMillis();
 
@@ -1992,6 +2021,282 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         return "UNKNOWN";
     }
 
+    // ==================== 🆕 教學彈窗與倒數功能 ====================
+
+    /**
+     * 🎬 顯示教學彈窗（影片 + 文字說明）
+     * 沿用原本的 dialog_tutorial.xml 風格
+     */
+    private void showTutorialDialog() {
+        if (tutorialShown) return;
+        tutorialShown = true;
+
+        // 暫停校正流程（不讓 calibration 開始計時）
+        countdownFinished = false;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_tutorial, null);
+        builder.setView(dialogView);
+
+        // 取得元件
+        VideoView videoView = dialogView.findViewById(R.id.tutorial_video);
+        TextView descriptionText = dialogView.findViewById(R.id.tutorial_description);
+
+        // 設定文字說明
+        descriptionText.setText(getTutorialDescription());
+
+        // 設定影片
+        int videoResId = getTutorialVideoResId();
+        if (videoResId != 0) {
+            String videoPath = "android.resource://" + getPackageName() + "/" + videoResId;
+            videoView.setVideoURI(android.net.Uri.parse(videoPath));
+            videoView.setOnPreparedListener(mp -> {
+                mp.setLooping(true);
+                videoView.start();
+            });
+        }
+
+        // 建立對話框
+        AlertDialog dialog = builder
+                .setTitle(trainingLabel != null ? trainingLabel : "訓練說明")
+                .setCancelable(false)  // 不能按返回關閉
+                .setPositiveButton("知道了", (d, which) -> {
+                    videoView.stopPlayback();
+                    // 按下「知道了」後開始倒數
+                    showCountdown();
+                })
+                .create();
+
+        dialog.setOnDismissListener(d -> videoView.stopPlayback());
+        dialog.show();
+    }
+
+    /**
+     * 🔢 顯示 3-2-1 倒數（用原本的 timerText 和 cueText）
+     */
+    private void showCountdown() {
+        // 確保 cueText 和 timerText 可見
+        if (cueText != null) {
+            cueText.setVisibility(View.VISIBLE);
+            cueText.setText("請將臉部對準框框");
+        }
+        if (timerText != null) {
+            timerText.setVisibility(View.VISIBLE);
+            timerText.setText("3");
+            timerText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 48);
+        }
+
+        // 3 秒倒數
+        new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                int secondsLeft = (int) (millisUntilFinished / 1000) + 1;
+
+                if (timerText != null) {
+                    timerText.setText(String.valueOf(secondsLeft));
+                }
+
+                // 根據秒數更新提示
+                if (cueText != null) {
+                    switch (secondsLeft) {
+                        case 3:
+                            cueText.setText("準備開始，請把臉對準圓框");
+                            break;
+                        case 2:
+                            cueText.setText("準備開始，請把臉對準圓框");
+                            break;
+                        case 1:
+                            cueText.setText("準備開始，請把臉對準圓框");
+                            break;
+                    }
+                }
+            }
+
+            @Override
+            public void onFinish() {
+                // 恢復 timerText 原本的樣式
+                if (timerText != null) {
+                    timerText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
+                }
+
+                // 清空 cueText（之後校正流程會自己設定）
+                if (cueText != null) {
+                    cueText.setText("");
+                }
+
+                // 🆕 倒數結束，正式開始校正流程
+                countdownFinished = true;
+                Log.d(TAG, "✅ 倒數結束，開始校正流程");
+            }
+        }.start();
+    }
+
+
+    // ==================== 🔧 修正後的方法 ====================
+// 把這兩個方法替換到 FaceCircleCheckerActivity.java 裡面
+
+    /**
+     * 🎬 根據 trainingLabel 取得教學影片資源 ID
+     */
+    private int getTutorialVideoResId() {
+        if (trainingLabel == null) return 0;
+
+        switch (trainingLabel) {
+            // 臉頰
+            case "PUFF_CHEEK":
+                return R.raw.puffcheek_class;
+            case "REDUCE_CHEEK":
+                return R.raw.reduce_cheek_class;
+
+            // 嘴唇（支援多種寫法）
+            case "POUT_LIPS":
+            case "LOUT_LIP":
+            case "poutLip":
+                return R.raw.loutlip_class;
+            case "SIP_LIPS":
+            case "SIP_LIP":
+            case "closeLip":
+                return R.raw.siplip_class;
+
+            // 舌頭（目前沒有影片，之後再加）
+            case "TONGUE_LEFT":
+            case "TONGUE_RIGHT":
+            case "TONGUE_FOWARD":
+            case "TONGUE_FORWARD":
+            case "TONGUE_BACK":
+            case "TONGUE_UP":
+            case "TONGUE_DOWN":
+                return 0;  // TODO: 之後加舌頭影片
+
+            default:
+                return 0;
+        }
+    }
+
+    /**
+     * 📝 根據 trainingLabel 取得教學說明文字
+     */
+    private String getTutorialDescription() {
+        if (trainingLabel == null) {
+            return "請依照指示進行訓練。";
+        }
+
+        switch (trainingLabel) {
+            // 臉頰 - 鼓頰
+            case "PUFF_CHEEK":
+                return "1. 請先取下眼鏡等會遮住臉部的物品。\n" +
+                        "2. 請按照文字導引，鼓起兩側臉頰或自然放鬆。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次鼓起臉頰的動作，提供系統作為參考。\n" +
+                        "．再次黃色：再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依文字導引進行復健動作。";
+
+            // 臉頰 - 縮頰
+            case "REDUCE_CHEEK":
+                return "1. 請先取下眼鏡等會遮住臉部的物品。\n" +
+                        "2. 請按照文字導引，縮起兩側臉頰或自然放鬆。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次縮起臉頰的動作，提供系統作為參考。\n" +
+                        "．再次黃色：再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依文字導引進行復健動作。";
+
+            // 嘴唇 - 嘟嘴（支援多種寫法）
+            case "POUT_LIPS":
+            case "LOUT_LIP":
+            case "poutLip":
+                return "1. 請依照文字導引，嘴唇往前嘟起並保持或是自然放鬆。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次嘟嘴動作，提供系統作為參考。\n" +
+                        "．再次黃色：再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依文字導引進行復健動作。";
+
+            // 嘴唇 - 抿嘴（支援多種寫法）
+            case "SIP_LIPS":
+            case "SIP_LIP":
+            case "closeLip":
+                return "1. 請依照文字導引，雙脣往內縮並保持或是自然放鬆。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次抿嘴動作，提供系統作為參考。\n" +
+                        "．再次黃色：再次保持不動讓系統完成校正。\n" +
+                        "．綠色：開始正式訓練，依文字導引進行復健動作。";
+
+            // 舌頭 - 往左
+            case "TONGUE_LEFT":
+                return "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中。\n" +
+                        "2. 舌頭往左並保持至少 1.5~3 秒，並回到初始位置。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次舌頭往左動作，提供系統作為參考。\n" +
+                        "．綠色：開始正式訓練。";
+
+            // 舌頭 - 往右
+            case "TONGUE_RIGHT":
+                return "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中。\n" +
+                        "2. 舌頭往右並保持至少 1.5~3 秒，並回到初始位置。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次舌頭往右動作，提供系統作為參考。\n" +
+                        "．綠色：開始正式訓練。";
+
+            // 舌頭 - 往前
+            case "TONGUE_FOWARD":
+            case "TONGUE_FORWARD":
+                return "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中。\n" +
+                        "2. 舌頭往前並保持至少 1.5~3 秒，並回到初始位置。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次舌頭往前動作，提供系統作為參考。\n" +
+                        "．綠色：開始正式訓練。";
+
+            // 舌頭 - 往後
+            case "TONGUE_BACK":
+                return "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中。\n" +
+                        "2. 舌頭往後並保持至少 1.5~3 秒，並回到初始位置。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次舌頭往後動作，提供系統作為參考。\n" +
+                        "．綠色：開始正式訓練。";
+
+            // 舌頭 - 往上
+            case "TONGUE_UP":
+                return "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中。\n" +
+                        "2. 舌頭往上並保持至少 1.5~3 秒，並回到初始位置。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次舌頭往上動作，提供系統作為參考。\n" +
+                        "．綠色：開始正式訓練。";
+
+            // 舌頭 - 往下
+            case "TONGUE_DOWN":
+                return "1. 動作時請儘可能保持張嘴，確認舌頭檢測框初始位置置中。\n" +
+                        "2. 舌頭往下並保持至少 1.5~3 秒，並回到初始位置。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．請將頭部完全放進圓框內，保持頭部端正、不要晃動。\n" +
+                        "．黃色：校正階段，請保持不動。\n" +
+                        "．藍色：請做一次舌頭往下動作，提供系統作為參考。\n" +
+                        "．綠色：開始正式訓練。";
+
+            default:
+                return "請依照指示進行訓練。\n\n" +
+                        "【圓框與顏色說明】：\n" +
+                        "．黃色：校正中\n" +
+                        "．藍色：示範動作\n" +
+                        "．綠色：正式訓練";
+        }
+    }
 
 
 

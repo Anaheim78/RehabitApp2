@@ -17,6 +17,45 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- 🆕 倒數顯示區（一開始隱藏） -->
+    <LinearLayout
+        android:id="@+id/countdown_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <!-- 倒數數字 -->
+        <TextView
+            android:id="@+id/countdown_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="3"
+            android:textSize="180sp"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:shadowColor="#000000"
+            android:shadowDx="4"
+            android:shadowDy="4"
+            android:shadowRadius="8" />
+
+        <!-- 提示文字 -->
+        <TextView
+            android:id="@+id/countdown_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="請將臉部對準框框"
+            android:textSize="28sp"
+            android:textColor="@android:color/white"
+            android:shadowColor="#000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4" />
+    </LinearLayout>
+
     <!-- 状态文本（隱藏） -->
     <TextView
         android:id="@+id/status_text"

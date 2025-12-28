@@ -223,8 +223,14 @@ public class HomeFragment extends Fragment {
             String videoPath = "android.resource://" + requireContext().getPackageName() + "/" + videoResId;
             videoView.setVideoURI(android.net.Uri.parse(videoPath));
             videoView.setOnPreparedListener(mp -> {
+                Log.d("VIDEO_DEBUG", "影片準備好了");
                 mp.setLooping(true);
                 videoView.start();
+            });
+
+            videoView.setOnErrorListener((mp, what, extra) -> {
+                Log.e("VIDEO_DEBUG", "影片錯誤: " + what);
+                return true;
             });
         }
 
@@ -238,6 +244,10 @@ public class HomeFragment extends Fragment {
 
         dialog.setOnDismissListener(d -> videoView.stopPlayback());
         dialog.show();
+
+        // 🆕 加這兩行
+        videoView.requestFocus();
+        videoView.start();
     }
 
     private int getVideoResourceId(int index) {

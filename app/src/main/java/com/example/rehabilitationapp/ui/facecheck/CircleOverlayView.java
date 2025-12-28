@@ -7,6 +7,8 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.DashPathEffect;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -18,7 +20,7 @@ public class CircleOverlayView extends View {
         OK,              // 绿色
         OUT_OF_BOUND,    // 红色
         NO_FACE,         // 默认
-        CALIBRATING,      // 黄色
+        CALIBRATING,     // 黄色
         DEMO             // 藍色（示範段）
     }
 
@@ -58,6 +60,10 @@ public class CircleOverlayView extends View {
 
     // 特殊关键点的索引（用不同颜色标出）
     private int[] specialPoints = {10, 21, 251, 234, 454, 18}; // 额头、太阳穴、脸颊、下巴
+
+    // 🆕 橢圓比例設定（寬度:高度）- 高度維持原本大小，寬度縮短
+    private float ovalWidthRatio = 0.85f;   // 橢圓寬度比例（< 1 變窄）
+    private float ovalHeightRatio = 1.0f;   // 橢圓高度比例（= 1 維持原本直徑）
 
     public CircleOverlayView(Context context) {
         super(context);
@@ -222,21 +228,48 @@ public class CircleOverlayView extends View {
         return currentDisplayMode;
     }
 
+    /**
+     * 🆕 設定橢圓比例
+     * @param widthRatio 寬度比例 (例如 0.85 表示比原本圓窄一點)
+     * @param heightRatio 高度比例 (例如 1.1 表示比原本圓高一點)
+     */
+    public void setOvalRatio(float widthRatio, float heightRatio) {
+        this.ovalWidthRatio = widthRatio;
+        this.ovalHeightRatio = heightRatio;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
         float centerX = getWidth() / 2f;
         float centerY = getHeight() / 2f;
-        float radius = Math.min(centerX, centerY) - 80;
+        float baseRadius = Math.min(centerX, centerY) - 80;
+
+        // 🆕 計算橢圓的寬高
+        float ovalWidth = baseRadius * 2 * ovalWidthRatio;
+        float ovalHeight = baseRadius * 2 * ovalHeightRatio;
+
+        // 橢圓的邊界矩形
+        RectF ovalRect = new RectF(
+                centerX - ovalWidth / 2,
+                centerY - ovalHeight / 2,
+                centerX + ovalWidth / 2,
+                centerY + ovalHeight / 2
+        );
 
         // 1. 繪製全屏半透明遮罩
         canvas.drawPaint(maskPaint);
 
-        // 2. 挖出圓形透明區域
+        // 2. 🆕 挖出橢圓形透明區域（改用 Path）
         Paint clearPaint = new Paint();
         clearPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
-        canvas.drawCircle(centerX, centerY, radius, clearPaint);
+        clearPaint.setAntiAlias(true);
+
+        Path ovalPath = new Path();
+        ovalPath.addOval(ovalRect, Path.Direction.CW);
+        canvas.drawPath(ovalPath, clearPaint);
 
         // 3. 根据状态设置圆形边框颜色
         switch (status) {
@@ -258,8 +291,8 @@ public class CircleOverlayView extends View {
                 break;
         }
 
-        // 4. 繪製圓形邊框
-        canvas.drawCircle(centerX, centerY, radius, circlePaint);
+        // 4. 🆕 繪製橢圓形邊框
+        canvas.drawOval(ovalRect, circlePaint);
 
         // 🔥 5. 根據顯示模式決定顯示內容
         switch (currentDisplayMode) {
