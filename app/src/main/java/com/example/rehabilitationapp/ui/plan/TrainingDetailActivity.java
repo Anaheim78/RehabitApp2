@@ -30,6 +30,9 @@ import java.util.concurrent.Executors;
 import android.view.Menu;
 import android.view.MenuItem;
 
+
+import com.example.rehabilitationapp.ui.BottomNavHelper;
+
 public class TrainingDetailActivity extends AppCompatActivity {
 
     private RecyclerView exercisesRecycler;
@@ -200,6 +203,9 @@ public class TrainingDetailActivity extends AppCompatActivity {
                 showGuideThenStart(selectedItem);
             }
         });
+
+        // 導航功能
+        BottomNavHelper.setup(this, findViewById(R.id.bottom_nav));
     }
 
     // ==============================
