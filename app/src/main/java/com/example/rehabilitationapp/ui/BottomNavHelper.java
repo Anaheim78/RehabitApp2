@@ -7,6 +7,7 @@ import android.view.View;
 import com.example.rehabilitationapp.MainActivity;
 import com.example.rehabilitationapp.R;
 
+// 提供舊版的xml的NAV跳轉功能
 public class BottomNavHelper {
 
     /**

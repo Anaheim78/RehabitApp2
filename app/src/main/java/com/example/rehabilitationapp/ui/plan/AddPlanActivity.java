@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
+import com.example.rehabilitationapp.ui.BottomNavHelper;
+
 public class AddPlanActivity extends AppCompatActivity {
 
     private GridLayout gridTrainingItems;
@@ -81,6 +83,8 @@ public class AddPlanActivity extends AppCompatActivity {
 
         // 儲存按鈕
         btnSave.setOnClickListener(v -> onSaveClicked());
+        // ★ 在最後加入這一行
+        BottomNavHelper.setup(this, findViewById(R.id.bottom_nav));
     }
 
     // ==========================
