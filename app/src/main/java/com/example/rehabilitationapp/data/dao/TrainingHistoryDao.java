@@ -32,4 +32,10 @@ public interface TrainingHistoryDao {
     //給歷史紀錄底下的圖卡
     @Query(" SELECT h.createAt    AS createAt, i.title AS title , h.trainingLabel AS trainingLabel,h.achievedTimes  AS achievedTimes    FROM   trainingHistory h LEFT JOIN training_items i ON UPPER(i.analysisType) = UPPER(h.trainingLabel) WHERE  h.createAt BETWEEN :startMs AND :endMs ORDER BY h.createAt ASC")
     List<TrainingHistoryWithTitle> getHistoryWithTitleForDay(long startMs, long endMs);
+
+    @Query("SELECT * FROM TrainingHistory WHERE synced = 0 AND createAt >= :startOfDay AND createAt < :endOfDay")
+    List<TrainingHistory> getUnsyncedToday(long startOfDay, long endOfDay);
+
+    @Query("UPDATE TrainingHistory SET synced = 1 WHERE trainingID = :id")
+    void markSynced(String id);
 }

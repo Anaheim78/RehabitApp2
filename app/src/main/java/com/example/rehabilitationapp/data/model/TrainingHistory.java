@@ -20,6 +20,8 @@ public class TrainingHistory {
     public int durationTime;
     public String curveJson;
 
+    @ColumnInfo(defaultValue = "0")
+    public int synced = 0;  //與FIREBASE紀錄 0=未同步, 1=已同步
     // 空建構子 (Room 需要)
     public TrainingHistory() {}
     // 建構子
@@ -34,5 +36,6 @@ public class TrainingHistory {
         this.achievedTimes = achievedTimes;
         this.durationTime = durationTime;
         this.curveJson = curveJson;
+        this.synced = 0;
     }
 }

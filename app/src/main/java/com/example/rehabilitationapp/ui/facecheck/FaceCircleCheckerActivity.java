@@ -1549,7 +1549,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     fduration = (int) res.totalActionTime;
 
                     //存檔與跳頁
-                    insertTrainingRecord(trainingLabel_String, factual, 6, fduration, csv,null);
+                    insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
                     runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
                 }).start();
                 // 棄用 : 送到 API，等回應後再跳頁；失敗就用本地結果
@@ -1864,7 +1864,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         String username = (loggedInUser != null)?loggedInUser.userId : "guest";
         long createAt = maintainStartTime;
         long finishAt = maintainStartTime + maintainTotalTime;
+
         long targetTimes = MAINTAIN_TIME_TOTAL/1000/CUE_SEGMENT_SEC/2;
+        targetTimes = 3;
+
         int achievedTimes = achieved;
         long durationTime = duration;
         String analysisType = label;

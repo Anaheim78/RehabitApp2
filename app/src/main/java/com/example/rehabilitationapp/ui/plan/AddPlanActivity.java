@@ -81,7 +81,7 @@ public class AddPlanActivity extends AppCompatActivity {
         // 從 DB 抓訓練項目 +（若是編輯模式）原本有哪些項目被選
         loadTrainingItems();
 
-        // 儲存按鈕
+        // 儲存按鈕ˇ
         btnSave.setOnClickListener(v -> onSaveClicked());
         // ★ 在最後加入這一行
         BottomNavHelper.setup(this, findViewById(R.id.bottom_nav));

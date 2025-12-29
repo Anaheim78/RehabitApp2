@@ -54,6 +54,7 @@ import android.util.Log
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import com.example.rehabilitationapp.MainActivity
+import com.example.rehabilitationapp.data.FirebaseUploader
 
 
 class TrainingResultActivity : ComponentActivity() {
@@ -86,6 +87,7 @@ fun 訓練結果頁() {
     val boxHeight = 60.dp
 
 
+    val context = LocalContext.current  // ★ 加這行
     val dao = AppDatabase.getInstance(LocalContext.current).trainingHistoryDao()
     var list by remember { mutableStateOf(emptyList<TrainingHistory>()) }
     LaunchedEffect(Unit) {
@@ -222,7 +224,23 @@ fun 訓練結果頁() {
                     modifier = Modifier
                         .size(44.dp)
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
-                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp)),
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
+                        .clickable {
+                            FirebaseUploader.uploadTodayUnsynced(context) { success, fail ->
+                                Log.d("Upload", "成功: $success, 失敗: $fail")
+
+                                // ★ 加 Toast 提示
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    if (fail == 0 && success > 0) {
+                                        android.widget.Toast.makeText(context, "上傳成功：$success 筆", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else if (fail == 0 && success == 0) {
+                                        android.widget.Toast.makeText(context, "沒有需要上傳的資料", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        android.widget.Toast.makeText(context, "上傳完成：成功 $success 筆，失敗 $fail 筆", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
