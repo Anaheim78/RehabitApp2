@@ -198,7 +198,8 @@ fun 訓練結果頁() {
                     .padding(vertical = 16.dp)
             ) {
                 Text(
-                    text = "系統編輯訊息",
+//                    text = "系統編輯訊息",
+                    text = "",
                     modifier = Modifier.align(Alignment.Center)
                         .offset(y = (-8).dp)
                 )
@@ -217,18 +218,34 @@ fun 訓練結果頁() {
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
                         .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
                     .clickable {
-                    val intent = Intent(context, MainActivity::class.java).apply {
-                        putExtra("start_tab", "plan")
-                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    context.startActivity(intent)
+                        // ★ 讀取上次訓練的 planId 和 planTitle
+                        val prefs = context.getSharedPreferences("training_prefs", android.content.Context.MODE_PRIVATE)
+                        val lastPlanId = prefs.getInt("last_plan_id", -1)
+                        val lastPlanTitle = prefs.getString("last_plan_title", "")
+
+                        if (lastPlanId > 0) {
+                            // 有 planId → 跳回 TrainingDetailActivity
+                            val intent = Intent(context, com.example.rehabilitationapp.ui.plan.TrainingDetailActivity::class.java).apply {
+                                putExtra("plan_id", lastPlanId)
+                                putExtra("plan_title", lastPlanTitle)
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            }
+                            context.startActivity(intent)
+                        } else {
+                            // 沒有 planId → 回計畫列表
+                            val intent = Intent(context, MainActivity::class.java).apply {
+                                putExtra("start_tab", "plan")
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            }
+                            context.startActivity(intent)
+                        }
                     (context as? Activity)?.finish()
                 },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_result_redo),
-                        contentDescription = "分享",
+                        contentDescription = "重做",
                         tint = Color.Black,
                         modifier = Modifier.size(24.dp)
                     )
@@ -264,7 +281,9 @@ fun 訓練結果頁() {
                         modifier = Modifier.size(24.dp)
                     )
                 }
+
                 Spacer(modifier = Modifier.width(51.dp)) //
+
                 Box(
                     modifier = Modifier
                         .weight(1.54f)

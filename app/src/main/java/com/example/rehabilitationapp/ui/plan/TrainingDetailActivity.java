@@ -304,6 +304,13 @@ public class TrainingDetailActivity extends AppCompatActivity {
         Log.d("TrainDetailAct", "Start training: type=" + analysisType + ", title=" + titleZh);
         Toast.makeText(this, "開始「" + titleZh + "」訓練！", Toast.LENGTH_SHORT).show();
 
+        // ★ 存 planId 和 planTitle，給結算頁「重做」按鈕用
+        getSharedPreferences("training_prefs", MODE_PRIVATE)
+                .edit()
+                .putInt("last_plan_id", planId)
+                .putString("last_plan_title", planTitle)
+                .apply();
+
         Intent intent = new Intent(this, FaceCircleCheckerActivity.class);
         intent.putExtra("training_type", analysisType);
         intent.putExtra("training_title", titleZh);
