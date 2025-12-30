@@ -3,6 +3,7 @@ package com.example.rehabilitationapp.ui.notifications;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -40,6 +41,8 @@ public class NotificationsFragment extends Fragment {
     // analysisType(大寫) -> title 對照表（啟動時快取一次）
     private final Map<String, String> typeTitleMap = new HashMap<>();
     private final SimpleDateFormat HHMM = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    private long currentSelectedDate = System.currentTimeMillis();  // ★ 記住選的日期
+
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -85,6 +88,14 @@ public class NotificationsFragment extends Fragment {
         binding.trainingRecordsList.setHasFixedSize(true);
         binding.trainingRecordsList.setAdapter(trainingAdapter);
 
+        // ★ 點擊小卡跳到結果頁
+        trainingAdapter.setOnItemClickListener(row -> {
+            Intent intent = new Intent(getContext(), com.example.rehabilitationapp.ui.results.TrainingResultActivity.class);
+            intent.putExtra("scroll_to_id", row.trainingID);
+            intent.putExtra("target_date", currentSelectedDate);
+            startActivity(intent);
+        });
+
         // 載入 item 對照表（背景）
         new Thread(this::loadTypeMapIfNeeded).start();
 
@@ -116,6 +127,12 @@ public class NotificationsFragment extends Fragment {
 
     /** 依日期查當天歷程，排序後丟給 adapter（顯示三段文字） */
     private void loadDay(int year, int monthZeroBased, int day) {
+
+        // ★ 記住選的日期
+        Calendar selected = Calendar.getInstance();
+        selected.set(year, monthZeroBased, day, 0, 0, 0);
+        currentSelectedDate = selected.getTimeInMillis();
+
         // 計算當日 00:00 ~ 23:59:59.999 (local) 的毫秒
         Calendar cal = Calendar.getInstance();
         cal.set(year, monthZeroBased, day, 0, 0, 0);
@@ -145,7 +162,7 @@ public class NotificationsFragment extends Fragment {
                 String time = HHMM.format(h.createAt);
                 int count = h.achievedTimes;
 
-                display.add(new TrainingCardAdapter.UiRow(name, time, count));
+                display.add(new TrainingCardAdapter.UiRow(h.trainingLabel, name, time, count));
             }
 
             requireActivity().runOnUiThread(() -> trainingAdapter.setItems(display));

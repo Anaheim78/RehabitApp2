@@ -48,4 +48,7 @@ public interface TrainingHistoryDao {
 
     @Query("SELECT * FROM TrainingHistory WHERE saved = 1 AND date(createAt/1000,'unixepoch','localtime') = date('now','localtime') ORDER BY createAt DESC")
     List<TrainingHistory> getTodaySavedRecords();
+
+    @Query("SELECT * FROM trainingHistory WHERE date(createAt/1000,'unixepoch','localtime') = date(:dateMs/1000,'unixepoch','localtime') ORDER BY createAt DESC")
+    List<TrainingHistory> getRecordsByDate(long dateMs);
 }

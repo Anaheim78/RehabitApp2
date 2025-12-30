@@ -87,13 +87,32 @@ fun 訓練結果頁() {
     val boxWidth = (screenWidth * 0.7f).dp  // 螢幕寬度的 70%
     val boxHeight = 60.dp
 
-
-    val context = LocalContext.current  // ★ 加這行
+    val context = LocalContext.current
     val dao = AppDatabase.getInstance(LocalContext.current).trainingHistoryDao()
     var list by remember { mutableStateOf(emptyList<TrainingHistory>()) }
+
+// ★ 這兩行要放這裡（在 LaunchedEffect 之前）
+    val scrollToId = (context as? android.app.Activity)?.intent?.getStringExtra("scroll_to_id")
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val targetDate = (context as? android.app.Activity)?.intent?.getLongExtra("target_date", 0L) ?: 0L
+
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            list = dao.getTodayRecords()
+            list = if (targetDate > 0L) {
+                dao.getRecordsByDate(targetDate)  // ★ 查指定日期
+            } else {
+                dao.getTodayRecords()  // 沒傳日期就查今天
+            }
+        }
+    }
+
+// ★ 滾動到指定紀錄
+    LaunchedEffect(list, scrollToId) {
+        if (scrollToId != null && list.isNotEmpty()) {
+            val index = list.indexOfFirst { it.trainingID == scrollToId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+            }
         }
     }
 
@@ -169,6 +188,7 @@ fun 訓練結果頁() {
             Spacer(modifier = Modifier.height(12.dp))
             // 卡片列表
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -464,6 +484,7 @@ fun TrainingResultCard(data: TrainingHistory) {
 fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
     val context = LocalContext.current
     val dao = AppDatabase.getInstance(context).trainingHistoryDao()
+
 
     // ★ 自評對話框狀態
     var showDialog by remember { mutableStateOf(false) }

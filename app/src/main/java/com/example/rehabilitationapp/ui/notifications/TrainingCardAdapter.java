@@ -19,16 +19,31 @@ public class TrainingCardAdapter extends RecyclerView.Adapter<TrainingCardAdapte
 
     // 一筆要顯示在小卡上的資料
     public static class UiRow {
+        public final String trainingID;   // ★ 新增：用來識別是哪一筆紀錄
         public final String title;        // 名稱（最多 4 字，UI 再限寬）
         public final String time;         // HH:mm
         public final int achievedTimes;   // 完成次數
 
-        public UiRow(String title, String time, int achievedTimes) {
+        public UiRow(String trainingID, String title, String time, int achievedTimes) {
+            this.trainingID = trainingID;  // ★ 新增
             this.title = title;
             this.time = time;
             this.achievedTimes = achievedTimes;
         }
     }
+
+    // ★ 點擊回調介面
+    public interface OnItemClickListener {
+        void onItemClick(UiRow row);
+    }
+
+    private OnItemClickListener listener;
+
+    // ★ 設定點擊監聽器
+    public void setOnItemClickListener(OnItemClickListener listener) {
+        this.listener = listener;
+    }
+
 
     private final List<UiRow> items = new ArrayList<>();
 
@@ -61,6 +76,14 @@ public class TrainingCardAdapter extends RecyclerView.Adapter<TrainingCardAdapte
 
         // ④ 完成次數：顯示在時間右邊
         h.tvCount.setText(row.achievedTimes + "次");
+
+        // ★ 點擊事件
+        h.itemView.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onItemClick(row);
+            }
+        });
+
     }
 
     @Override
