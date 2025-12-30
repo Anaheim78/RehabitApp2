@@ -22,6 +22,14 @@ public class TrainingHistory {
 
     @ColumnInfo(defaultValue = "0")
     public int synced = 0;  //與FIREBASE紀錄 0=未同步, 1=已同步
+
+    // ★ 新增這兩行
+    @ColumnInfo(defaultValue = "0")
+    public int saved = 0;
+
+    @ColumnInfo(defaultValue = "-1")
+    public int selfReportCount = -1;
+
     // 空建構子 (Room 需要)
     public TrainingHistory() {}
     // 建構子

@@ -1903,6 +1903,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         new Thread(() -> {
             AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
             Log.d(TAG, "✅ 訓練記錄已寫入資料庫");
+
+            com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
+                Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+            });
+
         }).start();
     }
 

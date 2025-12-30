@@ -38,4 +38,14 @@ public interface TrainingHistoryDao {
 
     @Query("UPDATE TrainingHistory SET synced = 1 WHERE trainingID = :id")
     void markSynced(String id);
+
+    // ★ 新增這三個方法
+    @Query("UPDATE TrainingHistory SET saved = 1 WHERE trainingID = :id")
+    void markSaved(String id);
+
+    @Query("UPDATE TrainingHistory SET selfReportCount = :count WHERE trainingID = :id")
+    void updateSelfReport(String id, int count);
+
+    @Query("SELECT * FROM TrainingHistory WHERE saved = 1 AND date(createAt/1000,'unixepoch','localtime') = date('now','localtime') ORDER BY createAt DESC")
+    List<TrainingHistory> getTodaySavedRecords();
 }

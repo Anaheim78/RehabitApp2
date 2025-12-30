@@ -55,7 +55,8 @@ import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import com.example.rehabilitationapp.MainActivity
 import com.example.rehabilitationapp.data.FirebaseUploader
-
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.GlobalScope
 
 class TrainingResultActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -176,7 +177,12 @@ fun 訓練結果頁() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(list) { data ->
-                    TrainingResultCard(data)
+                    TrainingResultCard(data) {
+                        // 更新後重新載入
+                        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                            list = dao.getTodayRecords()
+                        }
+                    }
                 }
             }
 
@@ -209,7 +215,15 @@ fun 訓練結果頁() {
                     modifier = Modifier
                         .size(44.dp)
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
-                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp)),
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
+                    .clickable {
+                    val intent = Intent(context, MainActivity::class.java).apply {
+                        putExtra("start_tab", "plan")
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    context.startActivity(intent)
+                    (context as? Activity)?.finish()
+                },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -256,11 +270,20 @@ fun 訓練結果頁() {
                         .weight(1.54f)
                         .height(44.dp) // 保持高度
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
-                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp)),
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
+                    .clickable {
+                    val intent = Intent(context, MainActivity::class.java).apply {
+                        putExtra("start_tab", "home")
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    context.startActivity(intent)
+                    (context as? Activity)?.finish()
+                },
+
                     contentAlignment = Alignment.Center // 這行很重要！讓內容在 Box 中居中
                 ) {
                     Text(
-                        text = "儲存結果",
+                        text = "返回首頁",
                         fontSize = 14.sp,
                         color = Color.Black,
                         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center // 文字本身也要居中
@@ -281,6 +304,8 @@ fun 訓練結果頁() {
         )
     }
 }
+
+/*  沒有自評框版本
 @Composable
 fun TrainingResultCard(data: TrainingHistory) {
     val context = LocalContext.current
@@ -388,6 +413,190 @@ fun TrainingResultCard(data: TrainingHistory) {
                 ) {
                     Text(
                         text = "達成    目標次數",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        fontSize = 10.sp
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "完成率",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "持續",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+*/
+
+@Composable
+fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
+    val context = LocalContext.current
+    val dao = AppDatabase.getInstance(context).trainingHistoryDao()
+
+    // ★ 自評對話框狀態
+    var showDialog by remember { mutableStateOf(false) }
+    var inputText by remember { mutableStateOf("") }
+
+    // 計算達成率
+    val percentage = if (data.targetTimes > 0) {
+        (data.achievedTimes * 100 / data.targetTimes)
+    } else {
+        0
+    }
+
+    val iconRes = when (data.trainingLabel) {
+        "PUFF_CHEEK" -> R.drawable.ic_home_cheekpuff
+        "REDUCE_CHEEK" -> R.drawable.ic_home_cheekreduce
+        "POUT_LIPS" -> R.drawable.ic_home_lippout
+        "SIP_LIPS" -> R.drawable.ic_home_lipsip
+        "TONGUE_LEFT" -> R.drawable.ic_home_tongueleft
+        "TONGUE_RIGHT" -> R.drawable.ic_home_tongueright
+        "TONGUE_FOWARD" -> R.drawable.ic_home_tonguefoward
+        "TONGUE_BACK" -> R.drawable.ic_home_tongueback
+        "TONGUE_UP" -> R.drawable.ic_home_tongueup
+        "TONGUE_DOWN" -> R.drawable.ic_home_tonguedown
+        "JAW_LEFT" -> R.drawable.ic_home_jawleft
+        "JAW_RIGHT" -> R.drawable.ic_home_jawright
+        else -> android.R.drawable.ic_dialog_info
+    }
+
+    // ★ 自評對話框
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("自評完成次數") },
+            text = {
+                Column {
+                    Text("系統辨識：${data.achievedTimes} 次")
+                    if (data.selfReportCount >= 0) {
+                        Text("目前自評：${data.selfReportCount} 次")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it.filter { c -> c.isDigit() } },
+                        label = { Text("輸入次數") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val count = inputText.toIntOrNull() ?: -1
+                        if (count >= 0) {
+                            Thread {
+                                dao.updateSelfReport(data.trainingID, count)
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    android.widget.Toast.makeText(context, "已更新自評：$count 次", android.widget.Toast.LENGTH_SHORT).show()
+                                    onUpdate()
+                                }
+                            }.start()
+                        }
+                        showDialog = false
+                        inputText = ""
+                    }
+                ) {
+                    Text("確定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false; inputText = "" }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 卡片區
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .clickable { showDialog = true },
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = data.trainingLabel,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(60.dp)
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val displayCount = if (data.selfReportCount >= 0) {
+                        "${data.selfReportCount}/${data.targetTimes}"
+                    } else {
+                        "${data.achievedTimes}/${data.targetTimes}"
+                    }
+                    Text(
+                        text = displayCount,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "${percentage}%",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "${data.durationTime}秒",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val label = if (data.selfReportCount >= 0) "自評    目標次數" else "達成    目標次數"
+                    Text(
+                        text = label,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray,
                         fontSize = 10.sp
