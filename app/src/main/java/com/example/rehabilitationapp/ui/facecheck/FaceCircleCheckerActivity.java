@@ -86,6 +86,22 @@ import android.content.SharedPreferences;
 import org.json.JSONArray;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Point;
+
+/*排版
+1  變數宣告
+2  生命週期
+3  相機與影像
+4  動作處理
+5  計時器
+6  UI 更新
+7  教學與倒數
+8  導引提示
+9  影片錄製
+10 訓練完成
+11 工具方法
+ */
+
+
 //本物件WorkFlow可分為偵側流與顯示(時間讀秒)流
 public class FaceCircleCheckerActivity extends AppCompatActivity {
     //<===========【Debug&Log】========
