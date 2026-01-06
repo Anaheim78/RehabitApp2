@@ -34,16 +34,17 @@ public class FaceDataRecorder {
     // 🔥 新增：記錄開始時間，用於計算相對時間
     private long startTime = 0;
 
-    // MediaPipe 臉部關鍵點索引
-    private static final int[] UPPER_LIP_INDICES = {61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318};
-    private static final int[] LOWER_LIP_INDICES = {78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415};
+    // MediaPipe 臉部關鍵點索引 BAK 錯誤
+//    private static final int[] UPPER_LIP_INDICES = {61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318};
+//    private static final int[] LOWER_LIP_INDICES = {78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415};
 
-
-
-    // 上唇外緣關鍵點 ，寫這裡只是參考
-//    int[] upperOuterIndices = {61, 62, 63, 64, 65, 66, 67, 291, 292, 293, 294, 295, 296, 297};
-//    // 下唇外緣關鍵點
-//    int[] lowerOuterIndices = {61, 84, 17, 314, 405, 320, 307, 291, 375, 321, 308, 324, 318};
+    // MediaPipe 臉部關鍵點索引（封閉輪廓，順時針）
+// 上唇紅色部分：外緣→內緣→接回起點
+    private static final int[] UPPER_LIP_INDICES = {185, 40, 39, 37, 0, 267, 269, 270, 409, 415, 310, 311, 312, 13, 82, 81, 42, 183, 78};
+    // 下唇紅色部分：外緣→內緣→接回起點
+    private static final int[] LOWER_LIP_INDICES = {61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95};
+    // 嘴唇外緣（嘟嘴Z軸用）
+    private static final int[] OUTER_LIP_INDICES = {61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146};
 
 
     //CSV Header
@@ -191,6 +192,10 @@ public class FaceDataRecorder {
     //多載: 1.嘴唇
     public void recordLandmarkData(String state, float[][] landmarks, Boolean JawDetected) {
         try {
+            // 🔥 COUNTDOWN 不記錄
+            if ("COUNTDOWN".equals(state)) {
+                return;
+            }
             // 🔥 改用相對時間，從0開始，以秒為單位
             long currentTime = System.currentTimeMillis();
             double relativeTimeSeconds = (currentTime - startTime) / 1000.0;
@@ -271,6 +276,10 @@ public class FaceDataRecorder {
     //多載:臉頰曲率
     public void recordLandmarkData(String state, float[][] landmarks, int img_w, int img_h) {
         try {
+            // 🔥 COUNTDOWN 不記錄
+            if ("COUNTDOWN".equals(state)) {
+                return;
+            }
             // 臉頰 index
             int[] LEFT_CHEEK_IDXS = {117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186};
             int[] RIGHT_CHEEK_IDXS = {164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266};
@@ -327,7 +336,12 @@ public class FaceDataRecorder {
 
     //多載:臉頰_光流_舊版
     public void recordLandmarkData(String state, Float liX, Float liY, Float riX, Float riY, Float liRawX, Float liRawY, Float riRawX, Float riRawY) {
+
         try {
+            // 🔥 COUNTDOWN 不記錄
+            if ("COUNTDOWN".equals(state)) {
+                return;
+            }
             if (!("PUFF_CHEEK".equals(trainingLabel)||"REDUCE_CHEEK".equals(trainingLabel))) return; // 僅在臉頰模式有效
 
             long now = System.currentTimeMillis();
@@ -376,6 +390,10 @@ public class FaceDataRecorder {
             float cxImg, float cyImg,
             float xNorm, float yNorm
     ) {
+        // 🔥 COUNTDOWN 不記錄
+        if ("COUNTDOWN".equals(state)) {
+            return;
+        }
         // 直接委派給舌頭寫檔實作，避免重複字串格式化邏輯
         recordTongueData(
                 state,
@@ -559,33 +577,55 @@ public class FaceDataRecorder {
     }
 
     // 🔥 嘟嘴：用嘴唇外緣點計Z值加總平均 20251002
+//    private float calculateMouthDepth(float[][] landmarks) {
+//        try {
+//            // 上唇外緣關鍵點
+//            int[] upperOuterIndices = {61, 62, 63, 64, 65, 66, 67, 291, 292, 293, 294, 295, 296, 297};
+//            // 下唇外緣關鍵點
+//            int[] lowerOuterIndices = {61, 84, 17, 314, 405, 320, 307, 291, 375, 321, 308, 324, 318};
+//
+//            float sumZ = 0f;
+//            int count = 0;
+//
+//            // 上唇
+//            for (int index : upperOuterIndices) {
+//                if (index < landmarks.length && landmarks[index].length > 2) {
+//                    sumZ += landmarks[index][2];
+//                    count++;
+//                }
+//            }
+//
+//            // 下唇
+//            for (int index : lowerOuterIndices) {
+//                if (index < landmarks.length && landmarks[index].length > 2) {
+//                    sumZ += landmarks[index][2];
+//                    count++;
+//                }
+//            }
+//
+//            // 平均值
+//            return (count > 0) ? (sumZ / count) : 0f;
+//
+//        } catch (Exception e) {
+//            Log.e(TAG, "計算嘴巴Z平均時發生錯誤", e);
+//            return 0f;
+//        }
+//    }
+// 🔥 嘟嘴：用嘴唇外緣點計Z值加總平均 20251002
     private float calculateMouthDepth(float[][] landmarks) {
         try {
-            // 上唇外緣關鍵點
-            int[] upperOuterIndices = {61, 62, 63, 64, 65, 66, 67, 291, 292, 293, 294, 295, 296, 297};
-            // 下唇外緣關鍵點
-            int[] lowerOuterIndices = {61, 84, 17, 314, 405, 320, 307, 291, 375, 321, 308, 324, 318};
+            // 嘴唇外緣（官方順序）
 
             float sumZ = 0f;
             int count = 0;
 
-            // 上唇
-            for (int index : upperOuterIndices) {
+            for (int index : OUTER_LIP_INDICES) {
                 if (index < landmarks.length && landmarks[index].length > 2) {
                     sumZ += landmarks[index][2];
                     count++;
                 }
             }
 
-            // 下唇
-            for (int index : lowerOuterIndices) {
-                if (index < landmarks.length && landmarks[index].length > 2) {
-                    sumZ += landmarks[index][2];
-                    count++;
-                }
-            }
-
-            // 平均值
             return (count > 0) ? (sumZ / count) : 0f;
 
         } catch (Exception e) {
@@ -593,7 +633,6 @@ public class FaceDataRecorder {
             return 0f;
         }
     }
-
 
     // 方法 : 計算下顎位移
     // 方法 : 計算下顎位移 (三點平均, 含正規化)
