@@ -38,6 +38,14 @@ public class FaceDataRecorder {
     private static final int[] UPPER_LIP_INDICES = {61, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318};
     private static final int[] LOWER_LIP_INDICES = {78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415};
 
+
+
+    // 上唇外緣關鍵點 ，寫這裡只是參考
+//    int[] upperOuterIndices = {61, 62, 63, 64, 65, 66, 67, 291, 292, 293, 294, 295, 296, 297};
+//    // 下唇外緣關鍵點
+//    int[] lowerOuterIndices = {61, 84, 17, 314, 405, 320, 307, 291, 375, 321, 308, 324, 318};
+
+
     //CSV Header
 //    private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
     // 臉頰 26 個點的 header，直接展開成 CSV 欄位名稱
