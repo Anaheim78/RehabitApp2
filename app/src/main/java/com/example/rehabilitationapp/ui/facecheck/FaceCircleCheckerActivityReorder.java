@@ -2,6 +2,7 @@ package com.example.rehabilitationapp.ui.facecheck;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -10,6 +11,7 @@ import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -18,37 +20,32 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import android.app.Dialog;
-import android.os.CountDownTimer;
 import android.widget.VideoView;
-import androidx.appcompat.app.AlertDialog;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.view.PreviewView;
-// 🎥 影片錄製功能
+import androidx.camera.video.FileOutputOptions;
+import androidx.camera.video.Quality;
+import androidx.camera.video.QualitySelector;
 import androidx.camera.video.Recorder;
 import androidx.camera.video.Recording;
 import androidx.camera.video.VideoCapture;
 import androidx.camera.video.VideoRecordEvent;
-import androidx.camera.video.FileOutputOptions;
-import androidx.camera.video.Quality;
-import androidx.camera.video.QualitySelector;
-
+import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.model.TrainingHistory;
+import com.example.rehabilitationapp.data.model.User;
 import com.example.rehabilitationapp.ui.analysis.CSVMotioner;
-import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
-import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
 import com.example.rehabilitationapp.ui.results.TrainingResultActivity;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
@@ -58,204 +55,120 @@ import com.google.mediapipe.tasks.vision.core.RunningMode;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult;
 
-import java.io.File;
+import org.opencv.android.OpenCVLoader;
+
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.Locale;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-
-import com.example.rehabilitationapp.data.model.User;
-import com.example.rehabilitationapp.data.dao.UserDao;
-import com.example.rehabilitationapp.data.dao.TrainingHistoryDao;
-import com.example.rehabilitationapp.data.model.TrainingHistory;
-import android.content.SharedPreferences;
-
-
-
-//光流
-import org.json.JSONArray;
-import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Point;
 
 /*排版
-0. Debug
-1. 生命週期
-2. 相機
-3. 動作處理
-4. 計時器
-5. UI 更新
-6. 教學倒數
-7. 導引提示
-8. 影片錄製
-9. 訓練完成
-10. 工具方法
+1  變數宣告
+2  生命週期
+3  相機與影像
+4  動作處理
+5  計時器
+6  UI 更新
+7  教學與倒數
+8  導引提示
+9  影片錄製
+10 訓練完成
+11 工具方法
  */
 
 
 //本物件WorkFlow可分為偵側流與顯示(時間讀秒)流
-public class FaceCircleCheckerActivity extends AppCompatActivity {
-    //【0. Debug】
+public class FaceCircleCheckerActivityReorder extends AppCompatActivity {
+    //<===========【Debug&Log】========
     private static final String TAG = "FaceCircleChecker";
     private static final String TAG_2 = "FaceChecker_2";
     private static final String TAG_3 = "FaceCheck_video";
+    //===========【Debug&Log】========>
 
-    private volatile boolean isStopping = false;
-    //生命週期onDestroy時，會改為false
-    //讓提交任務前都能守門，例如在 handleCheeksMode()，
-    // 正在停止 → 方法不要接受新幀;
-    // 沒在停止 → 方法可以接受新幀;
-    //移動到下方
+    //<=======【THREAD旗標】===============
+    // final處理執行緒，待現有Thread自行完成後再關閉
+    private volatile boolean isStopping = false; //生命週期onDestroy時，會改為false
+    // 讓提交任務前都能守門，例如在 handleCheeksMode()，讓方法入口停止繼續運作：
     private boolean shouldAcceptNewFrames() { return !isStopping; }
-    //===================>
-
-    //【1. 生命週期】
     //<=======【THREAD旗標】===============>
+
+
     //<=========【相機權限用】==========
     // 相機權限用
-
-
-    //【2. 相機】
     private static final int PERMISSION_REQUEST_CODE = 123;
-    // android.camera.core 類似請求id
+    // android.camera.core 相機管理
     private PreviewView cameraView;
-    // androidx.camera.view 接【相機影像畫面】的【螢幕預覽】物件
     private ProcessCameraProvider cameraProvider;
-    // androidx.camera.lifecycle 管理相機的開關、綁定功能
-    private ExecutorService cameraExecutor;
-    // 拿去餵給接收器，設定imageAnalysis.setAnalyzer(執行緒, 分析方法)
-    private Handler mainHandler;
-    // 主執行續
-    //===================>
+    private boolean trainingStarted = false; // 避免重複啟動
+    //=========【相機權限用】==========>
 
 
-    //<=========【8. 影片錄製】==========
+    //<=========【影片錄製】==========
     private static final boolean ENABLE_VIDEO_RECORDING = true; // ← 改 false 就關閉錄影
     private VideoCapture<Recorder> videoCapture;
-    //androidx.camera.video : videoCapture接收Recorder的影像
     private Recording currentRecording;
-//    androidx.camera.video  Recording 用來控制 影像播放相關操作
-    //
     private String videoFilePath;
-    //刪除影片會用到
-    //<=================>
-
-
-
+    //<=========【影片錄製】==========>
 
 
     //<=========【執行緒管理】==========
-
-
+    private ExecutorService cameraExecutor;
+    private ExecutorService yoloExecutor;
     // 主執行緒 handler 與計時任務
-
-
+    private Handler mainHandler;
+    private Runnable calibrationTimer;
+    private Runnable maintainTimer;
+    private Runnable progressUpdater;
     //===============================>
 
 
-    //<====【3. 動作處理】
-    //<==========共用(包括舌頭)變數(9種動作)=======
-    // 【訓練相關物件】=================
+    //<==========【訓練相關物件】=================
+    //===【共用變數】========
+    //周邊物件
     private FaceDataRecorder dataRecorder;
-    private FaceLandmarker faceLandmarker;
-
+    //訓練資訊變數(Intent接收)）
     private String trainingLabel = "訓練";
     private int trainingType = -1;
     public String trainingLabel_String;
-    //訓練資訊變數(Intent接收），並且存入DB
+    private FaceLandmarker faceLandmarker;
     //====================================>
 
-    //<========【舌頭專用變數】4種 ========
+    //<========【舌頭】 ========
     //推論頻率控制（可自行調整）
-    private static final int FACE_MESH_EVERY = 5;
-    // 每 N 幀更新一次「嘴巴 ROI」
-    private static final int YOLO_EVERY   = 1;
-    // 每 N 幀跑一次 YOLO
+    private static final int FACE_MESH_EVERY = 5;   // 每 5 幀更新一次「嘴巴 ROI」
+    private static final int YOLO_EVERY   = 1;  // 每 3 幀跑一次 YOLO
     private long firstMetricTime = 0;
-    // 用來間隔時間打印 LOG
 
     // 周邊物件
     private TongueYoloDetector tongueDetector;
     private TongueYoloDetectorLR tongueDetectorLR;
     private volatile boolean isYoloProcessing = false;  // 🔥 新增：YOLO 忙碌旗標
-    // 若處理中isYoloProcessing會阻擋新資料進入，因此不會30FPS全部處理
-    // 會看~15-20 fps 實際處理
 
     private boolean isYoloEnabled = false;
-    // 確認YOLO初始化了沒有
-    private ExecutorService yoloExecutor;
-    //獨立執行緒，專門跑舌頭檢測
+    // ROI快取給YOLO（Overlay/Bitmap 兩套座標系）
     private Rect lastOverlayRoi = null;
     private Rect lastBitmapRoi  = null;
-    // ROI快取給YOLO（Overlay/Bitmap 兩套座標系）
-//    上一幀的嘴巴區域（螢幕座標）
-//    上一幀的嘴巴區域（影像座標）
     //====================================>
-    //=============>
 
-
-    //<==【已棄用】====
-    //臉頰光流
+    //<========【臉頰】==========
+    // 周邊物件
     private CheekFlowEngine cheekEngine;
-    //=======>
     //================================>
 
-
-
-    //<===========【4. 計時器】==============
-    private static final int CALIBRATION_TIME = 11000;         // 校正總時間(毫秒)
-    private static final int MAINTAIN_TIME_TOTAL = 24000;     // 維持總時間(毫秒)
-    private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
-
-
-    private static final int DEMO_PHASE_1 = 4000;       // DEMO開始ms
-    private static final int DEMO_PHASE_2 = 8000;       // 4~8s：藍框
-
-
-    // 計時變數
-    private long calibrationStartTime = 0;
-    //開始校正時間，拿來算經過多久
-    private long maintainStartTime = 0;
-    //代表訓練是什麼時候開始，用在
-    //    開始訓練 → 記錄時間
-    //    離開 → 歸零
-    //    繼續訓練 → 重新記錄時間
-    //    完成 → 存入 DB
-    private long maintainTotalTime = 0;
-    //紀錄從訓練開始到現在經過多久
-    private boolean isTrainingCompleted = false;
-
-    private int frameId = 0;
-    // 紀錄當前幀數
-    private Runnable calibrationTimer;
-    //方法函數，在校症階段開始時埋好經過CALIBRATION_TIME後觸發，改狀態為"maintain"。
-    private Runnable maintainTimer;
-    //方法函數 : 循環檢查，每一百ms確認是否completedTraining
-    private Runnable progressUpdater;
-    //方法函數 : 設定間隔100ms呼叫updateProgressBar更新進度條
-    //============================>
-
-
-    //<===========【5. UI 更新】
-
-    //<=========【UX顯示區塊相關】====
+    //<=========【UX顯示區塊相關】==========================
     //臉部圓框
     private CircleOverlayView overlayView;
-    //圓框控制器
-
+    //文字顯示
     private TextView statusText;
-    //已廢棄statusText，校正時期就隱藏了，後續沒再開回來之後拿掉舊邏輯
+    private TextView cueText; // 新增：導引專用 TextView
     private TextView timerText;
-    //進度條圖示
+    //進度條
     private ProgressBar progressBar;
 
     //圓框狀態管理
@@ -265,38 +178,53 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     //新增籃框
     // --- 校正示範（藍色）用的旗標，只在 CALIBRATING 內生效 ---
-    private final boolean demoEnabled  = true;   // 要不要跑示範（固定 true）
-    private boolean demoStarted  = false;  // 啟動DEMO的旗標
-    private boolean demoFinished = false;  // 完成DEMO的旗標，沒什麼用
+    private boolean demoEnabled  = true;   // 要不要跑示範（可留 true）
+    private boolean demoStarted  = false;  // 是否已啟動一次
+    private boolean demoFinished = false;  // 是否已完整跑完一次
     private long demoStartMs     = 0L;     // 起始時間（ms）
-    //======================================================>
-
-
-
 
     //===========【UX顯示區塊相關】===============>
 
-    //【6. 教學倒數】
     // 🆕【教學與倒數相關】
     private boolean tutorialShown = false;      // 是否已顯示過教學
     private boolean countdownFinished = false;  // 倒數是否完成
-    //守門員，雖然初始化State是校正，但倒數沒完成前，handleFacePosition什麼都不做
+    // 倒數對話框
+    private LinearLayout countdownContainer;
+    private TextView countdownNumber;
+    private TextView countdownHint;
 
+    //<==============計時設計常數==============
+    private static final int CALIBRATION_TIME = 11000;         // 校正時間(毫秒)
+    private static final int MAINTAIN_TIME_TOTAL = 20000;     // 維持時間(毫秒)
+    private static final int PROGRESS_UPDATE_INTERVAL = 50;   // 進度條更新間隔
+    // 計時變數
+    private long calibrationStartTime = 0;
+    private long maintainStartTime = 0;
+    private long maintainTotalTime = 0;
+    private boolean isTrainingCompleted = false;
+    // 開始結束時間
+    private long TraingStartTime;
+    private long TraingEndTime;
+    // 紀錄當前幀數
+    private int frameId = 0;
+    //==============計時設計常數==============>
 
-    // =======【動作導引文字提示】==【7. 導引提示】========================
-    private TextView cueText;
-    // 新增：導引專用 TextView，statusText
-
-
+    // =======【動作導引文字提示】==========================
+    private static final boolean SHOW_GUIDE = false; // ← 全域：要不要教學
     // 導引疊字與循環控制（不影響你原本 Handler/Timer）
-    private android.os.Handler cueHandler;
-    private java.lang.Runnable cueRunnable;
+    private Handler cueHandler;
+    private Runnable cueRunnable;
     private boolean cueRunning = false;
-    private int cueStep = 0; // 循環計數器，根據除2餘數，顯示偶數=動作，奇數=放鬆
-    public int CUE_SEGMENT_SEC = 4; // 可調：文字提示顯示幾秒（預設 4 秒）
-    // ===============================================
+    private int cueStep = 0; // 循環，根據餘數顯示
+    public int CUE_SEGMENT_SEC = 4; // 可調：導引文字間隔秒數（預設 3 秒）
+    private TextView cueTextView; // 畫面上的導引提示文字
+    private String currentCueLabel = "訓練";      // 會用 trainingLabel 轉成相對指引內文
+    //===============================================
 
-    //================以下為方法=====================
+
+
+
+    //================
 
     //===========01【生命週期】========================
     @Override
@@ -345,7 +273,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         timerText   = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
         cueText     = findViewById(R.id.cue_text);
-
+        countdownContainer = findViewById(R.id.countdown_container);
+        countdownNumber = findViewById(R.id.countdown_number);
+        countdownHint = findViewById(R.id.countdown_hint);
 
         // 初始化追蹤示意模式 : 舌頭顯示BBox，其他顯示Landmark
         if ("舌頭".equals(trainingLabel) ||
@@ -514,11 +444,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         progressBar.setMax(100);
         progressBar.setProgress(0);
         updateStatusDisplay();
-        //沒再用的文字導引更新，校正就隱藏了
         updateTimerDisplay();
-        //時間倒數
         startProgressUpdater();
-        //進圖條更新
     }
     //  自我檢查相機權限
     private void testCameraPermission() {
@@ -577,18 +504,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     private void bindCameraUseCases() {
-        Preview preview = new Preview.Builder().build(); //【相機影像畫面】提供
+        Preview preview = new Preview.Builder().build();
         preview.setSurfaceProvider(cameraView.getSurfaceProvider());
 
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
 
-
         imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
-        //ImageAnalysis來拿到ImageProxy
-        //setAnalyzer = 設定分析器。
-        //javaimageAnalysis.setAnalyzer(執行緒, 分析方法);
+
         CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
 
         // 🎥 創建 VideoCapture
@@ -781,7 +705,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===========【動作方法區域】=========
     // 加入 YOLO 整合
     private void checkFacePosition(FaceLandmarkerResult result, int bitmapWidth, int bitmapHeight, Bitmap mirroredBitmap) {
-        // 臉部位置判斷
         boolean faceDetected = result != null && !result.faceLandmarks().isEmpty();
 
         if (faceDetected) {
@@ -901,7 +824,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                         float dx = noseScreenX - centerX;
                         float dy = noseScreenY - centerY;
-                        // 重要，要確認條件
                         boolean noseInside = (dx * dx + dy * dy) <= (radius * radius);
 
                         handleFacePosition(noseInside);
@@ -1019,7 +941,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int imgH = mirroredBitmap.getHeight();
 
                         // 2) YOLO bbox（Bitmap 像素；無偵測→null）
-                        final android.graphics.Rect bboxImg = bboxImgFinal;
+                        final Rect bboxImg = bboxImgFinal;
 
                         // 3) 將 allPointsFinal 統一到「Bitmap 像素」
                         float[][] ptsPx = toBitmapPixels(allPointsFinal, imgW, imgH, overlayView.getWidth(), overlayView.getHeight());
@@ -1180,7 +1102,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         final int imgH = mirroredBitmap.getHeight();
 
                         // 2) YOLO bbox（Bitmap 像素；無偵測→null）
-                        final android.graphics.Rect bboxImg = bboxImgFinal;
+                        final Rect bboxImg = bboxImgFinal;
 
                         // 3) 將 allPointsFinal 統一到「Bitmap 像素」
                         float[][] ptsPx = toBitmapPixels(allPointsFinal, imgW, imgH, overlayView.getWidth(), overlayView.getHeight());
@@ -1277,7 +1199,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void handleCheeksMode(float[][] landmarks01, Bitmap mirroredBitmap, int img_w,int img_h) {
         if (!shouldAcceptNewFrames()) return;
         try {
-//            ensureCheekEngine();
+            ensureCheekEngine();
             long ts = System.currentTimeMillis();
 
             cameraExecutor.execute(() -> {
@@ -1344,17 +1266,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
                         }
 
-                        //【DEMOTIME】時間直接寫死在這裡
-                        if (d < DEMO_PHASE_1) {
+                        if (d < 4000) {
                             // 0~4s：黃框 - 放鬆校正
-                            if (statusText != null) statusText.setVisibility(android.view.View.GONE);  // 隱藏
+                            if (statusText != null) statusText.setVisibility(View.GONE);  // 隱藏
 
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                             if (statusText != null) statusText.setText("校正中");
                             if (cueText != null) cueText.setText("放鬆，保持不動");
                             isDemoPhase = false;
 
-                        } else if (d < DEMO_PHASE_2) {
+                        } else if (d < 8000) {
                             // 4~8s：藍框 - 示範動作
                             uiStatus = CircleOverlayView.Status.DEMO;
                             String zh = motionLabelZh(trainingLabel);
@@ -1362,7 +1283,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             if (cueText != null) cueText.setText("請" + zh + "");
                             isDemoPhase = true;
 
-                        } else if (d < CALIBRATION_TIME) {
+                        } else if (d < 11000) {
                             // 8~11s：黃框 - 準備開始
                             uiStatus = CircleOverlayView.Status.CALIBRATING;
                             if (statusText != null) statusText.setText("校正中");
@@ -1393,16 +1314,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 if (faceInside) {
                     if (maintainStartTime == 0) {
                         maintainStartTime = currentTime;
-
+                        //底下是紀錄給DB的完整訓練開始時間
+                        TraingStartTime = maintainStartTime;
                     }
                     overlayView.setStatus(CircleOverlayView.Status.OK);
                 } else {
-//                    if (maintainStartTime > 0) {
-//                        maintainTotalTime += (currentTime - maintainStartTime);
-//                        maintainStartTime = 0;
-//                    }
-                    //maintainStartTime = 0;
-                    // 改離開就全部重來
+                    if (maintainStartTime > 0) {
+                        maintainTotalTime += (currentTime - maintainStartTime);
+                        maintainStartTime = 0;
+                    }
                     resetToCalibration();
                 }
                 break;
@@ -1437,7 +1357,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     //確認時間顯示文字
-    // handleFacePosition 偵測到
     private void startCalibrationTimer() {
         cancelTimers();
         Log.d(TAG_2, "🟡 開始校正階段計時器");
@@ -1460,7 +1379,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             updateStatusDisplay();
             updateTimerDisplay();
         };
-        //這一段是延後觸發calibrationTimer，他在校正開始時就埋好。
         mainHandler.postDelayed(calibrationTimer, CALIBRATION_TIME);
     }
 
@@ -1546,7 +1464,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (!isTrainingCompleted) {
             calibrationStartTime = 0;
             maintainStartTime = 0;
-            maintainTotalTime = 0; //清空累計時間
             cancelTimers();
             currentState = AppState.CALIBRATING;
         }
@@ -1728,7 +1645,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 Log.e(TAG, "❌ 儲存或分析失敗: " + error);
-                Toast.makeText(FaceCircleCheckerActivity.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
+                Toast.makeText(FaceCircleCheckerActivityReorder.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
                 new Handler(Looper.getMainLooper()).postDelayed(() -> finish(), 3000);
             }
         });
@@ -1773,7 +1690,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //20251127 先取消文字
     private void postNextCue(long delayMs) {
         if (mainHandler == null) return;
-        final int segMs = Math.max(1, CUE_SEGMENT_SEC) * 1000;//只是CUE_SEGMENT_SEC轉ms，一樣意思
+        final int segMs = Math.max(1, CUE_SEGMENT_SEC) * 1000;
 
         cueRunnable = () -> {
             // ★ 加入這個檢查：訓練完成就不要再更新
@@ -1800,27 +1717,27 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
 
-//    private void onStartTraining() {
-//        if (trainingStarted) return;
-//        trainingStarted = true;
-//        Log.d(TAG_3, "✅ 開始錄影流程");
-//
-//        // 開始錄影
-//        if (ENABLE_VIDEO_RECORDING && videoCapture != null) {
-//            startVideoRecording();
-//        }
-//        Log.d(TAG_2, "✅ 開始訓練流程");
-//
-//        // 狀態提示
-//        if (statusText != null) statusText.setText("訓練中...");
-//
-//        // 1) 開始口令循環（動作提示）
-//        cueRunning = true;
-//        cueStep = 0;
-//        postNextCue(0);
-//
-//
-//    }
+    private void onStartTraining() {
+        if (trainingStarted) return;
+        trainingStarted = true;
+        Log.d(TAG_3, "✅ 開始錄影流程");
+
+        // 開始錄影
+        if (ENABLE_VIDEO_RECORDING && videoCapture != null) {
+            startVideoRecording();
+        }
+        Log.d(TAG_2, "✅ 開始訓練流程");
+
+        // 狀態提示
+        if (statusText != null) statusText.setText("訓練中...");
+
+        // 1) 開始口令循環（動作提示）
+        cueRunning = true;
+        cueStep = 0;
+        postNextCue(0);
+
+
+    }
 
 
 
@@ -1886,7 +1803,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     // 幫手：關閉 ExecutorService（可重用）
-    private void awaitShutdown(java.util.concurrent.ExecutorService exec) {
+    private void awaitShutdown(ExecutorService exec) {
         if (exec == null) return;
         try {
             exec.shutdownNow(); // 立刻中斷尚未開始的與可中斷的任務
@@ -1929,7 +1846,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // ★ 新增：把各種寫法歸一成 poutLip / closeLip
     private String canonicalMotion(String s) {
         if (s == null) return "";
-        String x = s.trim().toLowerCase(java.util.Locale.ROOT);
+        String x = s.trim().toLowerCase(Locale.ROOT);
         if (x.contains("pout"))  return "poutLip";
         if (x.contains("close") || x.contains("sip") || x.contains("slip") || x.contains("抿"))
             return "closeLip";
@@ -2009,7 +1926,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         //原本的先改FIGMA的看看
         //Intent it = new Intent(FaceCircleCheckerActivity.this, AnalysisResultActivity.class);
-        Intent it = new Intent(FaceCircleCheckerActivity.this, TrainingResultActivity.class);
+        Intent it = new Intent(FaceCircleCheckerActivityReorder.this, TrainingResultActivity.class);
         it.putExtra("training_label", canon);
         it.putExtra("actual_count", actual);
         it.putExtra("target_count", 5);
@@ -2022,15 +1939,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             double[] ratios = dataRecorder.getHeightWidthRatioArray();
             it.putExtra("ratio_times", times);
             it.putExtra("ratio_values", ratios);
-            android.util.Log.d("GO", "poutLip ratio_times=" + java.util.Arrays.toString(times));
-            android.util.Log.d("GO", "poutLip ratio_values=" + java.util.Arrays.toString(ratios));
+            Log.d("GO", "poutLip ratio_times=" + Arrays.toString(times));
+            Log.d("GO", "poutLip ratio_values=" + Arrays.toString(ratios));
 
         } else if ("closeLip".equals(canon)) {
             double[][] tv = dataRecorder.exportLipTimeAndTotal();
             it.putExtra("lip_times",  tv[0]);
             it.putExtra("lip_totals", tv[1]);
-            android.util.Log.d("GO", "closeLip lip_times=" + java.util.Arrays.toString(tv[0]));
-            android.util.Log.d("GO", "closeLip lip_totals=" + java.util.Arrays.toString(tv[1]));
+            Log.d("GO", "closeLip lip_times=" + Arrays.toString(tv[0]));
+            Log.d("GO", "closeLip lip_totals=" + Arrays.toString(tv[1]));
         }
 
         startActivity(it);
@@ -2101,7 +2018,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     private String csvState() {
-        if (!countdownFinished) return "COUNTDOWN";//避免記到倒數
         CircleOverlayView.Status ui = (overlayView != null) ? overlayView.getStatus() : null;
         if (ui == CircleOverlayView.Status.DEMO) return "DEMO";
         if (currentState == AppState.CALIBRATING) return "CALIBRATING";
