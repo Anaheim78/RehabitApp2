@@ -28,6 +28,7 @@ public class FaceDataRecorder {
     private String trainingLabel;
     private int trainingType;
     private List<String> dataLines;
+    //recordLandmarkData是多載(從FACECHECK呼叫的參數決定)，dataLines會儲存CSVHEDAER(第一行)跟數值(第2~N行)。
     private String fileName;
 
     // 🔥 新增：記錄開始時間，用於計算相對時間
@@ -86,6 +87,8 @@ public class FaceDataRecorder {
     private static final String Lip_Prot_HEADER =  "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
     //嘟嘴指標 : 外緣Z軸 版本2
     private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction";
+    //PCA?
+
 
     private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction";
     private static final String TONGUE_HEADER =
@@ -736,6 +739,13 @@ public class FaceDataRecorder {
     }
 
 
+    // 🆕 清空資料，重新開始記錄
+    public void clearData() {
+        dataLines.clear();
+        initializeCSV();  // 重新加入 header
+        startTime = System.currentTimeMillis();  // 重設開始時間
+        Log.d(TAG, "🔄 資料已清空，重新開始記錄");
+    }
 
     public int getDataCount() {
         return Math.max(0, dataLines.size() - 1); // 扣除標題行

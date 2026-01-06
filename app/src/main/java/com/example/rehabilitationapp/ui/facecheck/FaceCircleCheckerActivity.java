@@ -1539,6 +1539,29 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             calibrationStartTime = 0;
             cancelTimers();
             currentState = AppState.CALIBRATING;
+
+            // 🆕 清空 CSV 資料
+            if (dataRecorder != null) {
+                dataRecorder.clearData();
+            }
+
+            // 🆕 重置 demo 狀態
+            demoStarted = false;
+            demoFinished = false;
+            demoStartMs = 0;
+
+            // 🆕 停止並刪除未完成的影片
+            if (currentRecording != null) {
+                currentRecording.stop();
+                currentRecording = null;
+                if (videoFilePath != null) {
+                    File file = new File(videoFilePath);
+                    if (file.exists() && file.delete()) {
+                        Log.d(TAG, "🗑️ 已刪除作廢的影片（校正中離開）");
+                    }
+                    videoFilePath = null;
+                }
+            }
         }
     }
 
@@ -1549,6 +1572,30 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             maintainTotalTime = 0; //清空累計時間
             cancelTimers();
             currentState = AppState.CALIBRATING;
+        }
+
+
+        if (dataRecorder != null) {
+            dataRecorder.clearData();
+        }
+
+        demoStarted = false;
+        demoFinished = false;
+        demoStartMs = 0;
+
+        cueStep = 0;
+        stopSimpleCue();
+
+        if (currentRecording != null) {
+            currentRecording.stop();
+            currentRecording = null;
+            if (videoFilePath != null) {
+                File file = new File(videoFilePath);
+                if (file.exists() && file.delete()) {
+                    Log.d(TAG, "🗑️ 已刪除作廢的影片（訓練中離開）");
+                }
+                videoFilePath = null;
+            }
         }
     }
 
