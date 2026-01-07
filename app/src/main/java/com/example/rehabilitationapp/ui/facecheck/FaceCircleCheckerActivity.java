@@ -202,6 +202,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // ROI快取給YOLO（Overlay/Bitmap 兩套座標系）
 //    上一幀的嘴巴區域（螢幕座標）
 //    上一幀的嘴巴區域（影像座標）
+
+
+
+
     //====================================>
     //=============>
 
@@ -272,6 +276,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private boolean demoStarted  = false;  // 啟動DEMO的旗標
     private boolean demoFinished = false;  // 完成DEMO的旗標，沒什麼用
     private long demoStartMs     = 0L;     // 起始時間（ms）
+
+
+    // 頭動檢測用
+    private float baselineEyeDistance = 0;
+    private boolean baselineSet = false;
+    private static final float EYE_DISTANCE_THRESHOLD = 0.15f;  // 15% 變化閾值
     //======================================================>
 
 
@@ -912,7 +922,42 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         // 重要，要確認條件
                         boolean noseInside = (dx * dx + dy * dy) <= (radius * radius);
 
+//                        handleFacePosition(noseInside);
+                        /*
+                        // 🆕 頭動檢測（眼距變化）
+                        float currentEyeDistance = calculateEyeDistance(allPoints);
+
+                        if (currentState == AppState.CALIBRATING && !baselineSet && calibrationStartTime > 0) {
+                            baselineEyeDistance = currentEyeDistance;
+                            baselineSet = true;
+                            Log.d(TAG, "📏 基準眼距設定: " + baselineEyeDistance);
+                        }
+
+                        boolean headStable = true;
+
+// 只在校正階段檢測頭動
+                        if (baselineSet && currentState == AppState.CALIBRATING) {
+                            float changeRatio = Math.abs(currentEyeDistance - baselineEyeDistance) / baselineEyeDistance;
+                            headStable = changeRatio < EYE_DISTANCE_THRESHOLD;
+
+                            if (!headStable && cueText != null) {
+                                cueText.setText("請保持頭部不動");
+                                Log.d(TAG, "⚠️ 頭動檢測: 眼距變化 " + (changeRatio * 100) + "%");
+                            }
+                        }
+
+                        if (!noseInside && cueText != null) {
+                            cueText.setText("請回到圓框內");
+                        }
+
+                        boolean faceOK = (currentState == AppState.CALIBRATING)
+                                ? (noseInside && headStable)
+                                : noseInside;
+
+                        handleFacePosition(faceOK);*/
+                        //
                         handleFacePosition(noseInside);
+
                     }
                 });
 
@@ -1548,6 +1593,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             cancelTimers();
             currentState = AppState.CALIBRATING;
 
+            //校正基準線
+            baselineSet = false;
+            baselineEyeDistance = 0;
+
             // 🆕 清空 CSV 資料
             if (dataRecorder != null) {
                 dataRecorder.clearData();
@@ -1582,6 +1631,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             currentState = AppState.CALIBRATING;
         }
 
+        //校正頭動重置
+        baselineSet = false;
+        baselineEyeDistance = 0;
 
         if (dataRecorder != null) {
             dataRecorder.clearData();
@@ -2458,6 +2510,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
     }
 
+    private float calculateEyeDistance(float[][] landmarks) {
+        float eyeLx = landmarks[263][0];
+        float eyeLy = landmarks[263][1];
+        float eyeRx = landmarks[33][0];
+        float eyeRy = landmarks[33][1];
 
+        return (float) Math.sqrt((eyeRx - eyeLx) * (eyeRx - eyeLx)
+                + (eyeRy - eyeLy) * (eyeRy - eyeLy));
+    }
 
 }
