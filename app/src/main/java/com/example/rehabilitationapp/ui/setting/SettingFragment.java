@@ -15,6 +15,9 @@ import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
+import android.content.Context;
+import android.content.SharedPreferences;
+import androidx.appcompat.widget.SwitchCompat;
 
 //SettingFragment : 綁定layout
 //onViewCreated() : 初次渲染欄位格式等，不包括資料
@@ -34,7 +37,7 @@ public class SettingFragment extends Fragment {
     private Button btnContact;
     private TextView tvUserId, tvEmail, tvName, tvBirthday, tvGender, tvJoinDate;
     private View segmentUi, thumbUi;
-
+    private SwitchCompat switchVideoRecording;
     // === DB ===
     private UserDao userDao;
 
@@ -59,6 +62,16 @@ public class SettingFragment extends Fragment {
         segmentUi  = view.findViewById(R.id.segmentUi);
         thumbUi    = view.findViewById(R.id.thumbUi);
 
+        // 🆕 錄影開關
+        switchVideoRecording = view.findViewById(R.id.switchVideoRecording);
+
+        SharedPreferences appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        boolean videoEnabled = appPrefs.getBoolean("video_recording_enabled", true);
+        switchVideoRecording.setChecked(videoEnabled);
+
+        switchVideoRecording.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            appPrefs.edit().putBoolean("video_recording_enabled", isChecked).apply();
+        });
         // ---- DB ----
         userDao = AppDatabase.getInstance(requireContext()).userDao();
     }

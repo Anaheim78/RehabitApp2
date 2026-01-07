@@ -44,7 +44,8 @@ public class SupabaseUploader {
 
                 // 2. 找到 CSV 檔案
                 File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                File csvFile = new File(downloadsDir, fileName);
+                File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+                File csvFile = new File(dir, fileName);
 
                 if (!csvFile.exists()) {
                     Log.e(TAG, "❌ CSV 檔案不存在: " + fileName);

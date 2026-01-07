@@ -48,9 +48,8 @@ public class CSVMotioner {
     public static PyAnalysisResult analyzePeaksFromFile(Context context, String fileName) {
 
         // 1. 找到檔案路徑
-        File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        File csvFile = new File(downloadsDir, fileName);
-
+        File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+        File csvFile = new File(dir, fileName);
         Python py = Python.getInstance();
         PyAnalysisResult result = new PyAnalysisResult();
         result.fileName = fileName;

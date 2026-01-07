@@ -140,7 +140,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
     //<=========【8. 影片錄製】==========
-    private static final boolean ENABLE_VIDEO_RECORDING = true; // ← 改 false 就關閉錄影
+
+    private boolean ENABLE_VIDEO_RECORDING = true;
+
     private VideoCapture<Recorder> videoCapture;
     //androidx.camera.video : videoCapture接收Recorder的影像
     private Recording currentRecording;
@@ -304,6 +306,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);
+
+        // 🆕 讀取錄影開關設定
+        SharedPreferences appSettings = getSharedPreferences("app_settings", MODE_PRIVATE);
+        ENABLE_VIDEO_RECORDING = appSettings.getBoolean("video_recording_enabled", true);
+        Log.d(TAG, "錄影功能: " + (ENABLE_VIDEO_RECORDING ? "開啟" : "關閉"));
 
         // OpenCV 初始化
         if (!OpenCVLoader.initDebug()) {
@@ -1251,7 +1258,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void handleLipMode(float[][] allPoints) {
         if (!shouldAcceptNewFrames()) return;
         //畫面顯示臉部點
-        overlayView.setAllFaceLandmarks(allPoints);
+//        overlayView.setAllFaceLandmarks(allPoints);
         //校正中跟動作中狀態=>紀錄
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
             String stateString = csvState();

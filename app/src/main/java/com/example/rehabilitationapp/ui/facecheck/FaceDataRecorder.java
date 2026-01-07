@@ -733,8 +733,12 @@ public class FaceDataRecorder {
         try {
             // 儲存到 Downloads 資料夾，使用者容易找到
             File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File file = new File(downloadsDir, fileName);
+            // 換地方
+            File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
 
+//            File file = new File(downloadsDir, fileName);
+
+            File file = new File(dir, fileName);
             FileWriter writer = new FileWriter(file);
             for (String line : dataLines) {
                 writer.write(line + "\n");
