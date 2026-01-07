@@ -46,6 +46,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.SupabaseUploader;
 import com.example.rehabilitationapp.ui.analysis.CSVMotioner;
 import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
@@ -2030,7 +2031,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         new Thread(() -> {
             AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
             Log.d(TAG, "✅ 訓練記錄已寫入資料庫");
+            //  上傳 CSV 到 Supabase
+            SupabaseUploader.uploadCsv(this, csv, new SupabaseUploader.UploadCallback() {
+                @Override
+                public void onSuccess(String publicUrl) {
+                    Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
+                }
 
+                @Override
+                public void onFailure(String error) {
+                    Log.e(TAG, "❌ CSV 上傳失敗: " + error);
+                }
+            });
             com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
                 Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
             });
@@ -2258,6 +2270,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 // 清空 cueText（之後校正流程會自己設定）
                 if (cueText != null) {
                     cueText.setText("");
+                }
+
+                // 🆕 重設 CSV 的開始時間
+                if (dataRecorder != null) {
+                    dataRecorder.resetStartTime();
                 }
 
                 // 🆕 倒數結束，正式開始校正流程

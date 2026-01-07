@@ -44,8 +44,9 @@ public class FaceDataRecorder {
     // 下唇紅色部分：外緣→內緣→接回起點
     private static final int[] LOWER_LIP_INDICES = {61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95};
     // 嘴唇外緣（嘟嘴Z軸用）
-    private static final int[] OUTER_LIP_INDICES = {61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146};
-
+// 嘴唇所有點（外緣 + 內緣）- 用於存 CSV
+    private static final int[] LIP_OUTER_IDXS = {61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185};
+    private static final int[] LIP_INNER_IDXS = {78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191};
 
     //CSV Header
 //    private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
@@ -95,11 +96,30 @@ public class FaceDataRecorder {
     //嘟嘴指標 : 高除以寬 版本1
     private static final String Lip_Prot_HEADER =  "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
     //嘟嘴指標 : 外緣Z軸 版本2
-    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction";
-    //PCA?
 
 
-    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction";
+    // 嘴唇 landmark header（40點 x 3座標 = 120欄）
+    private static final String LIP_LANDMARKS_HEADER;
+    static {
+        StringBuilder sb = new StringBuilder();
+        // 外緣 20 點
+        for (int idx : new int[]{61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185}) {
+            sb.append(",p").append(idx).append("_x,p").append(idx).append("_y,p").append(idx).append("_z");
+        }
+        // 內緣 20 點
+        for (int idx : new int[]{78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191}) {
+            sb.append(",p").append(idx).append("_x,p").append(idx).append("_y,p").append(idx).append("_z");
+        }
+        LIP_LANDMARKS_HEADER = sb.toString();
+    }
+
+    // 嘟嘴
+    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction" + LIP_LANDMARKS_HEADER;
+
+    // 抿嘴
+    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction" + LIP_LANDMARKS_HEADER;
+
+
     private static final String TONGUE_HEADER =
             "time_seconds,state," +
                     "tongue_detected," +
@@ -217,9 +237,22 @@ public class FaceDataRecorder {
                 //若=F則反過來鼻尖較遠，嘟起時應該抓大
                 String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
 
-                dataLine = String.format(Locale.getDefault(), "%.3f,%s,%.6f,%.6f,%.6f,%s",
-                        relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea,nosePeakDirection);
 
+                StringBuilder sb = new StringBuilder();
+                sb.append(String.format(Locale.getDefault(), "%.3f,%s,%.6f,%.6f,%.6f,%s",
+                        relativeTimeSeconds, state, upperLipArea, lowerLipArea, totalLipArea, nosePeakDirection));
+
+                // 加入 40 個 landmark 座標
+                for (int idx : LIP_OUTER_IDXS) {
+                    sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f",
+                            landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
+                }
+                for (int idx : LIP_INNER_IDXS) {
+                    sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f",
+                            landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
+                }
+
+                dataLine = sb.toString();
                 //DEBUG列印輸出
 //                Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
 //                        relativeTimeSeconds, upperLipArea, lowerLipArea, totalLipArea));
@@ -244,11 +277,23 @@ public class FaceDataRecorder {
                 //若=F則反過來鼻尖較遠，嘟起時應該抓大
                 String nosePeakDirection = noseTipZ < z_avg ? "T" : "F";
 
-                dataLine = String.format(Locale.getDefault(),"%.3f,%s,%.6f,%s"
-                        ,relativeTimeSeconds,state,z_avg,nosePeakDirection);
+                StringBuilder sb = new StringBuilder();
+                sb.append(String.format(Locale.getDefault(), "%.3f,%s,%.6f,%s",
+                        relativeTimeSeconds, state, z_avg, nosePeakDirection));
+
+                // 加入 40 個 landmark 座標
+                for (int idx : LIP_OUTER_IDXS) {
+                    sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f",
+                            landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
+                }
+                for (int idx : LIP_INNER_IDXS) {
+                    sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f",
+                            landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
+                }
 
 
 
+                dataLine = sb.toString();
                 Log.d(TAG,"嘟嘴CSV內文 = "+dataLine);
             }
             else if ("JAW_LEFT".equals(trainingLabel)||"JAW_RIGHT".equals(trainingLabel)) {
@@ -619,7 +664,7 @@ public class FaceDataRecorder {
             float sumZ = 0f;
             int count = 0;
 
-            for (int index : OUTER_LIP_INDICES) {
+            for (int index : LIP_OUTER_IDXS ) {
                 if (index < landmarks.length && landmarks[index].length > 2) {
                     sumZ += landmarks[index][2];
                     count++;
@@ -912,6 +957,10 @@ public class FaceDataRecorder {
         return new double[][]{ times, totals };
     }
 
-
+    // 🆕 重設開始時間（倒數結束後呼叫）
+    public void resetStartTime() {
+        this.startTime = System.currentTimeMillis();
+        Log.d(TAG, "🔄 開始時間已重設: " + startTime);
+    }
 
 }
