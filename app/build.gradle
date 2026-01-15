@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.rehabilitationappv2"  // 與第一個不同
-        minSdk 33
+        minSdk 31
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -134,4 +134,7 @@ dependencies {
     implementation "androidx.compose.material3:material3"
 
     debugImplementation "androidx.compose.ui:ui-tooling"
+
+    // Supabase
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }

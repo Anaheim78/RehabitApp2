@@ -101,6 +101,38 @@ public class HomeFragment extends Fragment {
 
     }
 
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 延遲 300ms 確保 binding 準備好
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (binding != null) {
+                loadTrainingCards();
+            }
+        }, 300);
+    }
+
+    private void loadTrainingCards() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                TrainingItemDao dao = AppDatabase.getInstance(requireContext()).trainingItemDao();
+                List<TrainingItem> list = dao.getAllNow();
+
+                if (getActivity() != null && !getActivity().isFinishing()) {
+                    getActivity().runOnUiThread(() -> {
+                        if (binding != null) {
+                            items = list;
+                            buildCards(items);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.e("HomeFragment", "載入訓練項目失敗", e);
+            }
+        });
+    }
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
@@ -151,20 +183,10 @@ public class HomeFragment extends Fragment {
         //0) 固定SOP : 檢查有沒有修改密碼，同步到FIREBASE
         syncUserDataToFirebase();
 
-        // 1) 用 DAO 讀資料（背景執行緒）
-        Executors.newSingleThreadExecutor().execute(() -> {
-            TrainingItemDao dao = AppDatabase.getInstance(requireContext()).trainingItemDao();
+        // 1) 載入訓練卡片（移到 onResume 處理）
+        // loadTrainingCards(); // 已移到 onResume
 
-            List<TrainingItem> list = dao.getAllNow(); // 同步查詢
-
-            // 2) 回到主執行緒渲染 UI
-            requireActivity().runOnUiThread(() -> {
-                items = list;
-                buildCards(items);
-            });
-        });
-
-        // 3) 開始按鈕
+        // 2) 開始按鈕
         binding.startButton.setOnClickListener(v -> onStartClicked());
     }
 

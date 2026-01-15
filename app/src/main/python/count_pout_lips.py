@@ -27,7 +27,7 @@ ORDER = 4
 DEMO_SIDE_SEC = 2.0
 MIN_ACTION_DURATION = 0.3  # 最小動作時間（秒）
 MAX_ACTION_DURATION = 6.0  # 最大動作時間（秒）
-R_DEMO = 0.2  # 門檻 = DEMO 能量的倍數
+R_DEMO = 0.6  # 門檻 = DEMO 能量的倍數
 MIN_DEMO_ENERGY = 1e-5  # DEMO 最小能量門檻
 
 # 合併參數
