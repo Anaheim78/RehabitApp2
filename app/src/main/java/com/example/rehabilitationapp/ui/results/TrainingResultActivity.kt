@@ -277,20 +277,78 @@ fun 訓練結果頁() {
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
                         .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
                         .clickable {
-                            FirebaseUploader.uploadTodayUnsynced(context) { success, fail ->
-                                Log.d("Upload", "成功: $success, 失敗: $fail")
+                            var fbDone = false
+                            var csvDone = false
+                            var fbSuccess = 0
+                            var fbFail = 0
+                            var csvSuccess = 0
+                            var csvFail = 0
 
-                                // ★ 加 Toast 提示
-                                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                    if (fail == 0 && success > 0) {
-                                        android.widget.Toast.makeText(context, "上傳成功：$success 筆", android.widget.Toast.LENGTH_SHORT).show()
-                                    } else if (fail == 0 && success == 0) {
-                                        android.widget.Toast.makeText(context, "沒有需要上傳的資料", android.widget.Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        android.widget.Toast.makeText(context, "上傳完成：成功 $success 筆，失敗 $fail 筆", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
+                            fun showResultIfBothDone() {
+                                if (fbDone && csvDone) {
+                                    // ★ 查詢剩餘未同步數量 ★
+                                    Thread {
+                                        val dao = AppDatabase.getInstance(context).trainingHistoryDao()
+                                        val remainingFb = dao.getUnsyncedWithLimit().size
+                                        val remainingCsv = dao.getUnsyncedCsvRecords().size
+                                        val totalRemaining = remainingFb + remainingCsv
+
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            val totalSuccess = fbSuccess + csvSuccess
+
+                                            val msg = when {
+                                                totalSuccess == 0 && totalRemaining == 0 -> "沒有需要同步的資料"
+                                                totalRemaining == 0 -> "同步完成：$totalSuccess 筆 ✓"
+                                                totalSuccess > 0 -> "已同步 $totalSuccess 筆，剩餘 $totalRemaining 筆待同步"
+                                                else -> "同步失敗，剩餘 $totalRemaining 筆待同步"
+                                            }
+                                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }.start()
                                 }
                             }
+
+                            // 1. Firebase 補傳
+                            FirebaseUploader.uploadTodayUnsynced(context) { s, f ->
+                                Log.d("Upload", "Firebase - 成功: $s, 失敗: $f")
+                                fbSuccess = s
+                                fbFail = f
+                                fbDone = true
+                                showResultIfBothDone()
+                            }
+
+                            // 2. CSV 補傳
+                            com.example.rehabilitationapp.data.SupabaseUploader.retryUnsyncedCsv(context) { s, f ->
+                                Log.d("Upload", "CSV - 成功: $s, 失敗: $f")
+                                csvSuccess = s
+                                csvFail = f
+                                csvDone = true
+                                showResultIfBothDone()
+                            }
+
+                            // 3. 先顯示同步中
+                            android.widget.Toast.makeText(context, "正在同步...", android.widget.Toast.LENGTH_SHORT).show()
+
+//                            FirebaseUploader.uploadTodayUnsynced(context) { success, fail ->
+//                                Log.d("Upload", "成功: $success, 失敗: $fail")
+//
+//
+//                                // ★ 加 Toast 提示
+//                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+//                                    if (fail == 0 && success > 0) {
+//                                        android.widget.Toast.makeText(context, "上傳成功：$success 筆", android.widget.Toast.LENGTH_SHORT).show()
+//                                    } else if (fail == 0 && success == 0) {
+//                                        android.widget.Toast.makeText(context, "沒有需要上傳的資料", android.widget.Toast.LENGTH_SHORT).show()
+//                                    } else {
+//                                        android.widget.Toast.makeText(context, "上傳完成：成功 $success 筆，失敗 $fail 筆", android.widget.Toast.LENGTH_SHORT).show()
+//                                    }
+//                                }
+//                            }
+//
+//                            // 2. CSV 補傳
+//                            com.example.rehabilitationapp.data.SupabaseUploader.retryUnsyncedCsv(context) { csvSuccess, csvFail ->
+//                                Log.d("Upload", "CSV - 成功: $csvSuccess, 失敗: $csvFail")
+//                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {

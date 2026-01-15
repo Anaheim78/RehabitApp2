@@ -11,6 +11,7 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class FirebaseUploader {
 
@@ -33,8 +34,10 @@ public class FirebaseUploader {
 
             // 2. 查詢未同步的紀錄
             AppDatabase db = AppDatabase.getInstance(context);
-            List<TrainingHistory> list = db.trainingHistoryDao().getUnsyncedToday(startOfDay, endOfDay);
+//            List<TrainingHistory> list = db.trainingHistoryDao().getUnsyncedToday(startOfDay, endOfDay);
 
+            // 先將每日改為最多20筆
+            List<TrainingHistory> list = db.trainingHistoryDao().getUnsyncedWithLimit();
             if (list.isEmpty()) {
                 Log.d(TAG, "今天沒有未同步的紀錄");
                 if (callback != null) callback.onComplete(0, 0);
@@ -90,6 +93,8 @@ public class FirebaseUploader {
                         .addOnFailureListener(e -> {
                             failCount[0]++;
                             Log.e(TAG, "上傳失敗: " + item.trainingID, e);
+                            // ⭐⭐⭐ 新增：失敗時排程 WorkManager 重試 ⭐⭐⭐
+                            scheduleFirebaseUpload(context, item.trainingID);
 
                             if (successCount[0] + failCount[0] == total) {
                                 if (callback != null) callback.onComplete(successCount[0], failCount[0]);
@@ -97,5 +102,28 @@ public class FirebaseUploader {
                         });
             }
         }).start();
+    }
+
+    // ★★★ 排程 WorkManager 背景上傳 Firebase ★★★
+    public static void scheduleFirebaseUpload(Context context, String trainingID) {
+        androidx.work.Constraints constraints = new androidx.work.Constraints.Builder()
+                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .build();
+
+        androidx.work.Data inputData = new androidx.work.Data.Builder()
+                .putString("trainingID", trainingID)
+                .build();
+
+        androidx.work.OneTimeWorkRequest request = new androidx.work.OneTimeWorkRequest.Builder(FirebaseUploadWorker.class)
+                .setConstraints(constraints)
+                .setInputData(inputData)
+                .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .addTag("firebase_upload_" + trainingID)
+                .build();
+
+        androidx.work.WorkManager.getInstance(context)
+                .enqueueUniqueWork("firebase_" + trainingID, androidx.work.ExistingWorkPolicy.KEEP, request);
+
+        Log.d(TAG, "📅 已排程 Firebase WorkManager: " + trainingID);
     }
 }

@@ -35,6 +35,10 @@ public interface TrainingHistoryDao {
 
 
 
+    //FireBase儲存歷史紀錄相關
+    /** 查詢所有 Firebase 未同步的紀錄（最多 20 筆） */
+    @Query("SELECT * FROM TrainingHistory WHERE synced = 0 ORDER BY createAt ASC LIMIT 20")
+    List<TrainingHistory> getUnsyncedWithLimit();
     @Query("SELECT * FROM TrainingHistory WHERE synced = 0 AND createAt >= :startOfDay AND createAt < :endOfDay")
     List<TrainingHistory> getUnsyncedToday(long startOfDay, long endOfDay);
 

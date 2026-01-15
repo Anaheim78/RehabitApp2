@@ -9,6 +9,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.FirebaseUploader;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.ui.home.HomeFragment;
 import com.example.rehabilitationapp.ui.login.LoginFragment;
@@ -71,10 +72,16 @@ public class MainActivity extends AppCompatActivity {
             switchFragment(new SettingFragment());
             selectTab(R.id.tab_setting);
         });
-
+        // App 啟動時補傳 Csv訓練Landmark
         SupabaseUploader.retryUnsyncedCsv(this, (success, fail) -> {
             Log.d("CSV重傳", "成功: " + success + " 筆，失敗: " + fail + " 筆");
         });
+
+        // App 啟動時補傳 Firebase 訓練歷史紀錄
+        FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
+            Log.d("Firebase重傳", "成功: " + success + " 筆，失敗: " + fail + " 筆");
+        });
+
 
     }
 
