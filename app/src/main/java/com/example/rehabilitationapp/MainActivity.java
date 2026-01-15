@@ -15,7 +15,8 @@ import com.example.rehabilitationapp.ui.login.LoginFragment;
 import com.example.rehabilitationapp.ui.notifications.NotificationsFragment;
 import com.example.rehabilitationapp.ui.plan.PlanFragment;
 import com.example.rehabilitationapp.ui.setting.SettingFragment;
-
+import com.example.rehabilitationapp.data.SupabaseUploader;
+import android.util.Log;
 public class MainActivity extends AppCompatActivity {
 
     private FrameLayout tabHome, tabPlan, tabRecord, tabSetting;
@@ -70,6 +71,11 @@ public class MainActivity extends AppCompatActivity {
             switchFragment(new SettingFragment());
             selectTab(R.id.tab_setting);
         });
+
+        SupabaseUploader.retryUnsyncedCsv(this, (success, fail) -> {
+            Log.d("CSV重傳", "成功: " + success + " 筆，失敗: " + fail + " 筆");
+        });
+
     }
 
     public void switchFragment(Fragment fragment) {

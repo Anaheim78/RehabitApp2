@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.os.Environment;
 import android.util.Log;
 
+import androidx.work.Constraints;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -171,14 +173,100 @@ public class SupabaseUploader {
                 } else {
                     String errorBody = response.body() != null ? response.body().string() : "Unknown error";
                     Log.e(TAG, "❌ 上傳失敗: " + response.code() + " - " + errorBody);
+
+
+
                     if (callback != null) callback.onFailure("上傳失敗: " + response.code(), trainingID);
+                    scheduleCsvUpload(context, trainingID, fileName);
+
                 }
 
             } catch (IOException e) {
                 Log.e(TAG, "❌ 上傳異常", e);
                 if (callback != null) callback.onFailure("上傳異常: " + e.getMessage(), trainingID);
+                scheduleCsvUpload(context, trainingID, fileName);
             }
         }).start();
+    }
+
+
+    // ★★★ 排程 WorkManager 背景上傳 ★★★
+    public static void scheduleCsvUpload(Context context, String trainingID, String csvFileName) {
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .build();
+
+        androidx.work.Data inputData = new androidx.work.Data.Builder()
+                .putString("trainingID", trainingID)
+                .putString("csvFileName", csvFileName)
+                .build();
+
+        androidx.work.OneTimeWorkRequest request = new androidx.work.OneTimeWorkRequest.Builder(CsvUploadWorker.class)
+                .setConstraints(constraints)
+                .setInputData(inputData)
+                .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .addTag("csv_upload_" + trainingID)
+                .build();
+
+        androidx.work.WorkManager.getInstance(context)
+                .enqueueUniqueWork("csv_" + trainingID, androidx.work.ExistingWorkPolicy.KEEP, request);
+
+        Log.d(TAG, "📅 已排程 WorkManager: " + trainingID);
+    }
+
+    // ★★★ A 版：App 啟動時重傳所有未上傳的 CSV ★★★
+    public static void retryUnsyncedCsv(Context context, RetryCallback callback) {
+        new Thread(() -> {
+            List<TrainingHistory> unsyncedList = AppDatabase.getInstance(context)
+                    .trainingHistoryDao()
+                    .getUnsyncedCsvRecords();
+
+            if (unsyncedList == null || unsyncedList.isEmpty()) {
+                Log.d(TAG, "沒有需要重傳的 CSV");
+                if (callback != null) callback.onComplete(0, 0);
+                return;
+            }
+
+            Log.d(TAG, "找到 " + unsyncedList.size() + " 筆未上傳的 CSV");
+
+            final int[] successCount = {0};
+            final int[] failCount = {0};
+            final int total = unsyncedList.size();
+
+            for (TrainingHistory item : unsyncedList) {
+                if (item.csvFileName == null || item.csvFileName.isEmpty()) {
+                    failCount[0]++;
+                    if (successCount[0] + failCount[0] >= total && callback != null) {
+                        callback.onComplete(successCount[0], failCount[0]);
+                    }
+                    continue;
+                }
+
+                uploadCsvWithMark(context, item.csvFileName, item.trainingID, new UploadCallbackWithId() {
+                    @Override
+                    public void onSuccess(String publicUrl, String trainingID) {
+                        successCount[0]++;
+                        Log.d(TAG, "✅ 重傳成功: " + trainingID);
+                        if (successCount[0] + failCount[0] >= total && callback != null) {
+                            callback.onComplete(successCount[0], failCount[0]);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String error, String trainingID) {
+                        failCount[0]++;
+                        Log.e(TAG, "❌ 重傳失敗: " + trainingID);
+                        if (successCount[0] + failCount[0] >= total && callback != null) {
+                            callback.onComplete(successCount[0], failCount[0]);
+                        }
+                    }
+                });
+            }
+        }).start();
+    }
+
+    public interface RetryCallback {
+        void onComplete(int successCount, int failCount);
     }
 
     /**
