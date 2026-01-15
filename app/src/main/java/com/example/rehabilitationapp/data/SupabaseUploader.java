@@ -14,6 +14,8 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import com.example.rehabilitationapp.data.model.TrainingHistory;
+import java.util.List;
 
 public class SupabaseUploader {
 
@@ -27,6 +29,11 @@ public class SupabaseUploader {
     public interface UploadCallback {
         void onSuccess(String publicUrl);
         void onFailure(String error);
+    }
+    // 上傳後，新增帶 trainingID 的 callback
+    public interface UploadCallbackWithId {
+        void onSuccess(String publicUrl, String trainingID);
+        void onFailure(String error, String trainingID);
     }
 
     /**
@@ -58,7 +65,7 @@ public class SupabaseUploader {
                 // 3. 讀取檔案內容
                 byte[] fileBytes = java.nio.file.Files.readAllBytes(csvFile.toPath());
 
-                // 4. 建立上傳路徑：userId/trainingType/fileName
+                // 4. 建立上傳路徑：userId/trainingType/fileName(bucket路徑)
                 String trainingType = extractTrainingType(fileName);
                 String storagePath = userId + "/" + trainingType + "/" + fileName;
 
@@ -102,6 +109,74 @@ public class SupabaseUploader {
                 if (callback != null) {
                     callback.onFailure("上傳異常: " + e.getMessage());
                 }
+            }
+        }).start();
+    }
+
+    /**
+     * ★★★ 新增：上傳 CSV 並在成功後標記資料庫 ★★★
+     */
+    public static void uploadCsvWithMark(Context context, String fileName, String trainingID, UploadCallbackWithId callback) {
+        new Thread(() -> {
+            try {
+                SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                String userId = prefs.getString("current_user_id", "guest");
+
+                //context.getExternalFilesDir(...) ==> /Android/data/你的app/files/XXX/，App私有空間
+                File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+                File csvFile = new File(dir, fileName);
+
+                if (!csvFile.exists()) {
+                    Log.e(TAG, "❌ CSV 檔案不存在: " + fileName);
+                    if (callback != null) callback.onFailure("檔案不存在: " + fileName, trainingID);
+                    return;
+                }
+
+                byte[] fileBytes = java.nio.file.Files.readAllBytes(csvFile.toPath());
+                String trainingType = extractTrainingType(fileName);
+                String storagePath = userId + "/" + trainingType + "/" + fileName;
+                String uploadUrl = SUPABASE_URL + "/storage/v1/object/" + BUCKET_NAME + "/" + storagePath;
+
+                OkHttpClient client = new OkHttpClient.Builder()
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .writeTimeout(60, TimeUnit.SECONDS)
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .build();
+
+                RequestBody body = RequestBody.create(fileBytes, MediaType.parse("text/csv"));
+                Request request = new Request.Builder()
+                        .url(uploadUrl)
+                        .addHeader("Authorization", "Bearer " + SUPABASE_KEY)
+                        .addHeader("apikey", SUPABASE_KEY)
+                        .addHeader("Content-Type", "text/csv")
+                        .post(body)
+                        .build();
+
+                Response response = client.newCall(request).execute();
+
+                if (response.isSuccessful()) {
+                    String publicUrl = SUPABASE_URL + "/storage/v1/object/public/" + BUCKET_NAME + "/" + storagePath;
+                    Log.d(TAG, "✅ 上傳成功: " + publicUrl);
+
+                    // ★★★ 上傳成功，標記資料庫 ★★★
+                    if (trainingID != null && !trainingID.isEmpty()) {
+                        try {
+                            AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
+                            Log.d(TAG, "✅ 已標記 csvUploaded=1: " + trainingID);
+                        } catch (Exception e) {
+                            Log.e(TAG, "⚠️ 標記 csvUploaded 失敗: " + e.getMessage());
+                        }
+                    }
+                    if (callback != null) callback.onSuccess(publicUrl, trainingID);
+                } else {
+                    String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                    Log.e(TAG, "❌ 上傳失敗: " + response.code() + " - " + errorBody);
+                    if (callback != null) callback.onFailure("上傳失敗: " + response.code(), trainingID);
+                }
+
+            } catch (IOException e) {
+                Log.e(TAG, "❌ 上傳異常", e);
+                if (callback != null) callback.onFailure("上傳異常: " + e.getMessage(), trainingID);
             }
         }).start();
     }
