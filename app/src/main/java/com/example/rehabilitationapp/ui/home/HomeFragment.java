@@ -21,6 +21,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import com.example.rehabilitationapp.data.SftpUploader;
 import com.example.rehabilitationapp.ui.login.LoginFragment;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.DatabaseReference;
@@ -98,6 +99,12 @@ public class HomeFragment extends Fragment {
                 requireActivity().runOnUiThread(() -> binding.titleGreeting.setText("Hi!"));
             }
         });
+
+        // 測SFTP連線
+        new Thread(() -> {
+            boolean ok = SftpUploader.testConnection();
+            Log.d("SFTP_TEST", ok ? "✅ 連線成功" : "❌ 連線失敗");
+        }).start();
 
     }
 
