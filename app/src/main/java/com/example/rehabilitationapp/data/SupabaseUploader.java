@@ -155,15 +155,20 @@ public class SupabaseUploader {
                         .build();
 
                 Response response = client.newCall(request).execute();
+                String responseBody = response.body() != null ? response.body().string() : "";  // ⭐ 加這行
 
-                if (response.isSuccessful()) {
+
+                // ⭐ 200 成功 或 檔案已存在 都算成功
+                if (response.isSuccessful() ||
+                        responseBody.contains("Duplicate") ||
+                        responseBody.contains("already exists")) {
                     String publicUrl = SUPABASE_URL + "/storage/v1/object/public/" + BUCKET_NAME + "/" + storagePath;
                     Log.d(TAG, "✅ 上傳成功: " + publicUrl);
 
                     // ★★★ 上傳成功，標記資料庫 ★★★
                     if (trainingID != null && !trainingID.isEmpty()) {
                         try {
-                            AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
+                            AppDatabase.getInstance(context.getApplicationContext()).trainingHistoryDao().markCsvUploaded(trainingID);
                             Log.d(TAG, "✅ 已標記 csvUploaded=1: " + trainingID);
                         } catch (Exception e) {
                             Log.e(TAG, "⚠️ 標記 csvUploaded 失敗: " + e.getMessage());

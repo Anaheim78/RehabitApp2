@@ -1989,20 +1989,31 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         Log.e("寫入運動紀錄中看參數", "==========================================");
 
         //保持舊版參數兼容
+//        TrainingHistory history = new TrainingHistory(
+//                trainingID,
+//                label,
+//                maintainStartTime,  // createAt
+//                currentTime,        // finishAt
+//                target,
+//                achieved,
+//                duration,
+//                curveJson,
+//                csv
+//        );
+
+//to do 增加建構子
         TrainingHistory history = new TrainingHistory(
                 trainingID,
                 label,
-                maintainStartTime,  // createAt
-                currentTime,        // finishAt
+                maintainStartTime,
+                currentTime,
                 target,
                 achieved,
                 duration,
                 curveJson,
-                csv
+                csv,           // csvFileName（第9個）
+                videoFilePath != null ? new File(videoFilePath).getName() : ""  // videoFileName
         );
-
-
-
 
         new Thread(() -> {
 
@@ -2112,7 +2123,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             String fileName = userId + "_Training_" + trainingLabel + "_" + timestamp + ".mp4";
 
             File videoFile = new File(getExternalFilesDir(null), fileName);
-
+            videoFilePath = videoFile.getAbsolutePath();
 
             FileOutputOptions outputOptions = new FileOutputOptions.Builder(videoFile).build();
 

@@ -76,6 +76,21 @@ public interface TrainingHistoryDao {
     @Query("SELECT * FROM TrainingHistory WHERE trainingID = :id LIMIT 1")
     TrainingHistory getById(String id);
 
+    // ========== 🎬 新增：影片上傳相關 ==========
+
+    /** 標記影片已上傳 */
+    @Query("UPDATE TrainingHistory SET videoUploaded = 1 WHERE trainingID = :id")
+    void markVideoUploaded(String id);
+
+    /** 更新影片檔名 */
+    @Query("UPDATE TrainingHistory SET videoFileName = :fileName WHERE trainingID = :id")
+    void updateVideoFileName(String id, String fileName);
+
+    /** 查詢影片未上傳的紀錄 */
+    @Query("SELECT * FROM TrainingHistory WHERE videoUploaded = 0 AND videoFileName != '' ORDER BY createAt ASC")
+    List<TrainingHistory> getUnsyncedVideoRecords();
+// ===========================================
+
 
 
     // 未使用

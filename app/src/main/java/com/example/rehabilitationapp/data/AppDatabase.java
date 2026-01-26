@@ -32,7 +32,7 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
                 TrainingHistory.class
         },
         //!!!!!!!!!!!!!!!!!!!!!!!每次更新資料庫這邊要改，比如5->6，這裡要寫6!!!!!!但不然會直接依打開就閃退掉!!!!可以不用清掉資料!!!!!!!!!!!!!!!!3=
-        version = 9,              // ★ 版本 +1（原本是 2）
+        version = 10,              // ★ 版本 +1（原本是 2）
         exportSchema = true
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -115,6 +115,15 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    // ★ 新增 Migration: 9 -> 10（在 trainingHistory 加 videoUploaded 和 videoFileName）
+    public static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE trainingHistory ADD COLUMN videoUploaded INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE trainingHistory ADD COLUMN videoFileName TEXT  DEFAULT ''");
+        }
+    };
+
 
     //20251123 多DB
     public static AppDatabase buildDatabase(Context context, String dbName) {
@@ -131,7 +140,8 @@ public abstract class AppDatabase extends RoomDatabase {
                         MIGRATION_5_6,
                         MIGRATION_6_7,
                         MIGRATION_7_8,
-                        MIGRATION_8_9
+                        MIGRATION_8_9,
+                        MIGRATION_9_10
                 )
                 .build();
 

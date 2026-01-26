@@ -543,6 +543,10 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
     val context = LocalContext.current
     val dao = AppDatabase.getInstance(context).trainingHistoryDao()
 
+    // 🎬 影片上傳對話框狀態
+    var showVideoDialog by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableStateOf(0) }
 
     // ★ 自評對話框狀態
     var showDialog by remember { mutableStateOf(false) }
@@ -618,6 +622,100 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
             }
         )
     }
+
+    //200260126 add 影片上傳狀態UI
+    // 🎬 影片上傳對話框
+    if (showVideoDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isUploading) showVideoDialog = false },
+            title = { Text("上傳訓練影片") },
+            text = {
+                Column {
+                    if (data.videoFileName.isNotEmpty()) {
+                        Text("檔案：${data.videoFileName}")
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (isUploading) {
+                            Text("上傳中... $uploadProgress%")
+                            LinearProgressIndicator(
+                                progress =  uploadProgress / 100f ,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else if (data.videoUploaded == 1) {
+                            Text("✅ 已上傳", color = Color(0xFF4CAF50))
+                        } else {
+                            Text("尚未上傳")
+                        }
+                    } else {
+                        Text("此筆訓練沒有錄製影片")
+                    }
+                }
+            },
+            confirmButton = {
+                if (data.videoFileName.isNotEmpty() && data.videoUploaded == 0 && !isUploading) {
+                    TextButton(
+                        onClick = {
+                            isUploading = true
+                            val videoFile = java.io.File(
+                                context.getExternalFilesDir(null),
+                                data.videoFileName
+                            )
+
+                            com.example.rehabilitationapp.data.SftpUploader.uploadVideoAsync(
+                                context,
+                                videoFile,
+                                object : com.example.rehabilitationapp.data.SftpUploader.UploadCallback {
+                                    override fun onProgress(percent: Int) {
+                                        uploadProgress = percent
+                                    }
+
+                                    override fun onSuccess(remoteFilePath: String) {
+                                        Thread {
+                                            dao.markVideoUploaded(data.trainingID)
+                                        }.start()
+
+                                        isUploading = false
+                                        showVideoDialog = false
+
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "✅ 影片上傳成功",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                            onUpdate()
+                                        }
+                                    }
+
+                                    override fun onFailure(errorMessage: String) {
+                                        isUploading = false
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "❌ 上傳失敗: $errorMessage",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    ) {
+                        Text("上傳")
+                    }
+                }
+            },
+            dismissButton = {
+                if (!isUploading) {
+                    TextButton(onClick = { showVideoDialog = false }) {
+                        Text("關閉")
+                    }
+                }
+            }
+        )
+    }
+
+
 
     // 卡片區
     Card(
@@ -718,6 +816,37 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                     }
                 }
             }
+
+
+            // ========== 🎬 影片上傳狀態圖示 ==========
+            if (data.videoFileName.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(
+                            if (data.videoUploaded == 1) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (data.videoUploaded == 1) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable { showVideoDialog = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (data.videoUploaded == 1) "✓" else "⬆",
+                        fontSize = 14.sp,
+                        color = if (data.videoUploaded == 1) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            // ==========================================
+
         }
     }
 }

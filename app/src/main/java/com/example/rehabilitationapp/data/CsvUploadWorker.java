@@ -93,8 +93,12 @@ public class CsvUploadWorker extends Worker {
                     .build();
 
             Response response = client.newCall(request).execute();
+            String responseBody = response.body() != null ? response.body().string() : "";
 
-            if (response.isSuccessful()) {
+
+            if (response.isSuccessful() ||
+                    responseBody.contains("Duplicate") ||
+                    responseBody.contains("already exists")) {
                 // 上傳成功，標記 DB
                 AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
                 Log.d(TAG, "✅ WorkManager 上傳成功: " + trainingID);

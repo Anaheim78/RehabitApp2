@@ -80,7 +80,7 @@ public class FirebaseUploader {
                         .addOnSuccessListener(aVoid -> {
                             // 上傳成功，標記已同步
                             new Thread(() -> {
-                                db.trainingHistoryDao().markSynced(item.trainingID);
+                                AppDatabase.getInstance(context.getApplicationContext()).trainingHistoryDao().markSynced(item.trainingID);
                             }).start();
 
                             successCount[0]++;
