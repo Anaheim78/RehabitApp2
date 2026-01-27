@@ -644,7 +644,7 @@ fun 訓練結果頁() {
 
                                     // ★ 先排 Worker（保險）
                                     selectedVideos.forEach { video ->
-                                        SftpUploader.scheduleVideoUpload(context, video.trainingID, video.videoFileName, 1)
+                                        SftpUploader.scheduleVideoUpload(context, video.trainingID, video.videoFileName, 10)
                                     }
 
                                     // ★ 再即時上傳
@@ -832,7 +832,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                             val videoFile = java.io.File(context.getExternalFilesDir(null), data.videoFileName)
 
                             // ★ 先排 Worker
-                            SftpUploader.scheduleVideoUpload(context, data.trainingID, data.videoFileName, 15)
+                            SftpUploader.scheduleVideoUpload(context, data.trainingID, data.videoFileName, 10)
 
                             SftpUploader.uploadVideoAsync(
                                 context,

@@ -283,20 +283,30 @@ public class TrainingDetailActivity extends AppCompatActivity {
     // ==============================
 
     /** 在本頁顯示教學；按「開始」後才跳 FaceCircleCheckerActivity */
+//    private void showGuideThenStart(TrainingItem item) {
+//        String analysisType = (item.analysisType != null && !item.analysisType.isEmpty())
+//                ? item.analysisType
+//                : inferAnalysisTypeFromTitle(item.title);
+//        String titleZh = item.title;
+//
+//        if (!shouldShowGuide(analysisType)) {
+//            launchTraining(analysisType, titleZh);
+//            return;
+//        }
+//
+//        MotionGuideBottomSheet sheet = MotionGuideBottomSheet.newInstance(analysisType, titleZh);
+//        sheet.setOnStartListener(() -> launchTraining(analysisType, titleZh));
+//        sheet.show(getSupportFragmentManager(), "motion_guide_from_detail");
+//    }
+
     private void showGuideThenStart(TrainingItem item) {
         String analysisType = (item.analysisType != null && !item.analysisType.isEmpty())
                 ? item.analysisType
                 : inferAnalysisTypeFromTitle(item.title);
         String titleZh = item.title;
 
-        if (!shouldShowGuide(analysisType)) {
-            launchTraining(analysisType, titleZh);
-            return;
-        }
-
-        MotionGuideBottomSheet sheet = MotionGuideBottomSheet.newInstance(analysisType, titleZh);
-        sheet.setOnStartListener(() -> launchTraining(analysisType, titleZh));
-        sheet.show(getSupportFragmentManager(), "motion_guide_from_detail");
+        // ★ 直接開始訓練，不跳教學說明
+        launchTraining(analysisType, titleZh);
     }
 
     /** 真的啟動 FaceCircleCheckerActivity（同時帶舊/新 key，避免相容性問題） */
