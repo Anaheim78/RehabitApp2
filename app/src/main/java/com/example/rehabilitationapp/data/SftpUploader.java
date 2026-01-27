@@ -327,6 +327,51 @@ public class SftpUploader {
         }
     }
 
+
+    // ============================================
+    // 【Worker 排程】
+    // ============================================
+
+    /**
+     * 排程影片上傳 Worker
+     * @param delayMinutes 延遲幾分鐘後執行（0 = 立即）
+     */
+    public static void scheduleVideoUpload(Context context, String trainingID, String videoFileName, int delayMinutes) {
+        androidx.work.Constraints constraints = new androidx.work.Constraints.Builder()
+                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .build();
+
+        androidx.work.Data inputData = new androidx.work.Data.Builder()
+                .putString("trainingID", trainingID)
+                .putString("videoFileName", videoFileName)
+                .build();
+
+        androidx.work.OneTimeWorkRequest.Builder builder = new androidx.work.OneTimeWorkRequest.Builder(VideoUploadWorker.class)
+                .setConstraints(constraints)
+                .setInputData(inputData)
+                .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, java.util.concurrent.TimeUnit.SECONDS)
+                .addTag("video_upload_" + trainingID);
+
+        if (delayMinutes > 0) {
+            builder.setInitialDelay(delayMinutes, java.util.concurrent.TimeUnit.MINUTES);
+        }
+
+        androidx.work.WorkManager.getInstance(context)
+                .enqueueUniqueWork("video_" + trainingID, androidx.work.ExistingWorkPolicy.KEEP, builder.build());
+
+        Log.d(TAG, "📅 已排程 Video Worker: " + trainingID + " (延遲 " + delayMinutes + " 分鐘)");
+    }
+
+    /**
+     * 取消影片上傳 Worker
+     */
+    public static void cancelVideoUpload(Context context, String trainingID) {
+        androidx.work.WorkManager.getInstance(context)
+                .cancelUniqueWork("video_" + trainingID);
+
+        Log.d(TAG, "🚫 已取消 Video Worker: " + trainingID);
+    }
+
     /**
      * 測試連線
      */

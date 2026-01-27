@@ -10,28 +10,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
-//import androidx.compose.material3.Text
-//import androidx.compose.material3.LocalTextStyle
-//import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.Dimension
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,27 +33,23 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.example.rehabilitationapp.R
 import com.example.rehabilitationapp.data.AppDatabase
-import com.example.rehabilitationapp.data.dao.TrainingHistoryDao
 import com.example.rehabilitationapp.data.model.TrainingHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
 import android.util.Log
 import android.content.Intent
-import androidx.compose.ui.platform.LocalContext
 import com.example.rehabilitationapp.MainActivity
 import com.example.rehabilitationapp.data.FirebaseUploader
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.GlobalScope
 
 class TrainingResultActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            訓練結果頁()   // 這就是你 Figma 匯出的 Composable
+            訓練結果頁()
         }
     }
 }
@@ -70,28 +57,26 @@ class TrainingResultActivity : ComponentActivity() {
 @Preview
 @Composable
 fun AndroidPreview_訓練結果頁() {
-    MaterialTheme {  // 必須加這個
+    MaterialTheme {
         Box(Modifier.size(360.dp, 640.dp)) {
             訓練結果頁()
         }
     }
 }
 
-
 @Composable
 fun 訓練結果頁() {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
 
-    val boxWidth = (screenWidth * 0.7f).dp  // 螢幕寬度的 70%
+    val boxWidth = (screenWidth * 0.85f).dp
     val boxHeight = 60.dp
 
     val context = LocalContext.current
     val dao = AppDatabase.getInstance(LocalContext.current).trainingHistoryDao()
     var list by remember { mutableStateOf(emptyList<TrainingHistory>()) }
 
-    // ===== 手動上傳CSV與紀錄按紐的 Toast顯示上傳情形 =====
+    // ===== 同步 Dialog 狀態 =====
     var showSyncDialog by remember { mutableStateOf(false) }
     var isSyncing by remember { mutableStateOf(false) }
     var syncProgressFb by remember { mutableStateOf(Pair(0, 0)) }
@@ -101,7 +86,14 @@ fun 訓練結果頁() {
     var fbDone by remember { mutableStateOf(false) }
     var csvDone by remember { mutableStateOf(false) }
 
-// ★ 這兩行要放這裡（在 LaunchedEffect 之前）
+    // ===== 批次影片上傳 =====
+    var showVideoUploadDialog by remember { mutableStateOf(false) }
+    var unuploadedVideos by remember { mutableStateOf(emptyList<TrainingHistory>()) }
+    var selectedVideoIds by remember { mutableStateOf(setOf<String>()) }
+    var isVideoUploading by remember { mutableStateOf(false) }
+    var videoUploadProgress by remember { mutableStateOf("") }
+    var agreeUseMobileData by remember { mutableStateOf(false) }
+
     val scrollToId = (context as? android.app.Activity)?.intent?.getStringExtra("scroll_to_id")
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val targetDate = (context as? android.app.Activity)?.intent?.getLongExtra("target_date", 0L) ?: 0L
@@ -109,14 +101,13 @@ fun 訓練結果頁() {
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             list = if (targetDate > 0L) {
-                dao.getRecordsByDate(targetDate)  // ★ 查指定日期
+                dao.getRecordsByDate(targetDate)
             } else {
-                dao.getTodayRecords()  // 沒傳日期就查今天
+                dao.getTodayRecords()
             }
         }
     }
 
-// ★ 滾動到指定紀錄
     LaunchedEffect(list, scrollToId) {
         if (scrollToId != null && list.isNotEmpty()) {
             val index = list.indexOfFirst { it.trainingID == scrollToId }
@@ -126,20 +117,14 @@ fun 訓練結果頁() {
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // 背景圖片
-        // 用 Compose 漸變替代 XML shape
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 背景漸層
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFFFD17C), // startColor
-                            Color(0xFFFFFBEA)  // endColor
-                        ),
+                        colors = listOf(Color(0xFFFFD17C), Color(0xFFFFFBEA)),
                         startY = 0f,
                         endY = Float.POSITIVE_INFINITY
                     )
@@ -149,11 +134,9 @@ fun 訓練結果頁() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-//                .background(Color.White)
                 .padding(start = 8.dp, end = 8.dp, top = 30.dp)
-            // verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 首頁
+            // 標題列
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,9 +150,7 @@ fun 訓練結果頁() {
                         .size(24.dp)
                         .clickable { }
                 )
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Text(
                     text = "首頁",
                     fontSize = 18.sp,
@@ -179,12 +160,8 @@ fun 訓練結果頁() {
                 )
             }
 
-//        Spacer(modifier = Modifier.height(0.dp))  // 手動控制間距
-            //訓練結果
             Box(
-                modifier = Modifier
-                    .fillMaxWidth(),
-//                .padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -196,19 +173,18 @@ fun 訓練結果頁() {
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
             // 卡片列表
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-//                    .height(400.dp)
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(list) { data ->
                     TrainingResultCard(data) {
-                        // 更新後重新載入
                         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
                             list = dao.getTodayRecords()
                         }
@@ -217,60 +193,57 @@ fun 訓練結果頁() {
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            // 白色底框
             Box(
-                //To Do..
-                modifier = Modifier.width(boxWidth).height(boxHeight)
-                    .background(
-                        Color.White,
-                        shape = RoundedCornerShape(26.dp)
-                    )
+                modifier = Modifier
+                    .width(boxWidth)
+                    .height(boxHeight)
+                    .background(Color.White, shape = RoundedCornerShape(26.dp))
                     .align(Alignment.CenterHorizontally)
                     .padding(vertical = 16.dp)
             ) {
-                Text(
-//                    text = "系統編輯訊息",
-                    text = "",
-                    modifier = Modifier.align(Alignment.Center)
-                        .offset(y = (-8).dp)
-                )
+                Text(text = "", modifier = Modifier.align(Alignment.Center).offset(y = (-8).dp))
             }
 
+            // ===== 按鈕列 =====
             Row(
-                Modifier.width(boxWidth).height(boxHeight)
-                    .offset(y = (-30).dp).align(Alignment.CenterHorizontally),
-//            horizontalArrangement =  Arrangement.SpaceEvenly ,
+                Modifier
+                    .width(boxWidth)
+                    .height(boxHeight)
+                    .offset(y = (-30).dp)
+                    .align(Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.width(6.dp)) // 左右間隔 16dp
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // 重做按鈕
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
                         .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
-                    .clickable {
-                        // ★ 讀取上次訓練的 planId 和 planTitle
-                        val prefs = context.getSharedPreferences("training_prefs", android.content.Context.MODE_PRIVATE)
-                        val lastPlanId = prefs.getInt("last_plan_id", -1)
-                        val lastPlanTitle = prefs.getString("last_plan_title", "")
+                        .clickable {
+                            val prefs = context.getSharedPreferences("training_prefs", android.content.Context.MODE_PRIVATE)
+                            val lastPlanId = prefs.getInt("last_plan_id", -1)
+                            val lastPlanTitle = prefs.getString("last_plan_title", "")
 
-                        if (lastPlanId > 0) {
-                            // 有 planId → 跳回 TrainingDetailActivity
-                            val intent = Intent(context, com.example.rehabilitationapp.ui.plan.TrainingDetailActivity::class.java).apply {
-                                putExtra("plan_id", lastPlanId)
-                                putExtra("plan_title", lastPlanTitle)
-                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            if (lastPlanId > 0) {
+                                val intent = Intent(context, com.example.rehabilitationapp.ui.plan.TrainingDetailActivity::class.java).apply {
+                                    putExtra("plan_id", lastPlanId)
+                                    putExtra("plan_title", lastPlanTitle)
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                }
+                                context.startActivity(intent)
+                            } else {
+                                val intent = Intent(context, MainActivity::class.java).apply {
+                                    putExtra("start_tab", "plan")
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                }
+                                context.startActivity(intent)
                             }
-                            context.startActivity(intent)
-                        } else {
-                            // 沒有 planId → 回計畫列表
-                            val intent = Intent(context, MainActivity::class.java).apply {
-                                putExtra("start_tab", "plan")
-                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            }
-                            context.startActivity(intent)
-                        }
-                    (context as? Activity)?.finish()
-                },
+                            (context as? Activity)?.finish()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -280,92 +253,16 @@ fun 訓練結果頁() {
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(16.dp)) // 左右間隔 16dp
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // 同步按鈕
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
                         .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
-//                        .clickable {
-//                            var fbDone = false
-//                            var csvDone = false
-//                            var fbSuccess = 0
-//                            var fbFail = 0
-//                            var csvSuccess = 0
-//                            var csvFail = 0
-//
-//                            fun showResultIfBothDone() {
-//                                if (fbDone && csvDone) {
-//                                    // ★ 查詢剩餘未同步數量 ★
-//                                    Thread {
-//                                        val dao = AppDatabase.getInstance(context).trainingHistoryDao()
-//                                        val remainingFb = dao.getUnsyncedWithLimit().size
-//                                        val remainingCsv = dao.getUnsyncedCsvRecords().size
-//                                        val totalRemaining = remainingFb + remainingCsv
-//
-//                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-//                                            val totalSuccess = fbSuccess + csvSuccess
-//
-//                                            val msg = when {
-//                                                totalSuccess == 0 && totalRemaining == 0 -> "沒有需要同步的資料"
-//                                                totalRemaining == 0 -> "同步完成：$totalSuccess 筆 ✓"
-//                                                totalSuccess > 0 -> "已同步 $totalSuccess 筆，剩餘 $totalRemaining 筆待同步"
-//                                                else -> "同步失敗，剩餘 $totalRemaining 筆待同步"
-//                                            }
-//                                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-//                                        }
-//                                    }.start()
-//                                }
-//                            }
-//
-//                            // 1. Firebase 補傳
-//                            FirebaseUploader.uploadTodayUnsynced(context) { s, f ->
-//                                Log.d("Upload", "Firebase - 成功: $s, 失敗: $f")
-//                                fbSuccess = s
-//                                fbFail = f
-//                                fbDone = true
-//                                showResultIfBothDone()
-//                            }
-//
-//                            // 2. CSV 補傳
-//                            com.example.rehabilitationapp.data.SupabaseUploader.retryUnsyncedCsv(context) { s, f ->
-//                                Log.d("Upload", "CSV - 成功: $s, 失敗: $f")
-//                                csvSuccess = s
-//                                csvFail = f
-//                                csvDone = true
-//                                showResultIfBothDone()
-//                            }
-//
-//                            // 3. 先顯示同步中
-//                            android.widget.Toast.makeText(context, "正在同步...", android.widget.Toast.LENGTH_SHORT).show()
-//
-////                            FirebaseUploader.uploadTodayUnsynced(context) { success, fail ->
-////                                Log.d("Upload", "成功: $success, 失敗: $fail")
-////
-////
-////                                // ★ 加 Toast 提示
-////                                android.os.Handler(android.os.Looper.getMainLooper()).post {
-////                                    if (fail == 0 && success > 0) {
-////                                        android.widget.Toast.makeText(context, "上傳成功：$success 筆", android.widget.Toast.LENGTH_SHORT).show()
-////                                    } else if (fail == 0 && success == 0) {
-////                                        android.widget.Toast.makeText(context, "沒有需要上傳的資料", android.widget.Toast.LENGTH_SHORT).show()
-////                                    } else {
-////                                        android.widget.Toast.makeText(context, "上傳完成：成功 $success 筆，失敗 $fail 筆", android.widget.Toast.LENGTH_SHORT).show()
-////                                    }
-////                                }
-////                            }
-////
-////                            // 2. CSV 補傳
-////                            com.example.rehabilitationapp.data.SupabaseUploader.retryUnsyncedCsv(context) { csvSuccess, csvFail ->
-////                                Log.d("Upload", "CSV - 成功: $csvSuccess, 失敗: $csvFail")
-////                            }
-//                        },
-
-
-
-
                         .clickable {
-                            // 重置狀態
                             syncProgressFb = Pair(0, 0)
                             syncProgressCsv = Pair(0, 0)
                             syncResultFb = Pair(0, 0)
@@ -375,7 +272,6 @@ fun 訓練結果頁() {
                             isSyncing = true
                             showSyncDialog = true
 
-                            // 1. Firebase 同步
                             FirebaseUploader.uploadTodayUnsynced(context, object : FirebaseUploader.UploadCallback {
                                 override fun onProgress(current: Int, total: Int) {
                                     syncProgressFb = Pair(current, total)
@@ -387,7 +283,6 @@ fun 訓練結果頁() {
                                 }
                             })
 
-                            // 2. CSV 同步
                             com.example.rehabilitationapp.data.SupabaseUploader.retryUnsyncedCsv(context, object : com.example.rehabilitationapp.data.SupabaseUploader.RetryCallback {
                                 override fun onProgress(current: Int, total: Int) {
                                     syncProgressCsv = Pair(current, total)
@@ -403,47 +298,87 @@ fun 訓練結果頁() {
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_result_share),
-                        contentDescription = "分享",
+                        contentDescription = "同步",
                         tint = Color.Black,
                         modifier = Modifier.size(24.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(51.dp)) //
+                Spacer(modifier = Modifier.width(12.dp))
 
+                // 📤 影片上傳按鈕
                 Box(
                     modifier = Modifier
-                        .weight(1.54f)
-                        .height(44.dp) // 保持高度
+                        .size(44.dp)
                         .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
                         .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
-                    .clickable {
-                    val intent = Intent(context, MainActivity::class.java).apply {
-                        putExtra("start_tab", "home")
-                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    context.startActivity(intent)
-                    (context as? Activity)?.finish()
-                },
+                        .clickable {
+                            val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                            if (cm.activeNetwork == null) {
+                                android.widget.Toast.makeText(context, "❌ 沒有網路連線", android.widget.Toast.LENGTH_SHORT).show()
+                                return@clickable
+                            }
 
-                    contentAlignment = Alignment.Center // 這行很重要！讓內容在 Box 中居中
+                            Thread {
+                                val records = dao.getUnsyncedVideoRecords()
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    unuploadedVideos = records
+                                    selectedVideoIds = emptySet()
+                                    agreeUseMobileData = false
+                                    showVideoUploadDialog = true
+                                }
+                            }.start()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_result_share),
+                            contentDescription = "影片上傳",
+                            tint = Color.Black,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(text = "🎬", fontSize = 10.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // 返回首頁按鈕
+                Box(
+                    modifier = Modifier
+                        .width(90.dp)
+                        .height(44.dp)
+                        .background(Color(0xFFFFDA73), RoundedCornerShape(12.dp))
+                        .border(2.dp, Color(0xFFEEA752), RoundedCornerShape(8.dp))
+                        .clickable {
+                            val intent = Intent(context, MainActivity::class.java).apply {
+                                putExtra("start_tab", "home")
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            }
+                            context.startActivity(intent)
+                            (context as? Activity)?.finish()
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "返回首頁",
                         fontSize = 14.sp,
                         color = Color.Black,
-                        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center // 文字本身也要居中
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
                     )
-
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
             }
 
             Spacer(modifier = Modifier.height(80.dp))
+        }
 
-
-        } //<--column結束
-
-        //加入對話欄框框，顯示同步筆數 : success/all
         // ===== 同步 Dialog =====
         if (showSyncDialog) {
             AlertDialog(
@@ -456,7 +391,6 @@ fun 訓練結果頁() {
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // Firebase 狀態
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = when {
@@ -483,7 +417,6 @@ fun 訓練結果頁() {
                             }
                         }
 
-                        // CSV 狀態
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = when {
@@ -510,7 +443,6 @@ fun 訓練結果頁() {
                             }
                         }
 
-                        // 進度條
                         if (isSyncing) {
                             Spacer(modifier = Modifier.height(8.dp))
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -528,167 +460,264 @@ fun 訓練結果頁() {
             )
         }
 
+        // ===== 批次影片上傳 Dialog =====
+        if (showVideoUploadDialog) {
+            val connectivityManager = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val isWifi = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+
+            val totalSize = unuploadedVideos
+                .filter { selectedVideoIds.contains(it.trainingID) }
+                .sumOf {
+                    val file = java.io.File(context.getExternalFilesDir(null), it.videoFileName)
+                    if (file.exists()) file.length() else 0L
+                }
+            val totalSizeMB = String.format("%.1f", totalSize / 1024.0 / 1024.0)
+
+            fun getTrainingName(label: String): String {
+                return when (label) {
+                    "POUT_LIPS" -> "嘟嘴"
+                    "SIP_LIPS" -> "縮嘴"
+                    "PUFF_CHEEK" -> "鼓腮"
+                    "REDUCE_CHEEK" -> "縮腮"
+                    "TONGUE_LEFT" -> "舌頭左"
+                    "TONGUE_RIGHT" -> "舌頭右"
+                    "TONGUE_UP" -> "舌頭上"
+                    "TONGUE_DOWN" -> "舌頭下"
+                    "TONGUE_FOWARD" -> "舌頭前"
+                    "TONGUE_BACK" -> "舌頭後"
+                    "JAW_LEFT" -> "下巴左"
+                    "JAW_RIGHT" -> "下巴右"
+                    else -> label
+                }
+            }
+
+            AlertDialog(
+                onDismissRequest = { if (!isVideoUploading) showVideoUploadDialog = false },
+                title = {
+                    Text(
+                        text = if (isVideoUploading) "上傳中..." else "📤 選擇要上傳的影片",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        if (isVideoUploading) {
+                            Text(videoUploadProgress)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        } else if (unuploadedVideos.isEmpty()) {
+                            Text("沒有待上傳的影片 ✅")
+                        } else {
+                            if (!isWifi) {
+                                Text(
+                                    text = "⚠️ 目前使用行動網路",
+                                    color = Color(0xFFFF9800),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                            Text(
+                                text = "共 ${unuploadedVideos.size} 部待上傳",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable {
+                                    selectedVideoIds = if (selectedVideoIds.size == unuploadedVideos.size.coerceAtMost(5)) {
+                                        emptySet()
+                                    } else {
+                                        unuploadedVideos.take(5).map { it.trainingID }.toSet()
+                                    }
+                                }
+                            ) {
+                                Checkbox(
+                                    checked = selectedVideoIds.size == unuploadedVideos.size.coerceAtMost(5) && selectedVideoIds.isNotEmpty(),
+                                    onCheckedChange = {
+                                        selectedVideoIds = if (it) {
+                                            unuploadedVideos.take(5).map { it.trainingID }.toSet()
+                                        } else {
+                                            emptySet()
+                                        }
+                                    }
+                                )
+                                Text("全選（最多 5 部）")
+                            }
+
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                            LazyColumn(modifier = Modifier.height(250.dp)) {
+                                items(unuploadedVideos) { video ->
+                                    val file = java.io.File(context.getExternalFilesDir(null), video.videoFileName)
+                                    val sizeMB = if (file.exists()) String.format("%.1f MB", file.length() / 1024.0 / 1024.0) else "?"
+                                    val isSelected = selectedVideoIds.contains(video.trainingID)
+                                    val canSelect = isSelected || selectedVideoIds.size < 5
+
+                                    val timeFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                                    val timeStr = timeFormat.format(java.util.Date(video.createAt))
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = canSelect) {
+                                                selectedVideoIds = if (isSelected) {
+                                                    selectedVideoIds - video.trainingID
+                                                } else if (selectedVideoIds.size < 5) {
+                                                    selectedVideoIds + video.trainingID
+                                                } else {
+                                                    selectedVideoIds
+                                                }
+                                            }
+                                            .padding(vertical = 6.dp)
+                                    ) {
+                                        Checkbox(
+                                            checked = isSelected,
+                                            enabled = canSelect,
+                                            onCheckedChange = {
+                                                selectedVideoIds = if (it && selectedVideoIds.size < 5) {
+                                                    selectedVideoIds + video.trainingID
+                                                } else {
+                                                    selectedVideoIds - video.trainingID
+                                                }
+                                            }
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "${getTrainingName(video.trainingLabel)} ${video.achievedTimes}/${video.targetTimes} · ${video.durationTime}秒",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Text(
+                                                text = "$timeStr · $sizeMB",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                    }
+                                    Divider()
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "已選 ${selectedVideoIds.size} / 5 部 ($totalSizeMB MB)",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+
+                            if (!isWifi && selectedVideoIds.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { agreeUseMobileData = !agreeUseMobileData }
+                                ) {
+                                    Checkbox(
+                                        checked = agreeUseMobileData,
+                                        onCheckedChange = { agreeUseMobileData = it }
+                                    )
+                                    Text(
+                                        text = "繼續使用行動網路上傳",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFFF9800)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (!isVideoUploading && unuploadedVideos.isNotEmpty() && selectedVideoIds.isNotEmpty()) {
+                        val canUpload = isWifi || agreeUseMobileData
+                        TextButton(
+                            onClick = {
+                                if (canUpload) {
+                                    isVideoUploading = true
+                                    val selectedVideos = unuploadedVideos.filter { selectedVideoIds.contains(it.trainingID) }
+                                    val files = selectedVideos.mapNotNull { video ->
+                                        val file = java.io.File(context.getExternalFilesDir(null), video.videoFileName)
+                                        if (file.exists()) file else null
+                                    }
+
+                                    com.example.rehabilitationapp.data.SftpUploader.uploadMultipleAsync(
+                                        context,
+                                        files,
+                                        object : com.example.rehabilitationapp.data.SftpUploader.BatchUploadCallback {
+                                            override fun onFileStart(index: Int, total: Int, fileName: String) {
+                                                videoUploadProgress = "上傳中 [${index + 1}/$total]\n$fileName"
+                                            }
+                                            override fun onFileProgress(index: Int, total: Int, percent: Int) {
+                                                videoUploadProgress = "上傳中 [${index + 1}/$total] $percent%"
+                                            }
+                                            override fun onFileSuccess(index: Int, total: Int, fileName: String) {
+                                                val video = selectedVideos.find { it.videoFileName == fileName }
+                                                video?.let {
+                                                    Thread { dao.markVideoUploaded(it.trainingID) }.start()
+                                                }
+                                            }
+                                            override fun onFileFailure(index: Int, total: Int, fileName: String, error: String) {}
+                                            override fun onAllComplete(successCount: Int, failCount: Int, failedFiles: List<String>) {
+                                                isVideoUploading = false
+                                                showVideoUploadDialog = false
+                                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                                    val msg = when {
+                                                        failCount == 0 -> "✅ 上傳完成：$successCount 部"
+                                                        successCount == 0 -> "⚠️ 上傳失敗"
+                                                        else -> "上傳 $successCount 部，失敗 $failCount 部"
+                                                    }
+                                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+
+                                                    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                                                        list = if (targetDate > 0L) {
+                                                            dao.getRecordsByDate(targetDate)
+                                                        } else {
+                                                            dao.getTodayRecords()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            },
+                            enabled = canUpload
+                        ) {
+                            Text("上傳 (${selectedVideoIds.size})")
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (!isVideoUploading) {
+                        TextButton(onClick = { showVideoUploadDialog = false }) {
+                            Text("取消")
+                        }
+                    }
+                }
+            )
+        }
 
         CustomBottomNavigation(
-
             modifier = Modifier.align(Alignment.BottomCenter),
-            selectTab = 1 // 1 = 計畫頁面
-
+            selectTab = 1
         )
     }
 }
-
-/*  沒有自評框版本
-@Composable
-fun TrainingResultCard(data: TrainingHistory) {
-    val context = LocalContext.current
-    // =============宣告方法區============
-    // 計算達成率
-    val percentage = if (data.targetTimes > 0) {
-        (data.achievedTimes * 100 / data.targetTimes)
-    } else {
-        0
-    }
-    //
-    val iconRes = when (data.trainingLabel) {
-        "PUFF_CHEEK" -> R.drawable.ic_home_cheekpuff
-        "REDUCE_CHEEK" -> R.drawable.ic_home_cheekreduce
-        "POUT_LIPS" -> R.drawable.ic_home_lippout
-        "SIP_LIPS" -> R.drawable.ic_home_lipsip
-        "TONGUE_LEFT" -> R.drawable.ic_home_tongueleft
-        "TONGUE_RIGHT" -> R.drawable.ic_home_tongueright
-        "TONGUE_FOWARD" -> R.drawable.ic_home_tonguefoward
-        "TONGUE_BACK" -> R.drawable.ic_home_tongueback
-        "TONGUE_UP" -> R.drawable.ic_home_tongueup
-        "TONGUE_DOWN" -> R.drawable.ic_home_tonguedown
-        "JAW_LEFT" -> R.drawable.ic_home_jawleft
-        "JAW_RIGHT" -> R.drawable.ic_home_jawright
-        else -> android.R.drawable.ic_dialog_info
-    }
-
-    //卡片區
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 6.dp)
-            .clickable {
-                val curveData = data.curveJson ?: "[]"
-                val intent = Intent(context, CurveChartActivity::class.java)
-                intent.putExtra("curveJson", curveData)
-                context.startActivity(intent)
-            },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 左側頭像區域
-            // 頭像圖片 (這裡用Icon代替，實際可換成Image)
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription =  data.trainingLabel,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(60.dp)
-            )
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // 右側資訊區域
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center,  // 加這行
-            ) {
-                // 第一行：達成率 和 百分比+時間
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${data.achievedTimes}/${data.targetTimes}",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "${percentage}%",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.Black,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "${data.durationTime}秒",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.Black,
-                            fontSize = 16.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 第二行：標籤說明
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "達成    目標次數",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        fontSize = 10.sp
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text(
-                            text = "完成率",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray,
-                            fontSize = 10.sp
-                        )
-                        Text(
-                            text = "持續",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-*/
 
 @Composable
 fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
     val context = LocalContext.current
     val dao = AppDatabase.getInstance(context).trainingHistoryDao()
 
-    // 🎬 影片上傳對話框狀態
     var showVideoDialog by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableStateOf(0) }
-
-    // ★ 自評對話框狀態
     var showDialog by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
 
-    // 計算達成率
     val percentage = if (data.targetTimes > 0) {
         (data.achievedTimes * 100 / data.targetTimes)
     } else {
@@ -711,7 +740,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
         else -> android.R.drawable.ic_dialog_info
     }
 
-    // ★ 自評對話框
+    // 自評對話框
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -759,8 +788,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
         )
     }
 
-    //200260126 add 影片上傳狀態UI
-    // 🎬 影片上傳對話框
+    // 影片上傳對話框
     if (showVideoDialog) {
         AlertDialog(
             onDismissRequest = { if (!isUploading) showVideoDialog = false },
@@ -774,7 +802,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                         if (isUploading) {
                             Text("上傳中... $uploadProgress%")
                             LinearProgressIndicator(
-                                progress =  uploadProgress / 100f ,
+                                progress = uploadProgress / 100f,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else if (data.videoUploaded == 1) {
@@ -792,10 +820,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                     TextButton(
                         onClick = {
                             isUploading = true
-                            val videoFile = java.io.File(
-                                context.getExternalFilesDir(null),
-                                data.videoFileName
-                            )
+                            val videoFile = java.io.File(context.getExternalFilesDir(null), data.videoFileName)
 
                             com.example.rehabilitationapp.data.SftpUploader.uploadVideoAsync(
                                 context,
@@ -804,33 +829,19 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                                     override fun onProgress(percent: Int) {
                                         uploadProgress = percent
                                     }
-
                                     override fun onSuccess(remoteFilePath: String) {
-                                        Thread {
-                                            dao.markVideoUploaded(data.trainingID)
-                                        }.start()
-
+                                        Thread { dao.markVideoUploaded(data.trainingID) }.start()
                                         isUploading = false
                                         showVideoDialog = false
-
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "✅ 影片上傳成功",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
+                                            android.widget.Toast.makeText(context, "✅ 影片上傳成功", android.widget.Toast.LENGTH_SHORT).show()
                                             onUpdate()
                                         }
                                     }
-
                                     override fun onFailure(errorMessage: String) {
                                         isUploading = false
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "❌ 上傳失敗: $errorMessage",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
+                                            android.widget.Toast.makeText(context, "❌ 上傳失敗: $errorMessage", android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
@@ -851,9 +862,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
         )
     }
 
-
-
-    // 卡片區
+    // 卡片
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -878,10 +887,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -934,9 +940,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                         fontSize = 10.sp
                     )
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
                             text = "完成率",
                             style = MaterialTheme.typography.bodySmall,
@@ -953,11 +957,9 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                 }
             }
 
-
-            // ========== 🎬 影片上傳狀態圖示 ==========
+            // 影片上傳狀態圖示
             if (data.videoFileName.isNotEmpty()) {
                 Spacer(modifier = Modifier.width(8.dp))
-
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -981,8 +983,6 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                     )
                 }
             }
-            // ==========================================
-
         }
     }
 }
@@ -993,26 +993,22 @@ fun CustomBottomNavigation(
     selectTab: Int = 0,
     onTabSelected: (Int) -> Unit = {}
 ) {
-    Log.d("BottomNav", "CustomBottomNavigation 開始執行, selectedTab = $selectTab")
-    //context跳轉用
     val context = LocalContext.current
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(109.dp)
     ) {
-        // 你原本的橢圓背景：保留
         Image(
             painter = painterResource(id = R.drawable.bg_nav_circle_bar_nav),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
-            modifier = Modifier.
-            fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
                 .height(109.dp)
                 .align(Alignment.BottomCenter)
         )
 
-        // 按鈕列：疊在背景上方、靠底置中
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1021,11 +1017,7 @@ fun CustomBottomNavigation(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavItem(
-                text = "首頁",
-                isSelected = selectTab == 0,
-                glyphRes = R.drawable.ic_home_glyph_white
-            ) {
+            NavItem(text = "首頁", isSelected = selectTab == 0, glyphRes = R.drawable.ic_home_glyph_white) {
                 onTabSelected(0)
                 val intent = Intent(context, MainActivity::class.java).apply {
                     putExtra("start_tab", "home")
@@ -1035,11 +1027,7 @@ fun CustomBottomNavigation(
                 (context as? Activity)?.finish()
             }
 
-            NavItem(
-                text = "計畫",
-                isSelected = selectTab == 1,
-                glyphRes = R.drawable.ic_plan_glyph_white   // 先共用，之後再換各自的 glyph
-            ) {
+            NavItem(text = "計畫", isSelected = selectTab == 1, glyphRes = R.drawable.ic_plan_glyph_white) {
                 onTabSelected(1)
                 val intent = Intent(context, MainActivity::class.java).apply {
                     putExtra("start_tab", "plan")
@@ -1049,11 +1037,7 @@ fun CustomBottomNavigation(
                 (context as? Activity)?.finish()
             }
 
-            NavItem(
-                text = "紀錄",
-                isSelected = selectTab == 2,
-                glyphRes = R.drawable.ic_record_glyph_white
-            ) {
+            NavItem(text = "紀錄", isSelected = selectTab == 2, glyphRes = R.drawable.ic_record_glyph_white) {
                 onTabSelected(2)
                 val intent = Intent(context, MainActivity::class.java).apply {
                     putExtra("start_tab", "record")
@@ -1063,11 +1047,7 @@ fun CustomBottomNavigation(
                 (context as? Activity)?.finish()
             }
 
-            NavItem(
-                text = "設定",
-                isSelected = selectTab == 3,
-                glyphRes = R.drawable.ic_setting_glyph_white
-            ) {
+            NavItem(text = "設定", isSelected = selectTab == 3, glyphRes = R.drawable.ic_setting_glyph_white) {
                 onTabSelected(3)
                 val intent = Intent(context, MainActivity::class.java).apply {
                     putExtra("start_tab", "setting")
@@ -1080,36 +1060,31 @@ fun CustomBottomNavigation(
     }
 }
 
-
-
 @Composable
 fun NavItem(
     text: String,
     isSelected: Boolean,
-    glyphRes: Int,            // 這顆白色 icon 圖（向量或 PNG/JPG）
+    glyphRes: Int,
     onClick: () -> Unit
 ) {
-    val bgRes = if (isSelected) R.drawable.bg_nav_icon_selected
-    else R.drawable.bg_nav_icon_unselected
+    val bgRes = if (isSelected) R.drawable.bg_nav_icon_selected else R.drawable.bg_nav_icon_unselected
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable { onClick() }
             .padding(8.dp)
-            .offset(y=-12.dp)
+            .offset(y = (-12).dp)
     ) {
         Box(
             modifier = Modifier.size(32.dp),
             contentAlignment = Alignment.Center
         ) {
-            // 背景：選中 / 未選中
             Image(
                 painter = painterResource(id = bgRes),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize()
             )
-            // 前景：白色 glyph（你現有的 ic_home_glyph_white）
             Image(
                 painter = painterResource(id = glyphRes),
                 contentDescription = text,
