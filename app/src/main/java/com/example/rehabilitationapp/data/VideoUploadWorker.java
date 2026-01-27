@@ -25,7 +25,7 @@ public class VideoUploadWorker extends Worker {
         String trainingID = getInputData().getString("trainingID");
         String videoFileName = getInputData().getString("videoFileName");
 
-        Log.d(TAG, "🔄 Worker 開始上傳: " + trainingID);
+        Log.d(TAG, "🔄 Worker 開始: " + trainingID);
 
         if (trainingID == null || videoFileName == null || videoFileName.isEmpty()) {
             Log.e(TAG, "❌ 參數錯誤，跳過");
@@ -55,32 +55,12 @@ public class VideoUploadWorker extends Worker {
             return Result.failure();
         }
 
-        // 3. 同步上傳（Worker 裡面不用 callback 進度）
-        final boolean[] uploadSuccess = {false};
+        // 3. 同步上傳
+        boolean success = SftpUploader.uploadVideo(context, videoFile, null);
 
-        SftpUploader.uploadVideo(context, videoFile, new SftpUploader.UploadCallback() {
-            @Override
-            public void onProgress(int percent) {
-                // Worker 不顯示進度
-            }
-
-            @Override
-            public void onSuccess(String remoteFilePath) {
-                Log.d(TAG, "✅ Worker 上傳成功: " + remoteFilePath);
-                uploadSuccess[0] = true;
-            }
-
-            @Override
-            public void onFailure(String errorMessage) {
-                Log.e(TAG, "❌ Worker 上傳失敗: " + errorMessage);
-                uploadSuccess[0] = false;
-            }
-        });
-
-        if (uploadSuccess[0]) {
-            // 標記 DB
+        if (success) {
             AppDatabase.getInstance(context).trainingHistoryDao().markVideoUploaded(trainingID);
-            Log.d(TAG, "✅ 已標記 videoUploaded=1: " + trainingID);
+            Log.d(TAG, "✅ Worker 上傳成功: " + trainingID);
             return Result.success();
         } else {
             Log.d(TAG, "⚠️ 上傳失敗，稍後重試: " + trainingID);

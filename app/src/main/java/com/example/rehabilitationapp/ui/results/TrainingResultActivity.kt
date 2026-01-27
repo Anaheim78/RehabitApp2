@@ -8,7 +8,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,10 +38,10 @@ import com.example.rehabilitationapp.data.model.TrainingHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
-import android.util.Log
 import android.content.Intent
 import com.example.rehabilitationapp.MainActivity
 import com.example.rehabilitationapp.data.FirebaseUploader
+import com.example.rehabilitationapp.data.SftpUploader
 import kotlinx.coroutines.launch
 
 class TrainingResultActivity : ComponentActivity() {
@@ -643,10 +642,16 @@ fun 訓練結果頁() {
                                         if (file.exists()) file else null
                                     }
 
-                                    com.example.rehabilitationapp.data.SftpUploader.uploadMultipleAsync(
+                                    // ★ 先排 Worker（保險）
+                                    selectedVideos.forEach { video ->
+                                        SftpUploader.scheduleVideoUpload(context, video.trainingID, video.videoFileName, 1)
+                                    }
+
+                                    // ★ 再即時上傳
+                                    SftpUploader.uploadMultipleAsync(
                                         context,
                                         files,
-                                        object : com.example.rehabilitationapp.data.SftpUploader.BatchUploadCallback {
+                                        object : SftpUploader.BatchUploadCallback {
                                             override fun onFileStart(index: Int, total: Int, fileName: String) {
                                                 videoUploadProgress = "上傳中 [${index + 1}/$total]\n$fileName"
                                             }
@@ -656,7 +661,11 @@ fun 訓練結果頁() {
                                             override fun onFileSuccess(index: Int, total: Int, fileName: String) {
                                                 val video = selectedVideos.find { it.videoFileName == fileName }
                                                 video?.let {
-                                                    Thread { dao.markVideoUploaded(it.trainingID) }.start()
+                                                    Thread {
+                                                        dao.markVideoUploaded(it.trainingID)
+                                                        // ★ 成功後取消 Worker
+                                                        SftpUploader.cancelVideoUpload(context, it.trainingID)
+                                                    }.start()
                                                 }
                                             }
                                             override fun onFileFailure(index: Int, total: Int, fileName: String, error: String) {}
@@ -666,8 +675,8 @@ fun 訓練結果頁() {
                                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                                     val msg = when {
                                                         failCount == 0 -> "✅ 上傳完成：$successCount 部"
-                                                        successCount == 0 -> "⚠️ 上傳失敗"
-                                                        else -> "上傳 $successCount 部，失敗 $failCount 部"
+                                                        successCount == 0 -> "⚠️ 上傳失敗，稍後自動重試"
+                                                        else -> "上傳 $successCount 部，失敗 $failCount 部（稍後自動重試）"
                                                     }
                                                     android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
 
@@ -822,15 +831,22 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                             isUploading = true
                             val videoFile = java.io.File(context.getExternalFilesDir(null), data.videoFileName)
 
-                            com.example.rehabilitationapp.data.SftpUploader.uploadVideoAsync(
+                            // ★ 先排 Worker
+                            SftpUploader.scheduleVideoUpload(context, data.trainingID, data.videoFileName, 15)
+
+                            SftpUploader.uploadVideoAsync(
                                 context,
                                 videoFile,
-                                object : com.example.rehabilitationapp.data.SftpUploader.UploadCallback {
+                                object : SftpUploader.UploadCallback {
                                     override fun onProgress(percent: Int) {
                                         uploadProgress = percent
                                     }
                                     override fun onSuccess(remoteFilePath: String) {
-                                        Thread { dao.markVideoUploaded(data.trainingID) }.start()
+                                        Thread {
+                                            dao.markVideoUploaded(data.trainingID)
+                                            // ★ 成功後取消 Worker
+                                            SftpUploader.cancelVideoUpload(context, data.trainingID)
+                                        }.start()
                                         isUploading = false
                                         showVideoDialog = false
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -841,7 +857,7 @@ fun TrainingResultCard(data: TrainingHistory, onUpdate: () -> Unit = {}) {
                                     override fun onFailure(errorMessage: String) {
                                         isUploading = false
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            android.widget.Toast.makeText(context, "❌ 上傳失敗: $errorMessage", android.widget.Toast.LENGTH_SHORT).show()
+                                            android.widget.Toast.makeText(context, "⚠️ 上傳失敗，稍後自動重試", android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
