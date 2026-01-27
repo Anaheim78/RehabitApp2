@@ -219,7 +219,6 @@ public class SupabaseUploader {
         Log.d(TAG, "📅 已排程 WorkManager: " + trainingID);
     }
 
-    // ★★★ A 版：App 啟動時重傳所有未上傳的 CSV ★★★
     public static void retryUnsyncedCsv(Context context, RetryCallback callback) {
         new Thread(() -> {
             List<TrainingHistory> unsyncedList = AppDatabase.getInstance(context)
@@ -236,12 +235,18 @@ public class SupabaseUploader {
 
             final int[] successCount = {0};
             final int[] failCount = {0};
+            final int[] doneCount = {0};
             final int total = unsyncedList.size();
+
+            // ★ 先回報總數
+            if (callback != null) callback.onProgress(0, total);
 
             for (TrainingHistory item : unsyncedList) {
                 if (item.csvFileName == null || item.csvFileName.isEmpty()) {
                     failCount[0]++;
-                    if (successCount[0] + failCount[0] >= total && callback != null) {
+                    doneCount[0]++;
+                    if (callback != null) callback.onProgress(doneCount[0], total);
+                    if (doneCount[0] >= total && callback != null) {
                         callback.onComplete(successCount[0], failCount[0]);
                     }
                     continue;
@@ -251,8 +256,10 @@ public class SupabaseUploader {
                     @Override
                     public void onSuccess(String publicUrl, String trainingID) {
                         successCount[0]++;
+                        doneCount[0]++;
                         Log.d(TAG, "✅ 重傳成功: " + trainingID);
-                        if (successCount[0] + failCount[0] >= total && callback != null) {
+                        if (callback != null) callback.onProgress(doneCount[0], total);
+                        if (doneCount[0] >= total && callback != null) {
                             callback.onComplete(successCount[0], failCount[0]);
                         }
                     }
@@ -260,8 +267,10 @@ public class SupabaseUploader {
                     @Override
                     public void onFailure(String error, String trainingID) {
                         failCount[0]++;
+                        doneCount[0]++;
                         Log.e(TAG, "❌ 重傳失敗: " + trainingID);
-                        if (successCount[0] + failCount[0] >= total && callback != null) {
+                        if (callback != null) callback.onProgress(doneCount[0], total);
+                        if (doneCount[0] >= total && callback != null) {
                             callback.onComplete(successCount[0], failCount[0]);
                         }
                     }
@@ -270,7 +279,64 @@ public class SupabaseUploader {
         }).start();
     }
 
+    //改成回報結果，結果頁面跟重開機都會用這裡看
+
+//    // ★★★ A 版：App 啟動時重傳所有未上傳的 CSV ★★★
+//    public static void retryUnsyncedCsv(Context context, RetryCallback callback) {
+//        new Thread(() -> {
+//            List<TrainingHistory> unsyncedList = AppDatabase.getInstance(context)
+//                    .trainingHistoryDao()
+//                    .getUnsyncedCsvRecords();
+//
+//            if (unsyncedList == null || unsyncedList.isEmpty()) {
+//                Log.d(TAG, "沒有需要重傳的 CSV");
+//                if (callback != null) callback.onComplete(0, 0);
+//                return;
+//            }
+//
+//            Log.d(TAG, "找到 " + unsyncedList.size() + " 筆未上傳的 CSV");
+//
+//            final int[] successCount = {0};
+//            final int[] failCount = {0};
+//            final int total = unsyncedList.size();
+//
+//            for (TrainingHistory item : unsyncedList) {
+//                if (item.csvFileName == null || item.csvFileName.isEmpty()) {
+//                    failCount[0]++;
+//                    if (successCount[0] + failCount[0] >= total && callback != null) {
+//                        callback.onComplete(successCount[0], failCount[0]);
+//                    }
+//                    continue;
+//                }
+//
+//                uploadCsvWithMark(context, item.csvFileName, item.trainingID, new UploadCallbackWithId() {
+//                    @Override
+//                    public void onSuccess(String publicUrl, String trainingID) {
+//                        successCount[0]++;
+//                        Log.d(TAG, "✅ 重傳成功: " + trainingID);
+//                        if (successCount[0] + failCount[0] >= total && callback != null) {
+//                            callback.onComplete(successCount[0], failCount[0]);
+//                        }
+//                    }
+//
+//                    @Override
+//                    public void onFailure(String error, String trainingID) {
+//                        failCount[0]++;
+//                        Log.e(TAG, "❌ 重傳失敗: " + trainingID);
+//                        if (successCount[0] + failCount[0] >= total && callback != null) {
+//                            callback.onComplete(successCount[0], failCount[0]);
+//                        }
+//                    }
+//                });
+//            }
+//        }).start();
+//    }
+
+    //TrainingResultActivity，按下上傳會用到
     public interface RetryCallback {
+        default void onProgress(int current, int total) {
+            // 預設空實作，不強制要覆寫，不然facecircle用Lamda呼叫會錯，Lamda寫法只能配合只有一個覆寫方法的介面。
+        }
         void onComplete(int successCount, int failCount);
     }
 
