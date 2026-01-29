@@ -60,7 +60,7 @@ public interface TrainingHistoryDao {
     @Query("UPDATE TrainingHistory SET csvUploaded = 1 WHERE trainingID = :id")
     void markCsvUploaded(String id);
 
-    /** 查詢所有 CSV 未上傳的紀錄（用於重傳） */
+    /** 查詢所有 CSV 未上傳的紀錄（用於重傳） */ //to do
     @Query("SELECT * FROM TrainingHistory WHERE csvUploaded = 0 AND csvFileName != '' ORDER BY createAt ASC")
     List<TrainingHistory> getUnsyncedCsvRecords();
 
