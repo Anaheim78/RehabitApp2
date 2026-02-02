@@ -124,11 +124,40 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
-    // 加這個 Migration（什麼都不用做，只是讓 Room 重新認證 schema）
     public static final Migration MIGRATION_10_11 = new Migration(10, 11) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase db) {
-            // 不需要做任何事，只是 schema hash 變了
+            // 1. 建立新表（正確的 schema）
+            db.execSQL("CREATE TABLE IF NOT EXISTS `trainingHistory_new` (" +
+                    "`trainingID` TEXT NOT NULL, " +
+                    "`trainingLabel` TEXT, " +
+                    "`createAt` INTEGER NOT NULL, " +
+                    "`finishAt` INTEGER NOT NULL, " +
+                    "`targetTimes` INTEGER NOT NULL, " +
+                    "`achievedTimes` INTEGER NOT NULL, " +
+                    "`durationTime` INTEGER NOT NULL, " +
+                    "`curveJson` TEXT, " +
+                    "`synced` INTEGER NOT NULL DEFAULT 0, " +
+                    "`saved` INTEGER NOT NULL DEFAULT 0, " +
+                    "`selfReportCount` INTEGER NOT NULL DEFAULT -1, " +
+                    "`csvUploaded` INTEGER NOT NULL DEFAULT 0, " +
+                    "`csvFileName` TEXT NOT NULL DEFAULT '', " +
+                    "`videoUploaded` INTEGER NOT NULL DEFAULT 0, " +
+                    "`videoFileName` TEXT DEFAULT '', " +
+                    "PRIMARY KEY(`trainingID`))");
+
+            // 2. 複製資料
+            db.execSQL("INSERT INTO trainingHistory_new SELECT " +
+                    "trainingID, trainingLabel, createAt, finishAt, targetTimes, achievedTimes, " +
+                    "durationTime, curveJson, synced, saved, selfReportCount, csvUploaded, " +
+                    "COALESCE(csvFileName, ''), videoUploaded, COALESCE(videoFileName, '') " +
+                    "FROM trainingHistory");
+
+            // 3. 刪除舊表
+            db.execSQL("DROP TABLE trainingHistory");
+
+            // 4. 重新命名
+            db.execSQL("ALTER TABLE trainingHistory_new RENAME TO trainingHistory");
         }
     };
 
