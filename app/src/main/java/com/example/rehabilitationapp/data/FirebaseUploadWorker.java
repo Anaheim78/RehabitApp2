@@ -87,11 +87,13 @@ public class FirebaseUploadWorker extends Worker {
                         AppDatabase.getInstance(context).trainingHistoryDao().markSynced(trainingID);
                     }).start();
                     Log.d(TAG, "✅ WorkManager 上傳 Firebase 成功: " + trainingID);
+                    AppLogger.logFirebaseUpload(trainingID, true, null);
                     success[0] = true;
                     latch.countDown();
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "❌ 上傳失敗: " + e.getMessage());
+                    AppLogger.logFirebaseUpload(trainingID, false, e.getMessage());
                     success[0] = false;
                     latch.countDown();
                 });

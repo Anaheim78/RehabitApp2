@@ -18,6 +18,7 @@ import com.example.rehabilitationapp.ui.plan.PlanFragment;
 import com.example.rehabilitationapp.ui.setting.SettingFragment;
 import com.example.rehabilitationapp.data.SupabaseUploader;
 import android.util.Log;
+import com.example.rehabilitationapp.data.AppLogger;
 public class MainActivity extends AppCompatActivity {
 
     private FrameLayout tabHome, tabPlan, tabRecord, tabSetting;
@@ -26,6 +27,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // ★ 初始化 Log 系統
+        AppLogger.init(this);
+
+        // ★ 記錄打開 APP
+        AppLogger.logAppOpen(this);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 

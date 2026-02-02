@@ -46,6 +46,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.AppLogger;
 import com.example.rehabilitationapp.data.SupabaseUploader;
 import com.example.rehabilitationapp.ui.analysis.CSVMotioner;
 import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
@@ -314,6 +315,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===========01【生命週期】========================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        AppLogger.logTrainingStart(trainingLabel);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);
 
@@ -1737,6 +1739,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                     //存檔與跳頁
                     insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
+                    AppLogger.logTrainingComplete(trainingLabel);
+
                     runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
                 }).start();
             }

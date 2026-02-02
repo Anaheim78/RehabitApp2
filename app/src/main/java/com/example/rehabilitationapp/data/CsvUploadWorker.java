@@ -102,14 +102,17 @@ public class CsvUploadWorker extends Worker {
                 // 上傳成功，標記 DB
                 AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
                 Log.d(TAG, "✅ WorkManager 上傳成功: " + trainingID);
+                AppLogger.logCsvUpload(trainingID, true, null);
                 return Result.success();
             } else {
                 Log.e(TAG, "❌ 上傳失敗: " + response.code());
+                AppLogger.logCsvUpload(trainingID, false, "HTTP " + response.code());
                 return Result.retry();
             }
 
         } catch (Exception e) {
             Log.e(TAG, "❌ 上傳異常: " + e.getMessage());
+            AppLogger.logCsvUpload(trainingID, false, e.getMessage());
             return Result.retry();
         }
     }

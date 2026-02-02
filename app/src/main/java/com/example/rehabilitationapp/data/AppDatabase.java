@@ -32,7 +32,7 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
                 TrainingHistory.class
         },
         //!!!!!!!!!!!!!!!!!!!!!!!每次更新資料庫這邊要改，比如5->6，這裡要寫6!!!!!!但不然會直接依打開就閃退掉!!!!可以不用清掉資料!!!!!!!!!!!!!!!!3=
-        version = 10,              // ★ 版本 +1（原本是 2）
+        version = 11,              // ★ 版本 +1（原本是 2）
         exportSchema = true
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -124,6 +124,14 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    // 加這個 Migration（什麼都不用做，只是讓 Room 重新認證 schema）
+    public static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // 不需要做任何事，只是 schema hash 變了
+        }
+    };
+
 
     //20251123 多DB
     public static AppDatabase buildDatabase(Context context, String dbName) {
@@ -141,7 +149,8 @@ public abstract class AppDatabase extends RoomDatabase {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10
+                        MIGRATION_9_10,
+                        MIGRATION_10_11
                 )
                 .build();
 

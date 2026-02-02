@@ -140,12 +140,14 @@ public class SftpUploader {
 
             String remotePath = userDir + "/" + videoFile.getName();
             Log.d(TAG, "✅ 上傳成功: " + remotePath);
+            AppLogger.logVideoUpload(null, videoFile.getName(), true, null);
             if (callback != null) callback.onSuccess(remotePath);
             return true;
 
         } catch (Exception e) {
             String error = "上傳失敗: " + e.getMessage();
             Log.e(TAG, error, e);
+            AppLogger.logVideoUpload(null, videoFile.getName(), false, e.getMessage());
             if (callback != null) callback.onFailure(error);
             return false;
 

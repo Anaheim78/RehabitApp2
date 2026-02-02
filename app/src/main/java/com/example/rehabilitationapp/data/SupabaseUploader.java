@@ -95,12 +95,14 @@ public class SupabaseUploader {
                 if (response.isSuccessful()) {
                     String publicUrl = SUPABASE_URL + "/storage/v1/object/public/" + BUCKET_NAME + "/" + storagePath;
                     Log.d(TAG, "✅ 上傳成功: " + publicUrl);
+                    AppLogger.logCsvUpload(fileName, true, null);
                     if (callback != null) {
                         callback.onSuccess(publicUrl);
                     }
                 } else {
                     String errorBody = response.body() != null ? response.body().string() : "Unknown error";
                     Log.e(TAG, "❌ 上傳失敗: " + response.code() + " - " + errorBody);
+                    AppLogger.logCsvUpload(fileName, false, "HTTP " + response.code());
                     if (callback != null) {
                         callback.onFailure("上傳失敗: " + response.code());
                     }
@@ -164,6 +166,7 @@ public class SupabaseUploader {
                         responseBody.contains("already exists")) {
                     String publicUrl = SUPABASE_URL + "/storage/v1/object/public/" + BUCKET_NAME + "/" + storagePath;
                     Log.d(TAG, "✅ 上傳成功: " + publicUrl);
+                    AppLogger.logCsvUpload(trainingID, true, null);
 
                     // ★★★ 上傳成功，標記資料庫 ★★★
                     if (trainingID != null && !trainingID.isEmpty()) {
@@ -178,7 +181,7 @@ public class SupabaseUploader {
                 } else {
                     String errorBody = response.body() != null ? response.body().string() : "Unknown error";
                     Log.e(TAG, "❌ 上傳失敗: " + response.code() + " - " + errorBody);
-
+                    AppLogger.logCsvUpload(trainingID, false, "HTTP " + response.code());
 
 
                     if (callback != null) callback.onFailure("上傳失敗: " + response.code(), trainingID);

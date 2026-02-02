@@ -18,6 +18,7 @@ import androidx.fragment.app.Fragment;
 import com.example.rehabilitationapp.MainActivity;
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.AppLogger;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
 import com.example.rehabilitationapp.ui.home.HomeFragment;
@@ -162,6 +163,9 @@ public class LoginFragment extends Fragment {
                             // =====================================================
                             // STEP 4：切換到 Home
                             // =====================================================
+
+                            // ★ 登入成功 Log
+                            AppLogger.logLogin(id, name);
                             requireActivity().runOnUiThread(() -> {
                                 if (getActivity() instanceof MainActivity) {
                                     ((MainActivity) getActivity()).switchFragment(new HomeFragment());

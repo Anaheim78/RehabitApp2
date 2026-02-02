@@ -247,26 +247,27 @@
 
     </FrameLayout>
 
-    <!-- 錄影開關 -->
+    <!-- 錄影開關 + 同步舊資料（同一行） -->
     <LinearLayout
-        android:id="@+id/videoRecordingLayout"
+        android:id="@+id/syncAndVideoLayout"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingHorizontal="32dp"
-        android:paddingVertical="2dp"
+        android:paddingVertical="12dp"
         android:gravity="center_vertical"
         app:layout_constraintTop_toBottomOf="@id/segmentUi"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <!-- 左邊：訓練時錄影 -->
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:text="訓練時錄影"
             android:textSize="14sp"
-            android:textColor="@android:color/black" />
+            android:textColor="@android:color/black"
+            android:layout_marginEnd="8dp" />
 
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/switchVideoRecording"
@@ -275,7 +276,26 @@
             android:thumbTint="#FFFFFF"
             android:trackTint="#FFD700" />
 
+        <!-- 中間空白撐開 -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 右邊：同步舊資料按鈕 -->
+        <Button
+            android:id="@+id/btnSyncBackup"
+            android:layout_width="wrap_content"
+            android:layout_height="49dp"
+            android:background="@drawable/btn_login"
+            android:text="同步舊資料"
+            android:textColor="@color/black"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="16dp" />
+
     </LinearLayout>
+
 
     <!-- 半透明資訊區塊（關於這個APP） -->
     <LinearLayout
@@ -289,7 +309,7 @@
         android:gravity="center"
         android:orientation="vertical"
         android:padding="16dp"
-        app:layout_constraintTop_toBottomOf="@id/videoRecordingLayout"
+        app:layout_constraintTop_toBottomOf="@id/syncAndVideoLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 

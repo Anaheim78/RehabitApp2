@@ -61,9 +61,11 @@ public class VideoUploadWorker extends Worker {
         if (success) {
             AppDatabase.getInstance(context).trainingHistoryDao().markVideoUploaded(trainingID);
             Log.d(TAG, "✅ Worker 上傳成功: " + trainingID);
+            AppLogger.logVideoUpload(trainingID, videoFileName, true, null);
             return Result.success();
         } else {
             Log.d(TAG, "⚠️ 上傳失敗，稍後重試: " + trainingID);
+            AppLogger.logVideoUpload(trainingID, videoFileName, false, "上傳失敗");
             return Result.retry();
         }
     }

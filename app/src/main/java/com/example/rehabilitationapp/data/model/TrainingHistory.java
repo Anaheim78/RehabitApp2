@@ -26,6 +26,8 @@ public class TrainingHistory {
     //用bucket紀錄，csv上傳
     @ColumnInfo(defaultValue = "0")
     public int csvUploaded = 0;  // 0=未上傳, 1=已上傳
+
+    @NonNull
     @ColumnInfo(defaultValue = "")
     public String csvFileName = "";
 

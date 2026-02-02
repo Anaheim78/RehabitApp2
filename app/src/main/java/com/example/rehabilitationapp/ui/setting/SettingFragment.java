@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment;
 
 import com.example.rehabilitationapp.R;
 import com.example.rehabilitationapp.data.AppDatabase;
+import com.example.rehabilitationapp.data.BackupUploader;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
 import android.content.Context;
@@ -74,6 +75,42 @@ public class SettingFragment extends Fragment {
         });
         // ---- DB ----
         userDao = AppDatabase.getInstance(requireContext()).userDao();
+
+        // 同步舊資料按鈕
+        Button btnSyncBackup = view.findViewById(R.id.btnSyncBackup);
+        btnSyncBackup.setOnClickListener(v -> {
+            btnSyncBackup.setEnabled(false);
+            btnSyncBackup.setText("上傳中...");
+
+            BackupUploader.uploadBackup(requireContext(), new BackupUploader.BackupCallback() {
+                @Override
+                public void onProgress(String message) {
+                    if (isAdded()) {
+                        requireActivity().runOnUiThread(() -> btnSyncBackup.setText(message));
+                    }
+                }
+
+                @Override
+                public void onComplete(int totalFiles, int successCount, int failCount) {
+                    if (isAdded()) {
+                        requireActivity().runOnUiThread(() -> {
+                            btnSyncBackup.setEnabled(true);
+                            btnSyncBackup.setText("同步舊資料");
+
+                            String msg;
+                            if (failCount == -1) {
+                                msg = "❌ 連線失敗，請檢查網路";
+                            } else if (failCount == 0) {
+                                msg = "✅ 上傳完成！共 " + successCount + " 個檔案";
+                            } else {
+                                msg = "上傳完成：成功 " + successCount + " / 失敗 " + failCount;
+                            }
+                            android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_LONG).show();
+                        });
+                    }
+                }
+            });
+        });
     }
 
 

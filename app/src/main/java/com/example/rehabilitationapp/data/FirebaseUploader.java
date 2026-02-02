@@ -79,6 +79,7 @@ public class FirebaseUploader {
                             successCount[0]++;
                             doneCount[0]++;
                             Log.d(TAG, "上傳成功: " + item.trainingID);
+                            AppLogger.logFirebaseUpload(item.trainingID, true, null);
 
                             if (callback != null) callback.onProgress(doneCount[0], total);
 
@@ -90,6 +91,7 @@ public class FirebaseUploader {
                             failCount[0]++;
                             doneCount[0]++;
                             Log.e(TAG, "上傳失敗: " + item.trainingID, e);
+                            AppLogger.logFirebaseUpload(item.trainingID, false, e.getMessage()+"，後續交給排成");
                             scheduleFirebaseUpload(context, item.trainingID);
 
                             if (callback != null) callback.onProgress(doneCount[0], total);
