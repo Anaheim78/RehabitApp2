@@ -147,7 +147,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private VideoCapture<Recorder> videoCapture;
     //androidx.camera.video : videoCapture接收Recorder的影像
     private Recording currentRecording;
-//    androidx.camera.video  Recording 用來控制 影像播放相關操作
+    //    androidx.camera.video  Recording 用來控制 影像播放相關操作
     //
     private String videoFilePath;
     //刪除影片會用到
@@ -285,6 +285,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private static final float EYE_DISTANCE_THRESHOLD = 0.15f;  // 15% 變化閾值
     //======================================================>
 
+    // 頭動偵測（重心位移法）
+    private static final int[] HEAD_STABLE_INDICES = {10, 151, 9, 168, 1, 127, 356};
+    private static final int HEAD_STABLE_POINTS_COUNT = HEAD_STABLE_INDICES.length;
+    private static final int HEAD_MOTION_WINDOW = 5;
+    private static final float HEAD_MOTION_THRESHOLD = 0.003f;
+    private float[][] prevStablePoints = null;
+    private final java.util.ArrayDeque<Float> headMotionHistory = new java.util.ArrayDeque<>();
+    private boolean lastHeadStable = true;
+    private int headStableCooldown = 0;
 
 
 
@@ -836,6 +845,24 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             allPoints[i][2] = z ;
 //                            Log.d(TAG_2, "進入主流程_checkFacePosition_寫完兩個allPoints");
                         }
+
+
+// === 頭動偵測（只在校正階段阻擋）===
+                        boolean headStable = isHeadStable(landmarks01);
+                        if (headStableCooldown > 0) {
+                            headStableCooldown--;
+                            headStable = false;
+                        }
+                        if (!headStable && currentState == AppState.CALIBRATING) {
+                            if (cueText  != null) {
+                                cueText .setVisibility(View.VISIBLE);
+                                cueText .setText("⚠️ 請保持頭部不動");
+                            }
+                            overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
+                            resetCalibration();
+                            return;
+                        }
+
                         //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
                         if (("TONGUE_FOWARD".equals(trainingLabel) ||
                                 "TONGUE_BACK".equals(trainingLabel) ||
@@ -1143,8 +1170,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
     private void handleTongueModeLR(float[][] allPoints, Bitmap mirroredBitmap, int bitmapWidth, int bitmapHeight,
-                                  Rect overlayRoi,   // ← 使用快取 Overlay ROI
-                                  Rect bitmapRoi) {  // ← 使用快取 Bitmap ROI
+                                    Rect overlayRoi,   // ← 使用快取 Overlay ROI
+                                    Rect bitmapRoi) {  // ← 使用快取 Bitmap ROI
         try {
             if (!shouldAcceptNewFrames()) return;
             // ★ 每 YOLO_EVERY 幀跑一次 YOLO
@@ -1599,6 +1626,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             baselineSet = false;
             baselineEyeDistance = 0;
 
+            resetHeadMotion();
+
             // 🆕 清空 CSV 資料
             if (dataRecorder != null) {
                 dataRecorder.clearData();
@@ -1636,6 +1665,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         //校正頭動重置
         baselineSet = false;
         baselineEyeDistance = 0;
+
+        resetHeadMotion();
 
         if (dataRecorder != null) {
             dataRecorder.clearData();
@@ -2464,5 +2495,49 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         return (float) Math.sqrt((eyeRx - eyeLx) * (eyeRx - eyeLx)
                 + (eyeRy - eyeLy) * (eyeRy - eyeLy));
     }
+
+
+    private boolean isHeadStable(float[][] landmarks01) {
+        float[][] cur = new float[HEAD_STABLE_POINTS_COUNT][2];
+        for (int i = 0; i < HEAD_STABLE_POINTS_COUNT; i++) {
+            int idx = HEAD_STABLE_INDICES[i];
+            if (idx >= landmarks01.length) return true;
+            cur[i][0] = landmarks01[idx][0];
+            cur[i][1] = landmarks01[idx][1];
+        }
+        if (prevStablePoints == null) {
+            prevStablePoints = cur;
+            lastHeadStable = true;
+            return true;
+        }
+        float cx = 0, cy = 0, px = 0, py = 0;
+        for (int i = 0; i < HEAD_STABLE_POINTS_COUNT; i++) {
+            cx += cur[i][0]; cy += cur[i][1];
+            px += prevStablePoints[i][0]; py += prevStablePoints[i][1];
+        }
+        cx /= HEAD_STABLE_POINTS_COUNT; cy /= HEAD_STABLE_POINTS_COUNT;
+        px /= HEAD_STABLE_POINTS_COUNT; py /= HEAD_STABLE_POINTS_COUNT;
+        float movement = (float) Math.sqrt((cx - px) * (cx - px) + (cy - py) * (cy - py));
+        prevStablePoints = cur;
+        headMotionHistory.addLast(movement);
+        while (headMotionHistory.size() > HEAD_MOTION_WINDOW) headMotionHistory.removeFirst();
+        float avg = 0;
+        for (float v : headMotionHistory) avg += v;
+        avg /= headMotionHistory.size();
+        lastHeadStable = avg < HEAD_MOTION_THRESHOLD;
+        if (!lastHeadStable) {
+            headStableCooldown = 30;
+        }
+        return lastHeadStable;
+    }
+
+    private void resetHeadMotion() {
+        // 不清 prevStablePoints，避免下一幀無法比較導致閃爍
+        headMotionHistory.clear();
+        lastHeadStable = true;
+        headStableCooldown = 0;
+    }
+
+
 
 }
