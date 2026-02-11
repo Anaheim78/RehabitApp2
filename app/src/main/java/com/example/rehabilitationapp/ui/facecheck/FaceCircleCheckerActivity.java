@@ -848,20 +848,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
 // === 頭動偵測（只在校正階段阻擋）===
-                        boolean headStable = isHeadStable(landmarks01);
-                        if (headStableCooldown > 0) {
-                            headStableCooldown--;
-                            headStable = false;
-                        }
-                        if (!headStable && currentState == AppState.CALIBRATING) {
-                            if (cueText  != null) {
-                                cueText .setVisibility(View.VISIBLE);
-                                cueText .setText("⚠️ 請保持頭部不動");
-                            }
-                            overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
-                            resetCalibration();
-                            return;
-                        }
+
 
                         //****動作分流給Handler方法，底下handleFacePosition處理時間顯示流
                         if (("TONGUE_FOWARD".equals(trainingLabel) ||
@@ -985,6 +972,23 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                         handleFacePosition(faceOK);*/
                         //
+
+                        // === 頭動偵測（校正中 + 倒數完成 + 人在圓框內 才擋）===
+                        boolean headStable = isHeadStable(landmarks01);
+                        if (headStableCooldown > 0) {
+                            headStableCooldown--;
+                            headStable = false;
+                        }
+                        if (!headStable && countdownFinished && currentState == AppState.CALIBRATING && noseInside) {
+                            if (cueText != null) {
+                                cueText.setVisibility(View.VISIBLE);
+                                cueText.setText("⚠️ 請保持頭部不動");
+                            }
+                            overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
+                            resetCalibration();
+                            return;
+                        }
+
                         handleFacePosition(noseInside);
 
                     }
