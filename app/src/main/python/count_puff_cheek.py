@@ -137,7 +137,7 @@ def auto_cutoff_from_signal(t, r, fs,
         f0 = 1.0 / max(period, 1e-9)
         cutoff = gain_over_f0 * f0
         cutoff = float(np.clip(cutoff, min_cut, min(max_cut_cap, 0.49*fs)))
-        cutoff = 1.0  # 固定使用 2.0
+        cutoff = 0.5  # 固定使用 2.0
         return cutoff
 
     print(f"⚠️ [AUTO-CUTOFF] autocorr failed -> fallback cutoff={CUTOFF_DEFAULT:.2f}Hz")
