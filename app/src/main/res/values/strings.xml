@@ -8,4 +8,14 @@
     <string name="login_id">ID</string>
     <string name="login_password">Password</string>
     <string name="login_login">登入</string>
+
+    <!-- ★ 新增：雙軌登入 -->
+    <string name="login_mode_formal">帳號登入</string>
+    <string name="login_mode_quick">匿名登入（暱稱）</string>
+
+    <!-- ★ 新增：B軌問卷頁面 -->
+    <string name="quick_register_title">快速登入</string>
+    <string name="quick_register_subtitle">填寫基本資訊即可開始訓練</string>
+    <string name="quick_register_confirm">開始使用</string>
+    <string name="quick_register_back">← 返回登入頁</string>
 </resources>

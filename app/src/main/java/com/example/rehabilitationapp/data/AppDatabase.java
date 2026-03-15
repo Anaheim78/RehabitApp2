@@ -32,7 +32,7 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
                 TrainingHistory.class
         },
         //!!!!!!!!!!!!!!!!!!!!!!!每次更新資料庫這邊要改，比如5->6，這裡要寫6!!!!!!但不然會直接依打開就閃退掉!!!!可以不用清掉資料!!!!!!!!!!!!!!!!3=
-        version = 11,              // ★ 版本 +1（原本是 2）
+        version = 12,              // ★ 版本 11 -> 12（新增雙軌登入欄位）
         exportSchema = true
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -84,7 +84,6 @@ public abstract class AppDatabase extends RoomDatabase {
     public static final Migration MIGRATION_5_6 = new Migration(5, 6) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase db) {
-            // 在 users 表新增 need_sync 欄位
             db.execSQL("ALTER TABLE users ADD COLUMN need_sync INTEGER NOT NULL DEFAULT 0");
         }
     };
@@ -127,7 +126,6 @@ public abstract class AppDatabase extends RoomDatabase {
     public static final Migration MIGRATION_10_11 = new Migration(10, 11) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase db) {
-            // 1. 建立新表（正確的 schema）
             db.execSQL("CREATE TABLE IF NOT EXISTS `trainingHistory_new` (" +
                     "`trainingID` TEXT NOT NULL, " +
                     "`trainingLabel` TEXT, " +
@@ -146,18 +144,27 @@ public abstract class AppDatabase extends RoomDatabase {
                     "`videoFileName` TEXT DEFAULT '', " +
                     "PRIMARY KEY(`trainingID`))");
 
-            // 2. 複製資料
             db.execSQL("INSERT INTO trainingHistory_new SELECT " +
                     "trainingID, trainingLabel, createAt, finishAt, targetTimes, achievedTimes, " +
                     "durationTime, curveJson, synced, saved, selfReportCount, csvUploaded, " +
                     "COALESCE(csvFileName, ''), videoUploaded, COALESCE(videoFileName, '') " +
                     "FROM trainingHistory");
 
-            // 3. 刪除舊表
             db.execSQL("DROP TABLE trainingHistory");
-
-            // 4. 重新命名
             db.execSQL("ALTER TABLE trainingHistory_new RENAME TO trainingHistory");
+        }
+    };
+
+    // ★★★ 新增 Migration: 11 -> 12（雙軌登入欄位）★★★
+    public static final Migration MIGRATION_11_12 = new Migration(11, 12) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // 帳號類型：formal（A軌）或 quick（B軌），舊帳號預設 formal
+            db.execSQL("ALTER TABLE users ADD COLUMN account_type TEXT DEFAULT 'formal'");
+            // B軌問卷欄位
+            db.execSQL("ALTER TABLE users ADD COLUMN age_range TEXT");
+            db.execSQL("ALTER TABLE users ADD COLUMN post_surgery_days INTEGER NOT NULL DEFAULT -1");
+            db.execSQL("ALTER TABLE users ADD COLUMN diagnosis_type TEXT");
         }
     };
 
@@ -179,7 +186,8 @@ public abstract class AppDatabase extends RoomDatabase {
                         MIGRATION_7_8,
                         MIGRATION_8_9,
                         MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_10_11,
+                        MIGRATION_11_12     // ★ 新增
                 )
                 .build();
 
@@ -218,54 +226,4 @@ public abstract class AppDatabase extends RoomDatabase {
 
         return DatabaseProvider.getDatabase(context, userId);
     }
-
-
-
-//    public static AppDatabase getInstance(Context context) {
-//        Log.d(DB_DEBUG_TAG, "=== Into getInstance ===");
-//        if (INSTANCE == null) {
-//            synchronized (AppDatabase.class) {
-//                if (INSTANCE == null) {
-//                    Log.d(DB_DEBUG_TAG, "=== Creating new database instance ===");
-//                    INSTANCE = Room.databaseBuilder(
-//                                    context.getApplicationContext(),
-//                                    AppDatabase.class,
-//                                    "rehab_db_2"
-//                            )
-//                            // ★ 不要用 fallbackToDestructiveMigration()，會清庫
-//                            .addMigrations(MIGRATION_2_3,MIGRATION_3_4, MIGRATION_4_5,MIGRATION_5_6) // ★ 加上 Migration
-//                            .build();
-//
-//                    // ===== 下面是你原本的預載資料邏輯，維持不動 =====
-//                    new Thread(() -> {
-//                        try {
-//                            TrainingItemDao itemDao = INSTANCE.trainingItemDao();
-//                            TrainingPlanDao planDao = INSTANCE.trainingPlanDao();
-//
-//                            int count = itemDao.count();
-//                            Log.d(DB_DEBUG_TAG, "=== Current item count: " + count + " ===");
-//
-//                            if (count == 0) {
-//                                Log.d(DB_DEBUG_TAG, "=== Inserting default data ===");
-//
-//                                itemDao.insertAll(Preload.getDefaultItems());
-//
-//                                for (TrainingPlan plan : Preload.getDefaultPlans()) {
-//                                    planDao.insertPlan(plan);
-//                                }
-//                                for (var ref : Preload.getDefaultPlanItemLinks()) {
-//                                    planDao.insertCrossRef(ref);
-//                                }
-//                                Log.d(DB_DEBUG_TAG, "=== Default data inserted successfully ===");
-//                            }
-//                        } catch (Exception e) {
-//                            Log.e(DB_DEBUG_TAG, "=== Error inserting data: " + e.getMessage() + " ===");
-//                            e.printStackTrace();
-//                        }
-//                    }).start();
-//                }
-//            }
-//        }
-//        return INSTANCE;
-//    }
 }

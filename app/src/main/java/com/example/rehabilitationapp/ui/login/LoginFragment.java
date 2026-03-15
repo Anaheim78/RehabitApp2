@@ -3,12 +3,13 @@ package com.example.rehabilitationapp.ui.login;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.util.Log;   // ✅ 要 import
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -26,36 +27,14 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 
-//登入邏輯，首次登入後從FireBase搜尋是否存在
-
-//若成功 : 檢查本地DB有無該帳號資料;
-    // 若無則新建該帳號
-    // 已存在: 更新登入時間
-//所以後續使用者在APP設定頁面，修改密碼時，應同步更新本地與FireBase。防呆 : 若本地ROOM的密碼與FIREBASE不同步時，應修改FIREBASE或本地?
-//Q : 假設本地再沒網路得情況更新，是否要同步FIREBASE，或者發現兩者更新沒同步是錯誤，應該以原FIREBASE為主?
-
-//A:
-// A.大原則
-//	1.本地允許修改
-//	2.但始終以 Firebase 為最終真相
-//	3.網路恢復後，以 Firebase 為準
-//
-//B.實際場景
-//	1.離線修改密碼
-//	2.本地先存儲新密碼
-//	3.標記為 PENDING_SYNC
-//	4.網路恢復後同步
-//	5.立即同步到 Firebase，並更新本地同步狀態
-//
-//
-//C. 後台同步服務
-//	1.定期檢查 PENDING_SYNC 狀態
-//	2.重試同步到 Firebase
-//	3.如果多次同步失敗，通知用戶
+// 登入邏輯：
+// 啟動時顯示兩個按鈕：「正式帳號登入」與「快速登入（暱稱）」
+// A軌：點選正式帳號 → 顯示帳號密碼欄位 → Firebase 驗證（原流程）
+// B軌：點選快速登入 → 跳到 QuickRegisterFragment
 
 public class LoginFragment extends Fragment {
 
-    private static final String TAG = "LOGIN"; // ✅ Log 標籤
+    private static final String TAG = "LOGIN";
 
     public LoginFragment() {
         super(R.layout.fragment_login);
@@ -74,12 +53,33 @@ public class LoginFragment extends Fragment {
                               @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // ===== 選擇模式的按鈕 =====
+        Button btnModeFormal = view.findViewById(R.id.btnModeFormal);
+        Button btnModeQuick  = view.findViewById(R.id.btnModeQuick);
+
+        // ===== A軌的輸入區塊 =====
+        LinearLayout layoutFormalLogin = view.findViewById(R.id.layoutFormalLogin);
         EditText etId = view.findViewById(R.id.etId);
         EditText etPassword = view.findViewById(R.id.etPassword);
         Button btnLogin = view.findViewById(R.id.btnLogin);
 
         FirebaseFirestore db = FirebaseFirestore.getInstance();
 
+        // ===== 點「正式帳號登入」→ 顯示帳密欄位 =====
+        btnModeFormal.setOnClickListener(v -> {
+            layoutFormalLogin.setVisibility(View.VISIBLE);
+            btnModeFormal.setVisibility(View.GONE);
+            btnModeQuick.setVisibility(View.GONE);
+        });
+
+        // ===== 點「快速登入」→ 跳到 QuickRegisterFragment =====
+        btnModeQuick.setOnClickListener(v -> {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).switchFragment(new QuickRegisterFragment());
+            }
+        });
+
+        // ===== A軌登入邏輯（原流程不變）=====
         btnLogin.setOnClickListener(v -> {
             String id = etId.getText().toString().trim();
             String password = etPassword.getText().toString().trim();
@@ -119,22 +119,16 @@ public class LoginFragment extends Fragment {
                             String gender = doc.getString("gender");
                             String uiStyle = doc.getString("ui_style");
 
-                            // =====================================================
-                            // STEP 1：先寫入 current_user_id（一定要最早）
-                            // =====================================================
+                            // STEP 1：先寫入 current_user_id
                             SharedPreferences prefs =
                                     requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                             prefs.edit().putString("current_user_id", id).apply();
 
-                            // =====================================================
-                            // STEP 2：寫完 userId → 重新取得正確 User DB
-                            // =====================================================
+                            // STEP 2：取得正確 User DB
                             AppDatabase userDb = AppDatabase.getInstance(requireContext());
                             UserDao userDao = userDb.userDao();
 
-                            // =====================================================
-                            // STEP 3：開始更新/新增 User（現在會寫到正確 DB）
-                            // =====================================================
+                            // STEP 3：更新/新增 User
                             new Thread(() -> {
                                 User existing = userDao.findById(id);
 
@@ -150,6 +144,7 @@ public class LoginFragment extends Fragment {
                                     u.birthday = birthday;
                                     u.gender = gender;
                                     u.uiStyle = uiStyle;
+                                    u.accountType = "formal";  // ★ A軌
 
                                     userDao.insert(u);
                                     Log.d(TAG, "新使用者已寫入正確 DB: " + u.userId);
@@ -160,11 +155,7 @@ public class LoginFragment extends Fragment {
                                 }
                             }).start();
 
-                            // =====================================================
                             // STEP 4：切換到 Home
-                            // =====================================================
-
-                            // ★ 登入成功 Log
                             AppLogger.logLogin(id, name);
                             requireActivity().runOnUiThread(() -> {
                                 if (getActivity() instanceof MainActivity) {
@@ -179,6 +170,4 @@ public class LoginFragment extends Fragment {
                     });
         });
     }
-
-
 }

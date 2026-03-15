@@ -42,56 +42,90 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="16dp"/>
 
-    <!-- ID 輸入框 -->
-    <EditText
-        android:id="@+id/etId"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:hint="@string/login_id"
-        android:background="@drawable/login_edittext"
-        android:textColor="@android:color/black"
-        android:textColorHint="#888888"
-        app:layout_constraintTop_toTopOf="@id/guideline_input"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintWidth_percent="0.41"
-        android:layout_marginTop="32dp"/>
+    <!-- ★★★ 選擇登入方式的按鈕 ★★★ -->
 
-
-    <!-- Password 輸入框（百分比寬度響應） -->
-    <EditText
-        android:id="@+id/etPassword"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:hint="@string/login_password"
-        android:inputType="textPassword"
-        android:background="@drawable/login_edittext"
-        android:textColor="@android:color/black"
-        android:textColorHint="#888888"
-        app:layout_constraintTop_toBottomOf="@id/etId"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintWidth_percent="0.41"
-        android:layout_marginTop="16dp"/>
-
-
-
-    <!-- 登入按鈕 -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnLogin"
-        android:layout_width="153dp"
-        android:layout_height="44dp"
-        android:text="@string/login_login"
+        android:id="@+id/btnModeFormal"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:text="@string/login_mode_formal"
         android:textColor="@android:color/black"
-        android:textSize="13sp"
+        android:textSize="14sp"
         android:textStyle="bold"
         android:background="@drawable/btn_login"
         app:backgroundTint="@null"
-        app:layout_constraintTop_toBottomOf="@id/etPassword"
+        app:layout_constraintTop_toTopOf="@id/guideline_input"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp"/>
+        app:layout_constraintWidth_percent="0.55"
+        android:layout_marginTop="16dp"/>
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnModeQuick"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:text="@string/login_mode_quick"
+        android:textColor="@android:color/black"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="@drawable/btn_login"
+        app:backgroundTint="@null"
+        app:layout_constraintTop_toBottomOf="@id/btnModeFormal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintWidth_percent="0.55"
+        android:layout_marginTop="12dp"/>
 
+    <!-- ★★★ A軌：帳密輸入區塊（預設隱藏） ★★★ -->
+
+    <LinearLayout
+        android:id="@+id/layoutFormalLogin"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@id/guideline_input"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintWidth_percent="0.55"
+        android:layout_marginTop="16dp">
+
+        <!-- ID 輸入框 -->
+        <EditText
+            android:id="@+id/etId"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/login_id"
+            android:background="@drawable/login_edittext"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"/>
+
+        <!-- Password 輸入框 -->
+        <EditText
+            android:id="@+id/etPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/login_password"
+            android:inputType="textPassword"
+            android:background="@drawable/login_edittext"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:layout_marginTop="16dp"/>
+
+        <!-- 登入按鈕 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLogin"
+            android:layout_width="153dp"
+            android:layout_height="44dp"
+            android:text="@string/login_login"
+            android:textColor="@android:color/black"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:background="@drawable/btn_login"
+            app:backgroundTint="@null"
+            android:layout_marginTop="24dp"/>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

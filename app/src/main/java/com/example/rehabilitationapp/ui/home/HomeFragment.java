@@ -477,6 +477,7 @@ public class HomeFragment extends Fragment {
 
                 Log.d("Sync_forTest", "LoggedInUser = " + user.userId + ", need_sync = " + user.need_sync);
 
+                if ("quick".equals(user.accountType)) return;
                 if (user.need_sync != 1) return;
 
                 FirebaseFirestore db = FirebaseFirestore.getInstance();

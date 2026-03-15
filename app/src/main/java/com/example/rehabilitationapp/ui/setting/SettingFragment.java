@@ -174,6 +174,13 @@ public class SettingFragment extends Fragment {
                     i.putExtra("EXTRA_USER_ID", uid);
                     startActivity(i);
                 });
+
+                // ★ B軌隱藏不需要的欄位
+                if ("quick".equals(me.accountType)) {
+                    btnChangePassword.setVisibility(View.GONE);
+                    tvEmail.setVisibility(View.GONE);
+                    tvBirthday.setVisibility(View.GONE);
+                }
             });
         }).start();
     }

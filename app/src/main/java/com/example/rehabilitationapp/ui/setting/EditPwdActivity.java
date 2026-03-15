@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp.ui.setting;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -23,6 +24,15 @@ public class EditPwdActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        String accountType = prefs.getString("account_type", "formal");
+        if ("quick".equals(accountType)) {
+            Toast.makeText(this, "快速登入不支援修改密碼", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_change_password_profile);
 
         // 綁定 View

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_login_gradient"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingHorizontal="40dp"
+        android:paddingTop="60dp"
+        android:paddingBottom="40dp">
+
+        <!-- 標題 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/quick_register_title"
+            android:textSize="22sp"
+            android:textColor="#771534"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/quick_register_subtitle"
+            android:textSize="14sp"
+            android:textColor="#888888"
+            android:layout_marginTop="8dp" />
+
+        <!-- ===== 暱稱 ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="暱稱"
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:textStyle="bold"
+            android:layout_marginTop="32dp" />
+
+        <EditText
+            android:id="@+id/etNickname"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="請輸入暱稱"
+            android:background="@drawable/login_edittext"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:layout_marginTop="8dp" />
+
+        <!-- ===== 年齡範圍 ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="年齡範圍"
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp" />
+
+        <Spinner
+            android:id="@+id/spinnerAge"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/login_edittext"
+            android:layout_marginTop="8dp" />
+
+        <!-- ===== 性別 ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="性別"
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp" />
+
+        <RadioGroup
+            android:id="@+id/rgGender"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <RadioButton
+                android:id="@+id/rbMale"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="男"
+                android:tag="M"
+                android:textColor="#333333" />
+
+            <RadioButton
+                android:id="@+id/rbFemale"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="女"
+                android:tag="F"
+                android:textColor="#333333" />
+        </RadioGroup>
+
+        <!-- ===== 術後天數 ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="術後天數"
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp" />
+
+        <EditText
+            android:id="@+id/etSurgeryDays"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="請輸入天數（如 7）"
+            android:inputType="number"
+            android:background="@drawable/login_edittext"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:layout_marginTop="8dp" />
+
+        <!-- ===== 診斷類型 ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="診斷類型"
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp" />
+
+        <EditText
+            android:id="@+id/etDiagnosis"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="請輸入診斷類型（如：口腔癌、舌癌）"
+            android:background="@drawable/login_edittext"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:layout_marginTop="8dp" />
+
+        <!-- ===== 按鈕區 ===== -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnQuickRegister"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="@string/quick_register_confirm"
+            android:textColor="@android:color/black"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/btn_login"
+            app:backgroundTint="@null"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:layout_marginTop="32dp" />
+
+        <Button
+            android:id="@+id/btnBackToLogin"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/quick_register_back"
+            android:textColor="#771534"
+            android:textSize="13sp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_marginTop="12dp" />
+
+    </LinearLayout>
+</ScrollView>
