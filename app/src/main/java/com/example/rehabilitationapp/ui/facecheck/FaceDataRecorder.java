@@ -50,9 +50,11 @@ public class FaceDataRecorder {
 
     //CSV Header
 //    private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
-    // 臉頰 26 個點的 header，直接展開成 CSV 欄位名稱
+    // 臉頰 FULL (27+27) 個點的 header，直接展開成 CSV 欄位名稱
+    // ORIG 18+18 + FULL 額外 9+9 = 共 27+27
     private static final String CHEEKS_HEADER =
             "time_seconds,state" +
+                    // ===== 左臉頰 ORIG 18 點 =====
                     ",point117_x,point117_y,point117_z" +
                     ",point118_x,point118_y,point118_z" +
                     ",point101_x,point101_y,point101_z" +
@@ -71,7 +73,18 @@ public class FaceDataRecorder {
                     ",point39_x,point39_y,point39_z" +
                     ",point40_x,point40_y,point40_z" +
                     ",point186_x,point186_y,point186_z" +
+                    // ===== 左臉頰 FULL 額外 9 點 =====
+                    ",point50_x,point50_y,point50_z" +
+                    ",point187_x,point187_y,point187_z" +
+                    ",point205_x,point205_y,point205_z" +
+                    ",point207_x,point207_y,point207_z" +
+                    ",point206_x,point206_y,point206_z" +
+                    ",point216_x,point216_y,point216_z" +
+                    ",point165_x,point165_y,point165_z" +
+                    ",point92_x,point92_y,point92_z" +
+                    ",point167_x,point167_y,point167_z" +
 
+                    // ===== 右臉頰 ORIG 18 點 =====
                     ",point164_x,point164_y,point164_z" +
                     ",point0_x,point0_y,point0_z" +
                     ",point267_x,point267_y,point267_z" +
@@ -90,6 +103,16 @@ public class FaceDataRecorder {
                     ",point347_x,point347_y,point347_z" +
                     ",point330_x,point330_y,point330_z" +
                     ",point266_x,point266_y,point266_z" +
+                    // ===== 右臉頰 FULL 額外 9 點 =====
+                    ",point393_x,point393_y,point393_z" +
+                    ",point391_x,point391_y,point391_z" +
+                    ",point322_x,point322_y,point322_z" +
+                    ",point426_x,point426_y,point426_z" +
+                    ",point436_x,point436_y,point436_z" +
+                    ",point425_x,point425_y,point425_z" +
+                    ",point427_x,point427_y,point427_z" +
+                    ",point280_x,point280_y,point280_z" +
+                    ",point411_x,point411_y,point411_z" +
                     ",img_w,img_h,nosePeakDirection";
 
 
@@ -325,9 +348,11 @@ public class FaceDataRecorder {
             if ("COUNTDOWN".equals(state)) {
                 return;
             }
-            // 臉頰 index
-            int[] LEFT_CHEEK_IDXS = {117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186};
-            int[] RIGHT_CHEEK_IDXS = {164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266};
+            // 臉頰 FULL index (27+27，與電腦版一致)
+            int[] LEFT_CHEEK_IDXS = {117,118,101,36,203,212,214,192,147,123,98,97,164,0,37,39,40,186,
+                    50,187,205,207,206,216,165,92,167};
+            int[] RIGHT_CHEEK_IDXS = {164,0,267,269,270,410,423,327,326,432,434,416,376,352,346,347,330,266,
+                    393,391,322,426,436,425,427,280,411};
 
 
             Log.d(TAG, "臉頰曲率參數 img_w=" + img_w + ",img_h=" + img_h);
