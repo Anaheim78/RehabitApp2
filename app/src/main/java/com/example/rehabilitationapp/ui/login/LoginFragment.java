@@ -36,6 +36,13 @@ public class LoginFragment extends Fragment {
 
     private static final String TAG = "LOGIN";
 
+    // ##### 2026_0315_CAI 雙軌登入修改 - 切換模式 #####
+// "both"  = 顯示雙軌選擇（A+B 都有）
+// "quick" = 只能匿名登入（B軌版 APK）
+// "formal" = 只能正式帳號登入（A軌版 APK）
+    private static final String LOGIN_MODE = "quick";
+// ##### 2026_0315_CAI 雙軌登入修改 END #####
+
     public LoginFragment() {
         super(R.layout.fragment_login);
     }
@@ -64,6 +71,22 @@ public class LoginFragment extends Fragment {
         Button btnLogin = view.findViewById(R.id.btnLogin);
 
         FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+
+// ##### 2026_0315_CAI 雙軌登入修改 - 登入模式切換 #####
+        if ("quick".equals(LOGIN_MODE)) {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).switchFragment(new QuickRegisterFragment());
+            }
+            return;
+        }
+        if ("formal".equals(LOGIN_MODE)) {
+            layoutFormalLogin.setVisibility(View.VISIBLE);
+            btnModeFormal.setVisibility(View.GONE);
+            btnModeQuick.setVisibility(View.GONE);
+        }
+// ##### 2026_0315_CAI 雙軌登入修改 END #####
+
 
         // ===== 點「正式帳號登入」→ 顯示帳密欄位 =====
         btnModeFormal.setOnClickListener(v -> {

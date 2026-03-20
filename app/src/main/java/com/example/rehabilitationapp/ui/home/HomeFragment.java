@@ -150,7 +150,12 @@ public class HomeFragment extends Fragment {
         //20251123 登出功能
         TextView homeText = root.findViewById(R.id.home_text);
 
-
+        // ##### 2026_0315_CAI 雙軌登入修改 - B軌隱藏登出 #####
+        SharedPreferences accountPrefs = requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        if ("quick".equals(accountPrefs.getString("account_type", "formal"))) {
+            homeText.setVisibility(View.GONE);
+        }
+        // ##### 2026_0315_CAI 雙軌登入修改 END #####
 
         homeText.setOnClickListener(v -> {
 
