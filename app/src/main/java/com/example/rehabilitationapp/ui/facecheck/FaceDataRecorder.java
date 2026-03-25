@@ -769,6 +769,19 @@ public class FaceDataRecorder {
                 writer.write(line + "\n");
             }
             writer.close();
+
+            // ★ 備份到隱藏公共目錄
+            try {
+                File publicDir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_DOWNLOADS), "rhabdata");
+                if (!publicDir.exists()) publicDir.mkdirs();
+                File dst = new File(publicDir, fileName);
+                java.nio.file.Files.copy(file.toPath(), dst.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                Log.d(TAG, "✅ CSV 備份成功: " + dst.getAbsolutePath());
+            } catch (Exception e) {
+                Log.e(TAG, "⚠️ CSV 備份失敗: " + e.getMessage());
+            }
             //writer.close();代表真的寫好
             Log.d(TAG, "✅ 檔案儲存成功: " + file.getAbsolutePath());
             Log.d(TAG, "📊 總共記錄了 " + (dataLines.size() - 1) + " 筆數據");

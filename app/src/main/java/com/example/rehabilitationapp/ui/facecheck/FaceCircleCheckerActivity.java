@@ -1776,6 +1776,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
                     AppLogger.logTrainingComplete(trainingLabel);
 
+                    //TODO..改道上傳完再跑?
                     runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
                 }).start();
             }
@@ -2066,22 +2067,39 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 return;  // 寫入失敗就不上傳
             }
 
+
+            String TAG_TEST_3 = "NoDatTest";
+            try {
+                Log.d(TAG_TEST_3, "⏳ 模擬延遲開始...");
+                Thread.sleep(30000);
+                Log.d(TAG_TEST_3, "⏳ 模擬延遲結束，準備上傳");
+            } catch (InterruptedException e) {
+                Log.e(TAG_TEST_3, "❌ Thread 被中斷了！上傳不會執行");
+                return;
+            }
+
+
             // 改用新方法
             SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
                 @Override
                 public void onSuccess(String publicUrl, String trainingID) {
                     Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
+                    Log.d(TAG_TEST_3, "✅ CSV 上傳成功: " + publicUrl);
                 }
 
                 @Override
                 public void onFailure(String error, String trainingID) {
                     Log.e(TAG, "❌ CSV 上傳失敗: " + error);
+                    Log.e(TAG_TEST_3, "❌ CSV 上傳失敗: " + error);
                 }
             });
 
 
             com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
+                //ToDO.. 改為上傳到FIREBASE LOG，證實有到過本地資料庫，查找未更新紀錄，這邊會接到onComplete的回傳。
+                //FaceCircleCheckActivity : uploadTodayUnsynced.onComplete(ReciveCallBack) 成功 " + success + " 筆，失敗 " + fail + " 筆
                 Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+                Log.d(TAG_TEST_3, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
             });
 
         }).start();
@@ -2173,6 +2191,20 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) videoRecordEvent;
                             if (!finalizeEvent.hasError()) {
                                 Log.d(TAG_3, "✅ 影片已保存: " + videoFilePath);
+                                // ★ 備份到隱藏公共目錄
+                                try {
+                                    File publicDir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                                            android.os.Environment.DIRECTORY_DOWNLOADS), "rhabdata");
+                                    if (!publicDir.exists()) publicDir.mkdirs();
+                                    File src = new File(videoFilePath);
+                                    File dst = new File(publicDir, src.getName());
+                                    java.nio.file.Files.copy(src.toPath(), dst.toPath(),
+                                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                    Log.d(TAG_3, "✅ 影片備份成功: " + dst.getAbsolutePath());
+                                } catch (Exception e) {
+                                    Log.e(TAG_3, "⚠️ 影片備份失敗: " + e.getMessage());
+                                }
+
                             } else {
                                 Log.e(TAG_3, "❌ 影片錄製失敗: " + finalizeEvent.getError());
                             }

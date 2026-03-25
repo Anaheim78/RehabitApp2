@@ -120,6 +120,7 @@ public class AppLogger {
         bundle.putString("training_id", trainingId);
         bundle.putBoolean("success", success);
         bundle.putLong("timestamp", System.currentTimeMillis());
+        //只區分成功失敗
         logEvent("firebase_upload", bundle);
 
         if (!success && error != null) {

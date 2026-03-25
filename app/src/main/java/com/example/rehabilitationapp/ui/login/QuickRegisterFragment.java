@@ -122,26 +122,23 @@ public class QuickRegisterFragment extends Fragment {
             RadioButton selectedGender = view.findViewById(selectedGenderId);
             String gender = selectedGender.getTag().toString(); // tag="M" or "F"
 
-            // 4. 驗證術後天數
+            // 4. 術後天數（選填）
             String surgeryDaysStr = etSurgeryDays.getText().toString().trim();
-            if (surgeryDaysStr.isEmpty()) {
-                Toast.makeText(getContext(), "請輸入術後天數", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            int surgeryDays;
-            try {
-                surgeryDays = Integer.parseInt(surgeryDaysStr);
-            } catch (NumberFormatException e) {
-                Toast.makeText(getContext(), "術後天數請輸入數字", Toast.LENGTH_SHORT).show();
-                return;
+            final int surgeryDays;
+            if (!surgeryDaysStr.isEmpty()) {
+                int parsed = -1;
+                try {
+                    parsed = Integer.parseInt(surgeryDaysStr);
+                } catch (NumberFormatException e) {
+                    // 不是數字就忽略
+                }
+                surgeryDays = parsed;
+            } else {
+                surgeryDays = -1;
             }
 
-            // 5. 驗證診斷類型
+            // 5. 診斷類型（選填）
             String diagnosisType = etDiagnosis.getText().toString().trim();
-            if (diagnosisType.isEmpty()) {
-                Toast.makeText(getContext(), "請輸入診斷類型", Toast.LENGTH_SHORT).show();
-                return;
-            }
 
             // ===== 產生 userId =====
             String shortId = UUID.randomUUID().toString().substring(0, 4);

@@ -270,7 +270,8 @@ fun 訓練結果頁() {
                             csvDone = false
                             isSyncing = true
                             showSyncDialog = true
-
+                            //這裡為匿名類別（Anonymous Class，可以覆寫多個方法(onProgress、onComplete)
+                            //這裡不是Lambda（只能覆寫一個方法
                             FirebaseUploader.uploadTodayUnsynced(context, object : FirebaseUploader.UploadCallback {
                                 override fun onProgress(current: Int, total: Int) {
                                     syncProgressFb = Pair(current, total)
