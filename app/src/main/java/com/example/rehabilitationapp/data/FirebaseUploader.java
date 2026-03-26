@@ -102,16 +102,21 @@ public class FirebaseUploader {
                         .set(data)
                         //兩個Listener一定會觸發嗎?
                         .addOnSuccessListener(aVoid -> {
-                            //TODO .. AppLogger先註記item.trainingID已經進入addOnSuccessListener區塊
                             Log.d(TAG_TEST_3, "AppLogger先註記item.trainingID已經進入addOnSuccessListener區塊");
-                            AppLogger.log("FirebaseUploader單筆上傳成功", item.trainingID+"已經進入addOnSuccessListener區塊");
-                            //Q : 目的要去回壓DB為何要開異步?不用同步?
-                            //以下可能會導致哪一些結果
-                            //結果 : 1 完成 : ，2 中斷 :
+                            AppLogger.log("FirebaseUploader單筆上傳成功", item.trainingID + "已經進入addOnSuccessListener區塊");
+
                             new Thread(() -> {
-                                AppDatabase.getInstance(context.getApplicationContext())
-                                        .trainingHistoryDao().markSynced(item.trainingID);
+                                try {
+                                    AppDatabase.getInstance(context.getApplicationContext())
+                                            .trainingHistoryDao().markSynced(item.trainingID);
+                                    AppLogger.log("FirebaseUploader", "已標記 synced=1: " + item.trainingID);
+                                } catch (Exception e) {
+                                    AppLogger.logError("FirebaseUploader", "markSynced 失敗: " + item.trainingID + " " + e.getMessage());
+                                }
                             }).start();
+
+
+                            // ... 後面不變
 
 
 

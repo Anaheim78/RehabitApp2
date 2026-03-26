@@ -92,7 +92,12 @@ public class FirebaseUploadWorker extends Worker {
                     .set(data)
                     .addOnSuccessListener(aVoid -> {
                         new Thread(() -> {
-                            AppDatabase.getInstance(context).trainingHistoryDao().markSynced(trainingID);
+                            try {
+                                AppDatabase.getInstance(context).trainingHistoryDao().markSynced(trainingID);
+                                AppLogger.log("FirebaseUploadWorker", "已標記 synced=1: " + trainingID);
+                            } catch (Exception e) {
+                                AppLogger.logError("FirebaseUploadWorker", "markSynced 失敗: " + trainingID + " " + e.getMessage());
+                            }
                         }).start();
 
                         Log.d(TAG, "✅ WorkManager 上傳 Firebase 成功: " + trainingID);

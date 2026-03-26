@@ -102,16 +102,17 @@ public class CsvUploadWorker extends Worker {
                     .child(storagePath)
                     .putFile(Uri.fromFile(csvFile))
                     .addOnSuccessListener(taskSnapshot -> {
-                        AppLogger.log("CsvUploadWorker.putFile.addOnSuccessListener", "檔名: " + csvFileName + " trainingID: " + trainingID);
                         new Thread(() -> {
-                            AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
-                            AppLogger.log("CsvUploadWorker.putFile.addOnSuccessListener_並回壓至DB", "檔名: " + csvFileName + " trainingID: " + trainingID);
+                            try {
+                                AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
+                                AppLogger.log("CsvUploadWorker", "已標記 csvUploaded=1: " + trainingID);
+                            } catch (Exception e) {
+                                AppLogger.logError("CsvUploadWorker", "markCsvUploaded 失敗: " + trainingID + " " + e.getMessage());
+                            }
                         }).start();
 
-
                         Log.d(TAG, "✅ WorkManager 上傳成功: " + trainingID);
-                        AppLogger.log("WorkManager addOnSuccessListener 上傳成功", "檔名: " + csvFileName + " trainingID: " + trainingID);
-
+                        AppLogger.log("CsvUploadWorker.addOnSuccessListener", "✅ 上傳成功 trainingID: " + trainingID);
                         AppLogger.logCsvUpload(trainingID, true, null);
                         success[0] = true;
                         latch.countDown();
