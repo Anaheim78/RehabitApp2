@@ -1724,7 +1724,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateStatusDisplay();
         updateTimerDisplay();
 
-        Toast.makeText(this, " 訓練完成！\n正在儲存檔案並進行分析...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, " 訓練完成，資料上傳中...", Toast.LENGTH_LONG).show();
 
         //這邊會先呼叫dataRecorder.saveToFileWithCallbac，做運算完成後會從dataRecorder那邊呼叫下面方法onComplete
         //底下new FaceDataRecorder.DataSaveCallback()，好像是一個callBack物件在saveToFileWithCallback方法當參數
@@ -1773,6 +1773,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     fduration = (int) res.totalActionTime;
 
                     //存檔與跳頁
+                    //Todo 互動
+                    // runOnUiThread(() ->
+                    runOnUiThread(() ->
+                            Toast.makeText(FaceCircleCheckerActivity.this, "📤 資料上傳中，請稍候再離開", Toast.LENGTH_LONG).show()
+                    );
+                    
                     insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
                     AppLogger.logTrainingComplete(trainingLabel);
 
@@ -2057,6 +2063,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         new Thread(() -> {
 
+
+
             // 加 try-catch
             try {
                 AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
@@ -2069,38 +2077,64 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
             String TAG_TEST_3 = "NoDatTest";
-            try {
-                Log.d(TAG_TEST_3, "⏳ 模擬延遲開始...");
-                Thread.sleep(30000);
-                Log.d(TAG_TEST_3, "⏳ 模擬延遲結束，準備上傳");
-            } catch (InterruptedException e) {
-                Log.e(TAG_TEST_3, "❌ Thread 被中斷了！上傳不會執行");
-                return;
-            }
 
 
-            // 改用新方法
+
+            // 改用新方法 更換Toast樣式
+//            SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
+//                @Override
+//                public void onSuccess(String publicUrl, String trainingID) {
+//                    Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
+//                    Log.d(TAG_TEST_3, "✅ CSV 上傳成功: " + publicUrl);
+//
+//                }
+//
+//                @Override
+//                public void onFailure(String error, String trainingID) {
+//                    Log.e(TAG, "❌ CSV 上傳失敗: " + error);
+//                    Log.e(TAG_TEST_3, "❌ CSV 上傳失敗: " + error);
+//                }
+//            });
+//
+//
+//            com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
+//                //ToDO.. 改為上傳到FIREBASE LOG，證實有到過本地資料庫，查找未更新紀錄，這邊會接到onComplete的回傳。
+//                //FaceCircleCheckActivity : uploadTodayUnsynced.onComplete(ReciveCallBack) 成功 " + success + " 筆，失敗 " + fail + " 筆
+//                Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+//                Log.d(TAG_TEST_3, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+//            });
+
+
+            final boolean[] fbDone = {false};
+            final boolean[] csvDone = {false};
+            final boolean[] fbOk = {false};
+            final boolean[] csvOk = {false};
+
             SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
                 @Override
                 public void onSuccess(String publicUrl, String trainingID) {
                     Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
-                    Log.d(TAG_TEST_3, "✅ CSV 上傳成功: " + publicUrl);
+                    csvDone[0] = true;
+                    csvOk[0] = true;
+                    showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
                 }
 
                 @Override
                 public void onFailure(String error, String trainingID) {
                     Log.e(TAG, "❌ CSV 上傳失敗: " + error);
-                    Log.e(TAG_TEST_3, "❌ CSV 上傳失敗: " + error);
+                    csvDone[0] = true;
+                    csvOk[0] = false;
+                    showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
                 }
             });
 
-
             com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
-                //ToDO.. 改為上傳到FIREBASE LOG，證實有到過本地資料庫，查找未更新紀錄，這邊會接到onComplete的回傳。
-                //FaceCircleCheckActivity : uploadTodayUnsynced.onComplete(ReciveCallBack) 成功 " + success + " 筆，失敗 " + fail + " 筆
                 Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
-                Log.d(TAG_TEST_3, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+                fbDone[0] = true;
+                fbOk[0] = (fail == 0);
+                showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
             });
+
 
         }).start();
     }
@@ -2572,6 +2606,18 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         headMotionHistory.clear();
         lastHeadStable = true;
         headStableCooldown = 0;
+    }
+
+    private void showUploadToast(boolean fbDone, boolean csvDone, boolean fbOk, boolean csvOk) {
+        if (!fbDone || !csvDone) return;
+
+        String msg = (fbOk && csvOk)
+                ? "✅ 上傳完成"
+                : "⚠️ 上傳失敗，系統稍後會自動重試";
+
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show()
+        );
     }
 
 

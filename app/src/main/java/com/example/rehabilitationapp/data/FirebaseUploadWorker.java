@@ -17,7 +17,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class FirebaseUploadWorker extends Worker {
-
+    //ToDo..檢查整枝CODE有沒有沒抓到FIREBASE LOG的ERROR
     private static final String TAG = "FirebaseUploadWorker";
 
     public FirebaseUploadWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -29,9 +29,11 @@ public class FirebaseUploadWorker extends Worker {
     public Result doWork() {
         String trainingID = getInputData().getString("trainingID");
 
+        //TODO.. 改記到雲端
         Log.d(TAG, "🔄 WorkManager 開始上傳 Firebase: " + trainingID);
 
         if (trainingID == null || trainingID.isEmpty()) {
+            //TODO.. 改記到雲端，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.e(TAG, "❌ 參數錯誤，跳過");
             return Result.failure();
         }
@@ -43,11 +45,13 @@ public class FirebaseUploadWorker extends Worker {
                 .trainingHistoryDao().getById(trainingID);
 
         if (record == null) {
+            //TODO.. 改記到雲端，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.d(TAG, "⚠️ 紀錄不存在，跳過: " + trainingID);
             return Result.failure();
         }
 
         if (record.synced == 1) {
+            //TODO.. 改記到雲端，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.d(TAG, "✅ 已上傳過，跳過: " + trainingID);
             return Result.success();
         }
@@ -57,6 +61,7 @@ public class FirebaseUploadWorker extends Worker {
         String userId = prefs.getString("current_user_id", null);
 
         if (userId == null) {
+            //TODO.. 改記到雲端，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.e(TAG, "❌ 找不到 userId");
             return Result.retry();
         }
@@ -86,12 +91,16 @@ public class FirebaseUploadWorker extends Worker {
                     new Thread(() -> {
                         AppDatabase.getInstance(context).trainingHistoryDao().markSynced(trainingID);
                     }).start();
+
+                    //Todo 表明trainingID ，並且是在Worker的addOnSuccessListener內
                     Log.d(TAG, "✅ WorkManager 上傳 Firebase 成功: " + trainingID);
                     AppLogger.logFirebaseUpload(trainingID, true, null);
+
                     success[0] = true;
                     latch.countDown();
                 })
                 .addOnFailureListener(e -> {
+                    //Todo 表明trainingID，並且是在Worker的addOnFailureListener內
                     Log.e(TAG, "❌ 上傳失敗: " + e.getMessage());
                     AppLogger.logFirebaseUpload(trainingID, false, e.getMessage());
                     success[0] = false;
@@ -101,10 +110,12 @@ public class FirebaseUploadWorker extends Worker {
         try {
             latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
+            //Todo 表明trainingID，並且是在Worker的latch.await超時
             Log.e(TAG, "❌ 等待超時");
             return Result.retry();
         }
 
+        //Todo 這裡要說明Worker末段，success[0]=?，成功:失敗
         return success[0] ? Result.success() : Result.retry();
     }
 }

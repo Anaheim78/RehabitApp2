@@ -152,7 +152,7 @@ public class QuickRegisterFragment extends Fragment {
             prefs.edit()
                     .putString("current_user_id", generatedUserId)
                     .putString("account_type", "quick")  // ★ 標記為 B軌
-                    .apply();
+                    .commit();
 
             // ===== STEP 2：取得對應 DB 並建帳 =====
             AppDatabase userDb = AppDatabase.getInstance(requireContext());

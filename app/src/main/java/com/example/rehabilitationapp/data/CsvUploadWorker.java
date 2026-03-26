@@ -21,7 +21,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class CsvUploadWorker extends Worker {
-
+    //ToDo..檢查整枝CODE有沒有沒抓到FIREBASE LOG的ERROR
     private static final String TAG = "CsvUploadWorker";
     private static final String SUPABASE_URL = "https://xexprgwyxrxegpdxbvno.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhleHByZ3d5eHJ4ZWdwZHhidm5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MzUyNTksImV4cCI6MjA4MzMxMTI1OX0.b2MUA2LIWZJaS7Mg_DKWrWCDrKuRwmtmNqbVNL8tL0U";
@@ -37,9 +37,12 @@ public class CsvUploadWorker extends Worker {
         String trainingID = getInputData().getString("trainingID");
         String csvFileName = getInputData().getString("csvFileName");
 
+
         Log.d(TAG, "🔄 WorkManager 開始上傳: " + trainingID);
 
+
         if (trainingID == null || csvFileName == null || csvFileName.isEmpty()) {
+            // TODO .. : 改為雲端LOG紀錄，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.e(TAG, "❌ 參數錯誤，跳過");
             return Result.failure();
         }
@@ -49,12 +52,14 @@ public class CsvUploadWorker extends Worker {
                 .trainingHistoryDao().getById(trainingID);
 
         if (record == null) {
+            // TODO .. : 改為雲端LOG紀錄，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.d(TAG, "⚠️ 紀錄不存在，跳過: " + trainingID);
             return Result.failure();
         }
 
         if (record.csvUploaded == 1) {
-            Log.d(TAG, "✅ 已由 A 版上傳完成，跳過: " + trainingID);
+            // TODO .. : 改為雲端LOG紀錄，並告知"檢查不通過"永久不會再嘗試重傳處理。
+            Log.d(TAG, "✅ 已上傳完成，跳過: " + trainingID);
             return Result.success();
         }
 
@@ -62,7 +67,8 @@ public class CsvUploadWorker extends Worker {
         try {
             Context context = getApplicationContext();
             SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-            String userId = prefs.getString("current_user_id", "guest");
+            // TODO .. : 想想取道error怎麼解決。
+            String userId = prefs.getString("current_user_id", "null");
 
             File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
             File csvFile = new File(dir, csvFileName);
@@ -71,6 +77,8 @@ public class CsvUploadWorker extends Worker {
                 Log.e(TAG, "❌ 檔案不存在: " + csvFileName);
                 return Result.failure();
             }
+
+            //ToDo..開始裝入Byte，但都是舊方法Subsapce
 
             byte[] fileBytes = java.nio.file.Files.readAllBytes(csvFile.toPath());
             String trainingType = extractTrainingType(csvFileName);
@@ -99,11 +107,13 @@ public class CsvUploadWorker extends Worker {
             if (response.isSuccessful() ||
                     responseBody.contains("Duplicate") ||
                     responseBody.contains("already exists")) {
+
                 // 上傳成功，標記 DB
                 AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
                 Log.d(TAG, "✅ WorkManager 上傳成功: " + trainingID);
                 AppLogger.logCsvUpload(trainingID, true, null);
                 return Result.success();
+
             } else {
                 Log.e(TAG, "❌ 上傳失敗: " + response.code());
                 AppLogger.logCsvUpload(trainingID, false, "HTTP " + response.code());

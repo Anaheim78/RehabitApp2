@@ -145,7 +145,7 @@ public class LoginFragment extends Fragment {
                             // STEP 1：先寫入 current_user_id
                             SharedPreferences prefs =
                                     requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-                            prefs.edit().putString("current_user_id", id).apply();
+                            prefs.edit().putString("current_user_id", id).commit();
 
                             // STEP 2：取得正確 User DB
                             AppDatabase userDb = AppDatabase.getInstance(requireContext());
