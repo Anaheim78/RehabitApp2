@@ -1733,6 +1733,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
             @Override
             public void onComplete(CSVMotioner.PyAnalysisResult res) {
+
+
+                AppLogger.logTrainingComplete(trainingLabel);
+
                 //20251002 : 現在要從遠端回傳改回佣PYHON本地值
                 Log.d(TAG, "✅ 測試傳數值到Vercel_");
                 //變數宣告
@@ -1776,11 +1780,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     //Todo 互動
                     // runOnUiThread(() ->
                     runOnUiThread(() ->
-                            Toast.makeText(FaceCircleCheckerActivity.this, "📤 資料上傳中，請稍候再離開", Toast.LENGTH_LONG).show()
+                            Toast.makeText(FaceCircleCheckerActivity.this, "資料上傳中，請稍候再離開", Toast.LENGTH_LONG).show()
                     );
+                    AppLogger.log("Toast", "資料上傳中，請稍候再離開");
                     
                     insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
-                    AppLogger.logTrainingComplete(trainingLabel);
+
 
                     //TODO..改道上傳完再跑?
                     runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
@@ -2114,6 +2119,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 @Override
                 public void onSuccess(String publicUrl, String trainingID) {
                     Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
+                    AppLogger.log("FaceCheck畫面，uploadCsvWithMark onSuccess，Toast顯示 : CSV 上傳成功", publicUrl);
                     csvDone[0] = true;
                     csvOk[0] = true;
                     showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
@@ -2122,6 +2128,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 @Override
                 public void onFailure(String error, String trainingID) {
                     Log.e(TAG, "❌ CSV 上傳失敗: " + error);
+                    AppLogger.log("FaceCheck畫面，uploadCsvWithMark onFailure，Toast顯示 : CSV 上傳失敗", error);
+                    AppLogger.logError("FaceCheck畫面，uploadCsvWithMark onFailure，Toast顯示 : CSV 上傳失敗", error);
                     csvDone[0] = true;
                     csvOk[0] = false;
                     showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
@@ -2129,9 +2137,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             });
 
             com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
-                Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+                Log.d(TAG, "FirebaseUploader.uploadTodayUnsynced自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
                 fbDone[0] = true;
                 fbOk[0] = (fail == 0);
+                AppLogger.log("FaceCheck畫面，FirebaseUploader 上傳結果", "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
                 showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
             });
 

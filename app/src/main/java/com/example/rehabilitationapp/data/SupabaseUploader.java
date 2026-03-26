@@ -11,22 +11,18 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+
 import com.example.rehabilitationapp.data.model.TrainingHistory;
 import java.util.List;
+
+import com.google.firebase.storage.FirebaseStorage;
+import android.net.Uri;
 
 public class SupabaseUploader {
     //ToDo..檢查整枝CODE有沒有沒抓到FIREBASE LOG的ERROR
     private static final String TAG = "SupabaseUploader";
 
-    // 🔥 你的 Supabase 設定
-    private static final String SUPABASE_URL = "https://xexprgwyxrxegpdxbvno.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhleHByZ3d5eHJ4ZWdwZHhidm5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MzUyNTksImV4cCI6MjA4MzMxMTI1OX0.b2MUA2LIWZJaS7Mg_DKWrWCDrKuRwmtmNqbVNL8tL0U";
-    private static final String BUCKET_NAME = "CSV_RehabAPP";
+
 
     static String TAG_TEST_3 = "NoDatTest";
 
@@ -48,6 +44,7 @@ public class SupabaseUploader {
                 SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                 String userId = prefs.getString("current_user_id", "null");
 
+                AppLogger.log("SharedPreferences查詢current_user_id", "userId==>"+userId);
 
                 //context.getExternalFilesDir(...) ==> /Android/data/你的app/files/XXX/，App私有空間
                 File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
@@ -57,66 +54,61 @@ public class SupabaseUploader {
                     //ToDo..寫到FIREBASE_LOG
                     Log.e(TAG, "❌ CSV 檔案不存在: " + fileName);
                     Log.e(TAG_TEST_3,"❌ CSV 檔案不存在: " + fileName);
+
+                    AppLogger.log("SupabaseUploader.uploadCsvWithMark CSV 檔案存在檢查: ", "CSV檔案不存在==>"+fileName);
+                    AppLogger.logError("SupabaseUploader.uploadCsvWithMark CSV 檔案存在檢查: ", "CSV檔案不存在==>"+fileName);
                     if (callback != null) callback.onFailure("檔案不存在: " + fileName, trainingID);
                     return;
                 }
 
                 //ToDo..開始裝入Byte，但都是舊方法Subsapce，要改為FIREBASE
-                byte[] fileBytes = java.nio.file.Files.readAllBytes(csvFile.toPath());
                 String trainingType = extractTrainingType(fileName);
-                String storagePath = userId + "/" + trainingType + "/" + fileName;
-                String uploadUrl = SUPABASE_URL + "/storage/v1/object/" + BUCKET_NAME + "/" + storagePath;
+                String storagePath = "CSV_RehabAPP/" + userId + "/" + trainingType + "/" + fileName;
 
-                OkHttpClient client = new OkHttpClient.Builder()
-                        .connectTimeout(30, TimeUnit.SECONDS)
-                        .writeTimeout(60, TimeUnit.SECONDS)
-                        .readTimeout(30, TimeUnit.SECONDS)
-                        .build();
+                FirebaseStorage.getInstance().getReference()
+                        .child(storagePath)
+                        .putFile(Uri.fromFile(csvFile))
+                        .addOnSuccessListener(taskSnapshot -> {
+                            taskSnapshot.getStorage().getDownloadUrl()
+                                    .addOnSuccessListener(uri -> {
+                                        String publicUrl = uri.toString();
+                                        Log.d(TAG, "✅ 上傳成功: " + publicUrl);
+                                        AppLogger.logCsvUpload(trainingID, true, null);
+                                        AppLogger.log("SupabaseUploader.uploadCsvWithMark.addOnSuccessListener",trainingID+"上傳成功");
+                                        if (trainingID != null && !trainingID.isEmpty()) {
+                                            try {
+                                                new Thread(() -> {
+                                                    AppDatabase.getInstance(context.getApplicationContext())
+                                                            .trainingHistoryDao().markCsvUploaded(trainingID);
+                                                    Log.d(TAG, "✅ 已標記 csvUploaded=1: " + trainingID);
+                                                    AppLogger.log("CsvUploaded後回壓","✅ 已標記 csvUploaded=1: " + trainingID);
+                                                }).start();
+                                            } catch (Exception e) {
+                                                Log.e(TAG, "⚠️ 標記失敗: " + e.getMessage());
+                                                AppLogger.log("CsvUploaded後回壓","⚠️ 標記失敗: " + e.getMessage());
+                                                AppLogger.logError("CsvUploaded後回壓","⚠️ 標記失敗: " + e.getMessage());
+                                            }
+                                        }
+                                        if (callback != null) callback.onSuccess(publicUrl, trainingID);
+                                    });
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "❌ 上傳失敗: " + e.getMessage());
+                            AppLogger.logCsvUpload(trainingID, false, e.getMessage());
 
-                RequestBody body = RequestBody.create(fileBytes, MediaType.parse("text/csv"));
-                Request request = new Request.Builder()
-                        .url(uploadUrl)
-                        .addHeader("Authorization", "Bearer " + SUPABASE_KEY)
-                        .addHeader("apikey", SUPABASE_KEY)
-                        .addHeader("Content-Type", "text/csv")
-                        .post(body)
-                        .build();
-
-                Response response = client.newCall(request).execute();
-                String responseBody = response.body() != null ? response.body().string() : "";  // ⭐ 加這行
-
-
-                // ⭐ 200 成功 或 檔案已存在 都算成功
-                if (response.isSuccessful() ||
-                        responseBody.contains("Duplicate") ||
-                        responseBody.contains("already exists")) {
-                    String publicUrl = SUPABASE_URL + "/storage/v1/object/public/" + BUCKET_NAME + "/" + storagePath;
-                    Log.d(TAG, "✅ 上傳成功: " + publicUrl);
-                    AppLogger.logCsvUpload(trainingID, true, null);
-
-                    // ★★★ 上傳成功，標記資料庫 ★★★
-                    if (trainingID != null && !trainingID.isEmpty()) {
-                        try {
-                            AppDatabase.getInstance(context.getApplicationContext()).trainingHistoryDao().markCsvUploaded(trainingID);
-                            Log.d(TAG, "✅ 已標記 csvUploaded=1: " + trainingID);
-                        } catch (Exception e) {
-                            Log.e(TAG, "⚠️ 標記 csvUploaded 失敗: " + e.getMessage());
-                        }
-                    }
-                    if (callback != null) callback.onSuccess(publicUrl, trainingID);
-                } else {
-                    String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-                    Log.e(TAG, "❌ 上傳失敗: " + response.code() + " - " + errorBody);
-                    AppLogger.logCsvUpload(trainingID, false, "HTTP " + response.code());
+                            AppLogger.log("SupabaseUploader.uploadCsvWithMark.addOnFailureListener",trainingID+"上傳失敗"+ e.getMessage());
+                            AppLogger.logError("SupabaseUploader.uploadCsvWithMark.addOnFailureListener",trainingID+"上傳失敗"+ e.getMessage());
 
 
-                    if (callback != null) callback.onFailure("上傳失敗: " + response.code(), trainingID);
-                    scheduleCsvUpload(context, trainingID, fileName);
+                            if (callback != null) callback.onFailure("上傳失敗: " + e.getMessage(), trainingID);
+                            scheduleCsvUpload(context, trainingID, fileName);
+                        });
 
-                }
-
-            } catch (IOException e) {
+            } catch (Exception e) {
                 Log.e(TAG, "❌ 上傳異常", e);
+                AppLogger.log("SupabaseUploader.uploadCsvWithMark_catch",trainingID+"上傳異常"+ e.getMessage());
+                AppLogger.logError("SupabaseUploader.uploadCsvWithMark_catch",trainingID+"上傳異常"+ e.getMessage());
+
                 if (callback != null) callback.onFailure("上傳異常: " + e.getMessage(), trainingID);
                 scheduleCsvUpload(context, trainingID, fileName);
             }
@@ -127,31 +119,40 @@ public class SupabaseUploader {
     // ★★★ 排程 WorkManager 背景上傳 ★★★
     //本物件SupbaseUploader內自用
     public static void scheduleCsvUpload(Context context, String trainingID, String csvFileName) {
-        Constraints constraints = new Constraints.Builder()
-                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
-                .build();
+        try {
+            AppLogger.log("scheduleCsvUpload", "準備進行排程 WorkManager:" + trainingID);
 
-        androidx.work.Data inputData = new androidx.work.Data.Builder()
-                .putString("trainingID", trainingID)
-                .putString("csvFileName", csvFileName)
-                .build();
+            Constraints constraints = new Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                    .build();
 
-        //CsvUploadWorker.class有繼承Worker類別，所以永遠直接呼叫doWork()
-        androidx.work.OneTimeWorkRequest request = new androidx.work.OneTimeWorkRequest.Builder(CsvUploadWorker.class)
-                .setConstraints(constraints)
-                .setInputData(inputData)
-                .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-                .addTag("csv_upload_" + trainingID)
-                .build();
+            androidx.work.Data inputData = new androidx.work.Data.Builder()
+                    .putString("trainingID", trainingID)
+                    .putString("csvFileName", csvFileName)
+                    .build();
 
-        androidx.work.WorkManager.getInstance(context)
-                .enqueueUniqueWork("csv_" + trainingID, androidx.work.ExistingWorkPolicy.KEEP, request);
+            androidx.work.OneTimeWorkRequest request = new androidx.work.OneTimeWorkRequest.Builder(CsvUploadWorker.class)
+                    .setConstraints(constraints)
+                    .setInputData(inputData)
+                    .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                    .addTag("csv_upload_" + trainingID)
+                    .build();
 
-        Log.d(TAG, "📅 已排程 WorkManager: " + trainingID);
+            androidx.work.WorkManager.getInstance(context)
+                    .enqueueUniqueWork("csv_" + trainingID, androidx.work.ExistingWorkPolicy.KEEP, request);
+
+            Log.d(TAG, "📅 已排程 WorkManager: " + trainingID);
+            AppLogger.log("scheduleCsvUpload", "已排程 WorkManager:" + trainingID);
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ WorkManager 排程失敗: " + trainingID, e);
+            AppLogger.logError("scheduleCsvUpload", "排程失敗: " + trainingID + " " + e.getMessage());
+        }
     }
 
-    //重啟APP跟紀錄頁面，呼叫
+    //FOR重啟APP跟紀錄頁面呼叫
     public static void retryUnsyncedCsv(Context context, RetryCallback callback) {
+        AppLogger.log("retryUnsyncedCsv", "嘗試上傳尚未同步的Csv");
         new Thread(() -> {
             List<TrainingHistory> unsyncedList = AppDatabase.getInstance(context)
                     .trainingHistoryDao()
@@ -159,11 +160,13 @@ public class SupabaseUploader {
 
             if (unsyncedList == null || unsyncedList.isEmpty()) {
                 Log.d(TAG, "沒有需要重傳的 CSV");
+                AppLogger.log("retryUnsyncedCsv檢查 :", "沒有需要重傳的 CSV");
                 if (callback != null) callback.onComplete(0, 0);
                 return;
             }
 
             Log.d(TAG, "找到 " + unsyncedList.size() + " 筆未上傳的 CSV");
+            AppLogger.log("unsyncedList查詢 :", "找到 " + unsyncedList.size() + " 筆未上傳的 CSV)");
 
             final int[] successCount = {0};
             final int[] failCount = {0};
@@ -173,8 +176,11 @@ public class SupabaseUploader {
             // ★ 先回報總數
             if (callback != null) callback.onProgress(0, total);
 
+
             for (TrainingHistory item : unsyncedList) {
                 if (item.csvFileName == null || item.csvFileName.isEmpty()) {
+
+                    AppLogger.log("retryUnsyncedCsv", "跳過：" + item.trainingID + " 沒有 csvFileName");
                     failCount[0]++;
                     doneCount[0]++;
                     if (callback != null) callback.onProgress(doneCount[0], total);
@@ -190,6 +196,7 @@ public class SupabaseUploader {
                         successCount[0]++;
                         doneCount[0]++;
                         Log.d(TAG, "✅ 重傳成功: " + trainingID);
+                        AppLogger.log("SupabaseUploader.retryUnsyncedCsv.uploadCsvWithMark.onSuccess", " 重傳成功: " + trainingID);
                         if (callback != null) callback.onProgress(doneCount[0], total);
                         if (doneCount[0] >= total && callback != null) {
                             callback.onComplete(successCount[0], failCount[0]);
@@ -201,6 +208,9 @@ public class SupabaseUploader {
                         failCount[0]++;
                         doneCount[0]++;
                         Log.e(TAG, "❌ 重傳失敗: " + trainingID);
+                        AppLogger.log("SupabaseUploader.retryUnsyncedCsv.uploadCsvWithMark.onFailure", " 重傳失敗: " + trainingID);
+                        AppLogger.logError("SupabaseUploader.retryUnsyncedCsv.uploadCsvWithMark.onFailure", " 重傳失敗: " + trainingID);
+
                         if (callback != null) callback.onProgress(doneCount[0], total);
                         if (doneCount[0] >= total && callback != null) {
                             callback.onComplete(successCount[0], failCount[0]);

@@ -79,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
             switchFragment(new SettingFragment());
             selectTab(R.id.tab_setting);
         });
+
         // App 啟動時補傳 Csv訓練Landmark
         SupabaseUploader.retryUnsyncedCsv(this, (success, fail) -> {
             Log.d("CSV重傳", "成功: " + success + " 筆，失敗: " + fail + " 筆");

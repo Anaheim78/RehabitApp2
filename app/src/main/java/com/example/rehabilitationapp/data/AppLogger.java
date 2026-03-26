@@ -211,6 +211,14 @@ public class AppLogger {
         }
     }
 
+    public static void log(String event, String message) {
+        Bundle b = new Bundle();
+        b.putString("user_id", currentUserId);
+        b.putString("message", message);
+        b.putLong("timestamp", System.currentTimeMillis());
+        logEvent(event, b);
+    }
+
     // ===== 記錄錯誤 =====
     public static void logError(String tag, String message) {
         Log.e(TAG, "❌ [" + currentUserId + "] " + tag + ": " + message);

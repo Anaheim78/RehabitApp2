@@ -14,18 +14,13 @@ import com.example.rehabilitationapp.data.model.TrainingHistory;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import com.google.firebase.storage.FirebaseStorage;
+import android.net.Uri;
+import java.util.concurrent.CountDownLatch;
 
 public class CsvUploadWorker extends Worker {
     //ToDo..檢查整枝CODE有沒有沒抓到FIREBASE LOG的ERROR
     private static final String TAG = "CsvUploadWorker";
-    private static final String SUPABASE_URL = "https://xexprgwyxrxegpdxbvno.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhleHByZ3d5eHJ4ZWdwZHhidm5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MzUyNTksImV4cCI6MjA4MzMxMTI1OX0.b2MUA2LIWZJaS7Mg_DKWrWCDrKuRwmtmNqbVNL8tL0U";
-    private static final String BUCKET_NAME = "CSV_RehabAPP";
 
     public CsvUploadWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -39,11 +34,14 @@ public class CsvUploadWorker extends Worker {
 
 
         Log.d(TAG, "🔄 WorkManager 開始上傳: " + trainingID);
+        AppLogger.log("CsvUploadWorker.doWork ", "CsvWorkManager 開始上傳 : " + trainingID);
 
 
         if (trainingID == null || csvFileName == null || csvFileName.isEmpty()) {
             // TODO .. : 改為雲端LOG紀錄，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.e(TAG, "❌ 參數錯誤，跳過");
+            AppLogger.log("CsvUploadWorker.doWork_檢查，參數錯誤_不會再嘗試重傳處理。 ", "trainingID == null || csvFileName == null || csvFileName.isEmpty()");
+            AppLogger.logError("CsvUploadWorker.doWork_檢查，參數錯誤_不會再嘗試重傳處理。", "trainingID == null || csvFileName == null || csvFileName.isEmpty()");
             return Result.failure();
         }
 
@@ -54,12 +52,16 @@ public class CsvUploadWorker extends Worker {
         if (record == null) {
             // TODO .. : 改為雲端LOG紀錄，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.d(TAG, "⚠️ 紀錄不存在，跳過: " + trainingID);
+            AppLogger.log("CsvUploadWorker.doWork_檢查，trainingID 的DB 紀錄不存在_不會再嘗試重傳處理。", trainingID+"TrainingHistory record = null");
+            AppLogger.logError("CsvUploadWorker.doWork_檢查，trainingID 的DB 紀錄不存在_不會再嘗試重傳處理。", trainingID+"TrainingHistory record = null");
+
             return Result.failure();
         }
 
         if (record.csvUploaded == 1) {
             // TODO .. : 改為雲端LOG紀錄，並告知"檢查不通過"永久不會再嘗試重傳處理。
             Log.d(TAG, "✅ 已上傳完成，跳過: " + trainingID);
+            AppLogger.log("CsvUploadWorker.doWork_檢查，record.csvUploaded == 1。", "已上傳完成，跳過: " + trainingID);
             return Result.success();
         }
 
@@ -68,61 +70,79 @@ public class CsvUploadWorker extends Worker {
             Context context = getApplicationContext();
             SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
             // TODO .. : 想想取道error怎麼解決。
-            String userId = prefs.getString("current_user_id", "null");
+            String userId = prefs.getString("current_user_id", null);
+
+            if (userId == null) {
+                Log.e(TAG, "❌ 找不到 userId");
+                AppLogger.log("CsvUploadWorker找不到 userId，會再嘗試重傳處理", trainingID);
+                AppLogger.logError("CsvUploadWorker找不到 userId，會再嘗試重傳處理", trainingID);
+                return Result.retry();
+            }
 
             File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
             File csvFile = new File(dir, csvFileName);
 
             if (!csvFile.exists()) {
                 Log.e(TAG, "❌ 檔案不存在: " + csvFileName);
+                AppLogger.log("CsvUploadWorker", "檔案不存在: " + csvFileName + " trainingID: " + trainingID);
+                AppLogger.logError("CsvUploadWorker", "檔案不存在: " + csvFileName + " trainingID: " + trainingID);
+
                 return Result.failure();
+
             }
 
             //ToDo..開始裝入Byte，但都是舊方法Subsapce
-
-            byte[] fileBytes = java.nio.file.Files.readAllBytes(csvFile.toPath());
             String trainingType = extractTrainingType(csvFileName);
-            String storagePath = userId + "/" + trainingType + "/" + csvFileName;
-            String uploadUrl = SUPABASE_URL + "/storage/v1/object/" + BUCKET_NAME + "/" + storagePath;
+            String storagePath = "CSV_RehabAPP/" + userId + "/" + trainingType + "/" + csvFileName;
 
-            OkHttpClient client = new OkHttpClient.Builder()
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(60, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .build();
+            CountDownLatch latch = new CountDownLatch(1);
+            final boolean[] success = {false};
 
-            RequestBody body = RequestBody.create(fileBytes, MediaType.parse("text/csv"));
-            Request request = new Request.Builder()
-                    .url(uploadUrl)
-                    .addHeader("Authorization", "Bearer " + SUPABASE_KEY)
-                    .addHeader("apikey", SUPABASE_KEY)
-                    .addHeader("Content-Type", "text/csv")
-                    .post(body)
-                    .build();
-
-            Response response = client.newCall(request).execute();
-            String responseBody = response.body() != null ? response.body().string() : "";
+            FirebaseStorage.getInstance().getReference()
+                    .child(storagePath)
+                    .putFile(Uri.fromFile(csvFile))
+                    .addOnSuccessListener(taskSnapshot -> {
+                        AppLogger.log("CsvUploadWorker.putFile.addOnSuccessListener", "檔名: " + csvFileName + " trainingID: " + trainingID);
+                        new Thread(() -> {
+                            AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
+                            AppLogger.log("CsvUploadWorker.putFile.addOnSuccessListener_並回壓至DB", "檔名: " + csvFileName + " trainingID: " + trainingID);
+                        }).start();
 
 
-            if (response.isSuccessful() ||
-                    responseBody.contains("Duplicate") ||
-                    responseBody.contains("already exists")) {
+                        Log.d(TAG, "✅ WorkManager 上傳成功: " + trainingID);
+                        AppLogger.log("WorkManager addOnSuccessListener 上傳成功", "檔名: " + csvFileName + " trainingID: " + trainingID);
 
-                // 上傳成功，標記 DB
-                AppDatabase.getInstance(context).trainingHistoryDao().markCsvUploaded(trainingID);
-                Log.d(TAG, "✅ WorkManager 上傳成功: " + trainingID);
-                AppLogger.logCsvUpload(trainingID, true, null);
-                return Result.success();
+                        AppLogger.logCsvUpload(trainingID, true, null);
+                        success[0] = true;
+                        latch.countDown();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "❌ 上傳失敗: " + e.getMessage());
+                        AppLogger.logCsvUpload(trainingID, false, e.getMessage());
+                        AppLogger.log("CsvUploadWorker.addOnFailureListener", "❌ 上傳失敗 檔名: " + csvFileName + " trainingID: " + trainingID);
+                        AppLogger.logError("CsvUploadWorker.addOnFailureListener", "❌ 上傳失敗 檔名: " + csvFileName + " error: " + e.getMessage());
 
-            } else {
-                Log.e(TAG, "❌ 上傳失敗: " + response.code());
-                AppLogger.logCsvUpload(trainingID, false, "HTTP " + response.code());
+                        success[0] = false;
+                        latch.countDown();
+                    });
+
+            try {
+                latch.await(60, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Log.e(TAG, "❌ 等待超時: " + trainingID);
+                AppLogger.logError("CsvUploadWorker.latch.await", "60秒等待超時: " + trainingID);
                 return Result.retry();
             }
+
+            return success[0] ? Result.success() : Result.retry();
+
 
         } catch (Exception e) {
             Log.e(TAG, "❌ 上傳異常: " + e.getMessage());
             AppLogger.logCsvUpload(trainingID, false, e.getMessage());
+            AppLogger.logError("CsvUploadWorker", "上傳異常: " + trainingID + " error: " + e.getMessage());
+            AppLogger.log("CsvUploadWorker", "上傳異常: " + trainingID + " error: " + e.getMessage());
+
             return Result.retry();
         }
     }
