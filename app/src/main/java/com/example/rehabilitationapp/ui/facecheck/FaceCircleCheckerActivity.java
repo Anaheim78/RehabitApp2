@@ -325,6 +325,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         AppLogger.logTrainingStart(trainingLabel);
+        //此處_training_start
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);
 
@@ -1724,7 +1725,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         updateStatusDisplay();
         updateTimerDisplay();
 
-        Toast.makeText(this, " 訓練完成，資料上傳中...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, " 訓練完成", Toast.LENGTH_LONG).show();
 
         //這邊會先呼叫dataRecorder.saveToFileWithCallbac，做運算完成後會從dataRecorder那邊呼叫下面方法onComplete
         //底下new FaceDataRecorder.DataSaveCallback()，好像是一個callBack物件在saveToFileWithCallback方法當參數
@@ -1780,9 +1781,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     //Todo 互動
                     // runOnUiThread(() ->
                     runOnUiThread(() ->
-                            Toast.makeText(FaceCircleCheckerActivity.this, "資料上傳中，請稍候再離開", Toast.LENGTH_LONG).show()
+                            Toast.makeText(FaceCircleCheckerActivity.this, "資料上傳中...", Toast.LENGTH_LONG).show()
                     );
-                    AppLogger.log("Toast", "資料上傳中，請稍候再離開");
+                    AppLogger.log("Toast", "資料上傳中...");
                     
                     insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
 
@@ -2621,8 +2622,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         if (!fbDone || !csvDone) return;
 
         String msg = (fbOk && csvOk)
-                ? "✅ 上傳完成"
-                : "⚠️ 上傳失敗，系統稍後會自動重試";
+                ? "✅ 資料上傳完成"
+                : "⚠️上傳失敗，系統稍後會自動重試";
 
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
                 Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show()

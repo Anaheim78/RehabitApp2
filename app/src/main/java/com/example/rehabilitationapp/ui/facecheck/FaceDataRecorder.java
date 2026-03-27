@@ -791,7 +791,9 @@ public class FaceDataRecorder {
 
             // 使用 Handler 切換到主線程顯示 Toast
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                    Toast.makeText(context, "檔案已儲存至下載資料夾", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "✅ 檔案儲存成功: " + file.getAbsolutePath())
+//                    Toast.makeText(context, "檔案已儲存至下載資料夾", Toast.LENGTH_SHORT).show()
+
             );
 
         } catch (IOException e) {
