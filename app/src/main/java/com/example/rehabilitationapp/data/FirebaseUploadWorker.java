@@ -60,9 +60,9 @@ public class FirebaseUploadWorker extends Worker {
 
             // 2. 取得 userId
             SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-            String userId = prefs.getString("current_user_id", null);
+            String userId = prefs.getString("current_user_id", "no_login");
 
-            if (userId == null) {
+            if ("no_login".equals(userId)) {
                 Log.e(TAG, "❌ 找不到 userId");
                 AppLogger.log("找不到 userId，會再嘗試重傳處理", trainingID);
                 AppLogger.logError("找不到 userId，會再嘗試重傳處理", trainingID);

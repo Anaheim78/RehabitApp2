@@ -166,7 +166,7 @@ public class BackupUploader {
 
     private static String getUserId(Context context) {
         SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-        String userId = prefs.getString("current_user_id", null);
+        String userId = prefs.getString("current_user_id", "no_login");
         if (userId == null || userId.isEmpty()) {
             userId = "guest";
         }

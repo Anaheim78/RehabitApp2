@@ -42,9 +42,9 @@ public class SupabaseUploader {
             try {
                 // TODO .. : LOG紀錄 :部分userID為unknown的問題
                 SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-                String userId = prefs.getString("current_user_id", null);
+                String userId = prefs.getString("current_user_id", "no_login");
 
-                if (userId == null) {
+                if ("no_login".equals(userId)) {
                     AppLogger.logError("SupabaseUploader", "找不到 userId，trainingID: " + trainingID);
                     if (callback != null) callback.onFailure("找不到 userId", trainingID);
                     scheduleCsvUpload(context, trainingID, fileName);

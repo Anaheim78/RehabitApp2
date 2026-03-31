@@ -193,7 +193,7 @@ public class FaceDataRecorder {
 // 從 SharedPreferences 拿現在登入的 userId
         SharedPreferences prefs =
                 context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-        String userId = prefs.getString("current_user_id", "guest");
+        String userId = prefs.getString("current_user_id", "no_login");
 
 // 在檔名前面加 userId
         this.fileName = String.format("%s_FaceTraining_%s_%s.csv", userId, trainingLabel, timestamp);

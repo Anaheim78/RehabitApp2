@@ -70,9 +70,9 @@ public class CsvUploadWorker extends Worker {
             Context context = getApplicationContext();
             SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
             // TODO .. : 想想取道error怎麼解決。
-            String userId = prefs.getString("current_user_id", null);
+            String userId = prefs.getString("current_user_id", "no_login");
 
-            if (userId == null) {
+            if ("no_login".equals(userId)) {
                 Log.e(TAG, "❌ 找不到 userId");
                 AppLogger.log("CsvUploadWorker找不到 userId，會再嘗試重傳處理", trainingID);
                 AppLogger.logError("CsvUploadWorker找不到 userId，會再嘗試重傳處理", trainingID);

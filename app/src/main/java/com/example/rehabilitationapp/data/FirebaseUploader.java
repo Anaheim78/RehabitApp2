@@ -51,12 +51,12 @@ public class FirebaseUploader {
             AppLogger.log("FirebaseUploader.trainingHistoryDao", "找到 " + list.size() + " 筆未同步紀錄");
 
             SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-            String userId = prefs.getString("current_user_id", null);
+            String userId = prefs.getString("current_user_id", "no_login");
             // TODO .. : LOG紀錄 :部分userID為unknown的問題
             Log.d(TAG_TEST_3, "userId==>"+userId);
             AppLogger.log("SharedPreferences查詢current_user_id", "userId==>"+userId);
 
-            if (userId == null) {
+            if ("no_login".equals(userId)) {
                 Log.e(TAG, "找不到 userId");
                 Log.d(TAG_TEST_3, "找不到 userId");
 

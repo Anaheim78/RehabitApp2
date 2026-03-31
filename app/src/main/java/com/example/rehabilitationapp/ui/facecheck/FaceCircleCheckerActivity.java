@@ -1,6 +1,7 @@
 package com.example.rehabilitationapp.ui.facecheck;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -53,6 +54,7 @@ import com.example.rehabilitationapp.ui.results.AnalysisResultActivity;
 import com.example.rehabilitationapp.ui.analysis.CSVPeakAnalyzer;
 import com.example.rehabilitationapp.ui.results.TrainingResultActivity;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
 import com.google.mediapipe.tasks.core.BaseOptions;
@@ -118,6 +120,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // 沒在停止 → 方法可以接受新幀;
     //移動到下方
     private boolean shouldAcceptNewFrames() { return !isStopping; }
+
+
+    //checkFacePosition handleFacePosition   寫入LOG計數器
+    private int checkFacePosErrorCount = 0;
+    private int handleFacePosErrorCount = 0;
+
     //===================>
 
     //【1. 生命週期】
@@ -250,6 +258,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //方法函數 : 循環檢查，每一百ms確認是否completedTraining
     private Runnable progressUpdater;
     //方法函數 : 設定間隔100ms呼叫updateProgressBar更新進度條
+    private int resetCount = 0;
+    private long lastResetTime = 0;
+    // 圓框UI時間倒數一共被觸發重置的次數
+    private long lastHeartbeatTime = 0;
+    // 訓練Heartbeat
+    private boolean lastNoseInside = false;
+    // 在 handleFacePosition 裡更新
+
+
     //============================>
 
 
@@ -289,7 +306,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private static final int[] HEAD_STABLE_INDICES = {10, 151, 9, 168, 1, 127, 356};
     private static final int HEAD_STABLE_POINTS_COUNT = HEAD_STABLE_INDICES.length;
     private static final int HEAD_MOTION_WINDOW = 5;
-    private static final float HEAD_MOTION_THRESHOLD = 0.003f;
+    private static final float HEAD_MOTION_THRESHOLD = 0.008f;
     private float[][] prevStablePoints = null;
     private final java.util.ArrayDeque<Float> headMotionHistory = new java.util.ArrayDeque<>();
     private boolean lastHeadStable = true;
@@ -324,14 +341,17 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     //===========01【生命週期】========================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        AppLogger.logTrainingStart(trainingLabel);
+
         //此處_training_start
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);
 
+
+
         // 🆕 讀取錄影開關設定
         SharedPreferences appSettings = getSharedPreferences("app_settings", MODE_PRIVATE);
         ENABLE_VIDEO_RECORDING = appSettings.getBoolean("video_recording_enabled", true);
+
         Log.d(TAG, "錄影功能: " + (ENABLE_VIDEO_RECORDING ? "開啟" : "關閉"));
 
         // OpenCV 初始化
@@ -346,6 +366,17 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         trainingLabel = getIntent().getStringExtra("training_type");
         // 替trainingLabel備份，不可編輯
         trainingLabel_String = getIntent().getStringExtra("training_type");
+
+
+        //獲取運動類型
+        AppLogger.logTrainingStart(trainingLabel);
+
+        // ★ 設定 Crashlytics userId
+        SharedPreferences crashPrefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        FirebaseCrashlytics.getInstance().setUserId(
+                crashPrefs.getString("current_user_id", "no_login")
+        );
+
 
         if (trainingLabel == null) trainingLabel = "訓練";
         Log.d(TAG, "接收到訓練類型: " + trainingType + ", 標籤: " + trainingLabel);
@@ -400,6 +431,19 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         setupFaceLandmarker();
         initializeUI();
 
+        // B7: 網路檢查提示
+        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        android.net.Network network = cm.getActiveNetwork();
+        boolean hasNetwork = false;
+        if (network != null) {
+            android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+            hasNetwork = caps != null && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        }
+        if (!hasNetwork) {
+            Toast.makeText(this, "⚠️ 目前無網路，訓練資料將在連網後自動上傳", Toast.LENGTH_LONG).show();
+        }
+
+
         // 相機權限處理：有就打開，沒有就請求。
         if (checkCameraPermission()) {
             startCamera();
@@ -415,74 +459,87 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
 
-        // 🎥 如果還在錄影且訓練未完成，刪除影片
-        if (currentRecording != null) {
-            currentRecording.stop();
-            currentRecording = null;
-
-            // 刪除未完成的影片
-            if (videoFilePath != null && !isTrainingCompleted) {
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    File file = new File(videoFilePath);
-                    if (file.exists() && file.delete()) {
-                        Log.d(TAG, "🗑️ 已刪除未完成的影片");
-                    }
-                }, 500);
-            }
-        }
-
-        stopSimpleCue();
-        super.onDestroy();
-        // 1) 停入口：之後不要再提交任何新任務
-        isStopping = true;
-
-        // 2) 先把 UI/Timer callback 停掉，避免又排新任務
-        cancelTimers();
-        if (progressUpdater != null) {
-            mainHandler.removeCallbacks(progressUpdater);
-            progressUpdater = null;
-        }
-
-        // 3) 先停相機資料源，避免還有新影格湧入（很關鍵）
         try {
-            if (cameraProvider != null) {
-                cameraProvider.unbindAll();
+            if (!isTrainingCompleted) {
+                Bundle b5 = new Bundle();
+                b5.putString("b5_training_label", trainingLabel);
+                b5.putString("b5_last_state", currentState.name());
+                b5.putInt("b5_reset_count", resetCount);
+                b5.putLong("b5_maintain_time", maintainTotalTime);
+                AppLogger.logEvent("b5_training_aborted", b5);
             }
-        } catch (Exception ignore) { }
 
-        // 4) 停掉背景執行緒並「等它停乾淨」
-        awaitShutdown(cameraExecutor);
-        awaitShutdown(yoloExecutor);
+            // 🎥 如果還在錄影且訓練未完成，刪除影片
+            if (currentRecording != null) {
+                currentRecording.stop();
+                currentRecording = null;
 
-        // 5) 執行緒都停了，現在才安全釋放各引擎/偵測器
-        if (cheekEngine != null) {
+                // 刪除未完成的影片
+                if (videoFilePath != null && !isTrainingCompleted) {
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        File file = new File(videoFilePath);
+                        if (file.exists() && file.delete()) {
+                            Log.d(TAG, "🗑️ 已刪除未完成的影片");
+                        }
+                    }, 500);
+                }
+            }
+
+            stopSimpleCue();
+            super.onDestroy();
+            // 1) 停入口：之後不要再提交任何新任務
+            isStopping = true;
+
+            // 2) 先把 UI/Timer callback 停掉，避免又排新任務
+            cancelTimers();
+            if (progressUpdater != null) {
+                mainHandler.removeCallbacks(progressUpdater);
+                progressUpdater = null;
+            }
+
+            // 3) 先停相機資料源，避免還有新影格湧入（很關鍵）
             try {
-                cheekEngine.release();
-            } catch (Throwable ignore) { }
-            cheekEngine = null;
-        }
+                if (cameraProvider != null) {
+                    cameraProvider.unbindAll();
+                }
+            } catch (Exception ignore) { }
 
-        if (tongueDetector != null) {
-            try {
-                tongueDetector.release();
-            } catch (Throwable ignore) { }
-            tongueDetector = null;
-            Log.d(TAG, "✅ YOLO 檢測器資源已清理");
-        }
+            // 4) 停掉背景執行緒並「等它停乾淨」
+            awaitShutdown(cameraExecutor);
+            awaitShutdown(yoloExecutor);
 
-        if (tongueDetectorLR != null) {
-            try {
-                tongueDetectorLR.release();
-            } catch (Throwable ignore) { }
-            tongueDetectorLR = null;
-            Log.d(TAG, "✅ YOLO 檢測器資源已清理");
-        }
+            // 5) 執行緒都停了，現在才安全釋放各引擎/偵測器
+            if (cheekEngine != null) {
+                try {
+                    cheekEngine.release();
+                } catch (Throwable ignore) { }
+                cheekEngine = null;
+            }
 
-        if (faceLandmarker != null) {
-            try {
-                faceLandmarker.close();
-            } catch (Throwable ignore) { }
-            faceLandmarker = null;
+            if (tongueDetector != null) {
+                try {
+                    tongueDetector.release();
+                } catch (Throwable ignore) { }
+                tongueDetector = null;
+                Log.d(TAG, "✅ YOLO 檢測器資源已清理");
+            }
+
+            if (tongueDetectorLR != null) {
+                try {
+                    tongueDetectorLR.release();
+                } catch (Throwable ignore) { }
+                tongueDetectorLR = null;
+                Log.d(TAG, "✅ YOLO 檢測器資源已清理");
+            }
+
+            if (faceLandmarker != null) {
+                try {
+                    faceLandmarker.close();
+                } catch (Throwable ignore) { }
+                faceLandmarker = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "onDestroy 錯誤", e);
         }
 
         // 6) 千萬不要在 onDestroy 清 CSV，否則結果頁會拿到空資料
@@ -507,6 +564,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG, "FaceLandmarker 初始化成功");
         } catch (Exception e) {
             Log.e(TAG, "FaceLandmarker 初始化錯誤: " + e.getMessage());
+            AppLogger.logError("facelandmarker_init_failed", e.getMessage());
+            FirebaseCrashlytics.getInstance().recordException(e);
         }
     }
     // 初始化舌頭檢測器
@@ -521,8 +580,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.e(TAG, "❌ 舌頭檢測器初始化錯誤: " + e.getMessage());
+            AppLogger.logError("tongue_detector_init_failed", e.getMessage());
+            FirebaseCrashlytics.getInstance().recordException(e);
             isYoloEnabled = false;
-            Toast.makeText(this, "舌頭檢測器載入失敗：" + e.getMessage(), Toast.LENGTH_LONG).show();
         }
 
         try {
@@ -534,9 +594,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 Toast.makeText(this, "LR舌頭檢測器初始化失敗，將使用一般模式", Toast.LENGTH_SHORT).show();
             }
         } catch (Exception e) {
-            Log.e(TAG, "❌ LR舌頭檢測器初始化錯誤: " + e.getMessage());
+            Log.e(TAG, "❌ 舌頭檢測器初始化錯誤: " + e.getMessage());
+            AppLogger.logError("tongue_detector_LR_init_failed", e.getMessage());
+            FirebaseCrashlytics.getInstance().recordException(e);
             isYoloEnabled = false;
-            Toast.makeText(this, "LR舌頭檢測器載入失敗：" + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -601,6 +662,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "相機初始化失敗", e);
+                AppLogger.logError("camera_init_failed", e.getMessage());
+                FirebaseCrashlytics.getInstance().recordException(e);
                 Toast.makeText(this, "相機初始化失敗", Toast.LENGTH_SHORT).show();
             }
         }, ContextCompat.getMainExecutor(this));
@@ -647,6 +710,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             Log.d(TAG, "相機綁定成功");
         } catch (Exception e) {
             Log.e(TAG, "相機綁定失敗", e);
+            AppLogger.logError("camera_bind_failed", e.getMessage());
+            FirebaseCrashlytics.getInstance().recordException(e);
             Toast.makeText(this, "相機啟動失敗", Toast.LENGTH_SHORT).show();
         }
     }
@@ -981,6 +1046,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             headStable = false;
                         }
                         if (!headStable && countdownFinished && currentState == AppState.CALIBRATING && noseInside) {
+                            if (System.currentTimeMillis() - lastResetTime < 1000) return;
+                            lastResetTime = System.currentTimeMillis();
                             if (cueText != null) {
                                 cueText.setVisibility(View.VISIBLE);
                                 cueText.setText("⚠️ 請保持頭部不動");
@@ -997,6 +1064,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 Log.e(TAG, "檢查臉部位置時發生錯誤", e);
+                FirebaseCrashlytics.getInstance().recordException(e);
+                if (checkFacePosErrorCount < 3) {
+                    checkFacePosErrorCount++;
+                    AppLogger.logError("checkFacePosition_" + checkFacePosErrorCount, e.getMessage());
+                }
                 runOnUiThread(() -> handleFacePosition(false));
             }
         } else {
@@ -1370,23 +1442,28 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             cameraExecutor.execute(() -> {
                 //CheekFlowEngine.FlowResult r = cheekEngine.process(mirroredBitmap, landmarks01, ts);
 
-                if (!isTrainingCompleted &&
-                        (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)){
-//                        r.computedThisFrame) {
-                    //補償
-//                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
-//                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-//                    //原始
-//                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
-//                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
-//                    // 取得狀態字串（跟你嘴唇/舌頭一致）
-                    String stateString = csvState();
+                try {
+                    if (!isTrainingCompleted &&
+                            (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)){
+    //                        r.computedThisFrame) {
+                        //補償
+    //                    org.opencv.core.Point li = r.vectors.get(CheekFlowEngine.Region.LEFT_INNER);
+    //                    org.opencv.core.Point ri = r.vectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+    //                    //原始
+    //                    org.opencv.core.Point liRaw = r.rawVectors.get(CheekFlowEngine.Region.LEFT_INNER);
+    //                    org.opencv.core.Point riRaw = r.rawVectors.get(CheekFlowEngine.Region.RIGHT_INNER);
+    //                    // 取得狀態字串（跟你嘴唇/舌頭一致）
+                        String stateString = csvState();
 
-                    // 改用曲率
-                    Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
-                    dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
+                        // 改用曲率
+                        Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
+                        dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
 
 
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "handleCheeksMode execute 錯誤", e);
+                    FirebaseCrashlytics.getInstance().recordException(e);
                 }
             });
 
@@ -1397,114 +1474,124 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     //處理時間顯示
     private void handleFacePosition(boolean faceInside) {
-        if (isTrainingCompleted) return;
+        try {
+            lastNoseInside = faceInside;  //
+            if (isTrainingCompleted) return;
 
-        // 🆕 如果倒數還沒完成，不進行校正流程
-        if (!countdownFinished) {
-            overlayView.setStatus(CircleOverlayView.Status.NO_FACE);
-            return;
-        }
+            // 🆕 如果倒數還沒完成，不進行校正流程
+            if (!countdownFinished) {
+                overlayView.setStatus(CircleOverlayView.Status.NO_FACE);
+                return;
+            }
 
-        long currentTime = System.currentTimeMillis();
+            long currentTime = System.currentTimeMillis();
 
-        switch (currentState) {
-            case CALIBRATING:
-                if (faceInside) {
-                    if (calibrationStartTime == 0) {
-                        calibrationStartTime = currentTime;
-                        startCalibrationTimer();
+            switch (currentState) {
+                case CALIBRATING:
+                    if (faceInside) {
+                        if (calibrationStartTime == 0) {
+                            calibrationStartTime = currentTime;
+                            startCalibrationTimer();
+                            demoStarted = false;
+                            demoFinished = false;
+                        }
+
+                        CircleOverlayView.Status uiStatus = CircleOverlayView.Status.CALIBRATING;
+
+                        if (demoEnabled && !demoFinished) {
+                            if (!demoStarted) {
+                                demoStarted = true;
+                                demoStartMs = currentTime;
+                            }
+                            long d = currentTime - demoStartMs;
+
+                            // 統一設定 cueText 大小
+                            if (cueText != null) {
+                                cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
+                            }
+
+                            //【DEMOTIME】時間直接寫死在這裡
+                            if (d < DEMO_PHASE_1) {
+                                // 0~4s：黃框 - 放鬆校正
+                                if (statusText != null) statusText.setVisibility(View.GONE);  // 隱藏
+
+                                uiStatus = CircleOverlayView.Status.CALIBRATING;
+                                if (statusText != null) statusText.setText("校正中");
+                                if (cueText != null) cueText.setText("放鬆，保持不動");
+                                isDemoPhase = false;
+
+                            } else if (d < DEMO_PHASE_2) {
+                                // 4~8s：藍框 - 示範動作
+                                uiStatus = CircleOverlayView.Status.DEMO;
+                                String zh = motionLabelZh(trainingLabel);
+                                if (statusText != null) statusText.setText("校正中");
+                                if (cueText != null) cueText.setText("請" + zh + "");
+                                isDemoPhase = true;
+
+                            } else if (d < CALIBRATION_TIME) {
+                                // 8~11s：黃框 - 準備開始
+                                uiStatus = CircleOverlayView.Status.CALIBRATING;
+                                if (statusText != null) statusText.setText("校正中");
+                                if (cueText != null) cueText.setText("放鬆，保持不動");
+                                isDemoPhase = false;
+
+                            } else {
+                                uiStatus = CircleOverlayView.Status.CALIBRATING;
+                                demoFinished = true;
+                            }
+                        }
+
+                        overlayView.setStatus(uiStatus);
+
+                    } else {
+                        // 離開圓框
+                        resetCalibration();
+                        overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
+                        currentState = AppState.OUT_OF_BOUNDS;
                         demoStarted = false;
                         demoFinished = false;
+                        if (statusText != null) statusText.setText("超出邊界");
+                        if (cueText != null) cueText.setText("請回到圓框內");
                     }
+                    break;
 
-                    CircleOverlayView.Status uiStatus = CircleOverlayView.Status.CALIBRATING;
+                case MAINTAINING:
+                    if (faceInside) {
+                        if (maintainStartTime == 0) {
+                            maintainStartTime = currentTime;
 
-                    if (demoEnabled && !demoFinished) {
-                        if (!demoStarted) {
-                            demoStarted = true;
-                            demoStartMs = currentTime;
                         }
-                        long d = currentTime - demoStartMs;
-
-                        // 統一設定 cueText 大小
-                        if (cueText != null) {
-                            cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
-                        }
-
-                        //【DEMOTIME】時間直接寫死在這裡
-                        if (d < DEMO_PHASE_1) {
-                            // 0~4s：黃框 - 放鬆校正
-                            if (statusText != null) statusText.setVisibility(android.view.View.GONE);  // 隱藏
-
-                            uiStatus = CircleOverlayView.Status.CALIBRATING;
-                            if (statusText != null) statusText.setText("校正中");
-                            if (cueText != null) cueText.setText("放鬆，保持不動");
-                            isDemoPhase = false;
-
-                        } else if (d < DEMO_PHASE_2) {
-                            // 4~8s：藍框 - 示範動作
-                            uiStatus = CircleOverlayView.Status.DEMO;
-                            String zh = motionLabelZh(trainingLabel);
-                            if (statusText != null) statusText.setText("校正中");
-                            if (cueText != null) cueText.setText("請" + zh + "");
-                            isDemoPhase = true;
-
-                        } else if (d < CALIBRATION_TIME) {
-                            // 8~11s：黃框 - 準備開始
-                            uiStatus = CircleOverlayView.Status.CALIBRATING;
-                            if (statusText != null) statusText.setText("校正中");
-                            if (cueText != null) cueText.setText("放鬆，保持不動");
-                            isDemoPhase = false;
-
-                        } else {
-                            uiStatus = CircleOverlayView.Status.CALIBRATING;
-                            demoFinished = true;
-                        }
+                        overlayView.setStatus(CircleOverlayView.Status.OK);
+                    } else {
+    //                    if (maintainStartTime > 0) {
+    //                        maintainTotalTime += (currentTime - maintainStartTime);
+    //                        maintainStartTime = 0;
+    //                    }
+                        //maintainStartTime = 0;
+                        // 改離開就全部重來
+                        resetToCalibration();
                     }
+                    break;
 
-                    overlayView.setStatus(uiStatus);
-
-                } else {
-                    // 離開圓框
-                    resetCalibration();
-                    overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
-                    currentState = AppState.OUT_OF_BOUNDS;
-                    demoStarted = false;
-                    demoFinished = false;
-                    if (statusText != null) statusText.setText("超出邊界");
-                    if (cueText != null) cueText.setText("請回到圓框內");
-                }
-                break;
-
-            case MAINTAINING:
-                if (faceInside) {
-                    if (maintainStartTime == 0) {
-                        maintainStartTime = currentTime;
-
+                case OUT_OF_BOUNDS:
+                    if (faceInside) {
+                        resetToCalibration();
+                    } else {
+                        overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
                     }
-                    overlayView.setStatus(CircleOverlayView.Status.OK);
-                } else {
-//                    if (maintainStartTime > 0) {
-//                        maintainTotalTime += (currentTime - maintainStartTime);
-//                        maintainStartTime = 0;
-//                    }
-                    //maintainStartTime = 0;
-                    // 改離開就全部重來
-                    resetToCalibration();
-                }
-                break;
+                    break;
+            }
 
-            case OUT_OF_BOUNDS:
-                if (faceInside) {
-                    resetToCalibration();
-                } else {
-                    overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
-                }
-                break;
+            updateStatusDisplay();
+            updateTimerDisplay();
+        } catch (Exception e) {
+            Log.e(TAG, "handleFacePosition 錯誤", e);
+            FirebaseCrashlytics.getInstance().recordException(e);
+            if (handleFacePosErrorCount < 3) {
+                handleFacePosErrorCount++;
+                AppLogger.logError("handleFacePosition_" + handleFacePosErrorCount, e.getMessage());
+            }
         }
-
-        updateStatusDisplay();
-        updateTimerDisplay();
     }
 
 
@@ -1536,6 +1623,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         calibrationTimer = () -> {
+
+            Bundle b3  = new Bundle();
+            b3.putString("training_label", trainingLabel);
+            AppLogger.logEvent("b3_calibration_done", b3);
             Log.d(TAG, "🟡 校正完成，切換到維持狀態");
             currentState = AppState.MAINTAINING;
             maintainStartTime = System.currentTimeMillis();
@@ -1566,6 +1657,19 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 Log.d(TAG, String.format("⏱️ 維持計時檢查 - 累計時間: %d ms / %d ms (%.1f%%)",
                         currentMaintainTime, MAINTAIN_TIME_TOTAL,
                         (currentMaintainTime * 100.0 / MAINTAIN_TIME_TOTAL)));
+            }
+
+            // ★ Heartbeat 每 3 秒
+            if (currentTime - lastHeartbeatTime >= 3000) {
+                lastHeartbeatTime = currentTime;
+                final long hbMaintainTime = currentMaintainTime;
+                Bundle b6 =  new Bundle();
+                b6.putString("b6_state", currentState.name());
+                b6.putBoolean("b6_nose_inside", lastNoseInside);
+                b6.putBoolean("b6_head_stable", lastHeadStable);
+                b6.putLong("b6_maintain_time", hbMaintainTime);
+                b6.putInt("b6_reset_count", resetCount);
+                AppLogger.logEvent("b6_training_heartbeat", b6);
             }
 
             if (currentMaintainTime >= MAINTAIN_TIME_TOTAL) {
@@ -1621,7 +1725,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         progressBar.setProgress(progress);
     }
 
+    //resetCalibration : 校正階段出框時呼叫的，只重置校正相關的東西。
     private void resetCalibration() {
+        resetCount++;
+
+        Bundle b4_1 = new Bundle();
+        b4_1.putString("b4-1_Reset at Calibration stage", "CALIBRATING");
+        b4_1.putInt("b4-1_reset_count", resetCount);
+        b4_1.putString("b4-1_training_label", trainingLabel);
+        AppLogger.logEvent("b4-1_training_reset", b4_1);
+
         if (!isTrainingCompleted) {
             calibrationStartTime = 0;
             cancelTimers();
@@ -1657,8 +1770,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             }
         }
     }
-
+    //resetToCalibration : 是訓練階段（MAINTAINING)出框時呼叫
     private void resetToCalibration() {
+        resetCount++;
+        Bundle b4_2 = new Bundle();
+        b4_2.putString("b4-2_from_state", currentState.name());
+        b4_2.putInt("b4-2_reset_count", resetCount);
+        b4_2.putLong("b4-2_maintain_time_so_far", maintainTotalTime);
+        b4_2.putString("b4-2_training_label", trainingLabel);
+        AppLogger.logEvent("training_reset", b4_2);
+
         if (!isTrainingCompleted) {
             calibrationStartTime = 0;
             maintainStartTime = 0;
@@ -1709,98 +1830,171 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     private void completedTraining() {
-        stopSimpleCue();
-        Log.d(TAG, " === 訓練完成！開始儲存資料 ");
-        Log.d(TAG_2, " ==已進入compelete ");
-        isTrainingCompleted = true;
-        // 🎥 停止錄影（正常完成，不刪除）
-        if (currentRecording != null) {
-            currentRecording.stop();
-            currentRecording = null;
-            Log.d(TAG, "✅ 錄影完成，影片已保存");
-        }
-        cancelTimers();
 
-        overlayView.setStatus(CircleOverlayView.Status.OK);
-        updateStatusDisplay();
-        updateTimerDisplay();
+        try {
+            AppLogger.logTrainingComplete(trainingLabel);
 
-        Toast.makeText(this, " 訓練完成", Toast.LENGTH_LONG).show();
+            stopSimpleCue();
+            Log.d(TAG, " === 訓練完成！開始儲存資料 ");
+            Log.d(TAG_2, " ==已進入compelete ");
+            AppLogger.log("訓練完成","Face Check 進入completedTraining");
 
-        //這邊會先呼叫dataRecorder.saveToFileWithCallbac，做運算完成後會從dataRecorder那邊呼叫下面方法onComplete
-        //底下new FaceDataRecorder.DataSaveCallback()，好像是一個callBack物件在saveToFileWithCallback方法當參數
-        dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
+            isTrainingCompleted = true;
+            // 🎥 停止錄影（正常完成，不刪除）
+            if (currentRecording != null) {
+                currentRecording.stop();
+                currentRecording = null;
+                Log.d(TAG, "✅ 錄影完成，影片已保存");
+            }
+            cancelTimers();
 
+            overlayView.setStatus(CircleOverlayView.Status.OK);
+            updateStatusDisplay();
+            updateTimerDisplay();
 
-            @Override
-            public void onComplete(CSVMotioner.PyAnalysisResult res) {
+            Toast.makeText(this, " 訓練完成", Toast.LENGTH_LONG).show();
 
-
-                AppLogger.logTrainingComplete(trainingLabel);
-
-                //20251002 : 現在要從遠端回傳改回佣PYHON本地值
-                Log.d(TAG, "✅ 測試傳數值到Vercel_");
-                //變數宣告
-                final String payload = dataRecorder.exportLinesAsJson();
-                final String csv = dataRecorder.getFileName();
-                final String label0 = trainingLabel;
-                final int target = 0;
-                final int duration0 = MAINTAIN_TIME_TOTAL / 1000;
-
-                Log.d("API_SEND", "✅ 上傳CSV內容::"+payload);
-                Log.d("SEND_TO_PYTHON，看payload變數就知道內文", "✅ 上傳CSV內容::"+payload);
-                Log.d("PYTHON RETURN REESULT", "✅ 回傳內容::"+payload);
-
-                // 改呼叫Python去讀CSV檔案
-                String label = label0;
-                String ResMotionType = "";
-                String curveJson = "";
-                String TAB1 = "viewProblem";
-
-                int actual   = 0;
-                int duration = duration0;
-
-                actual   = res.actionCount;
-                duration = (int) res.totalActionTime;
+            //這邊會先呼叫dataRecorder.saveToFileWithCallbac，做運算完成後會從dataRecorder那邊呼叫下面方法onComplete
+            //底下new FaceDataRecorder.DataSaveCallback()，好像是一個callBack物件在saveToFileWithCallback方法當參數
+            dataRecorder.saveToFileWithCallback(new FaceDataRecorder.DataSaveCallback() {
 
 
-                new Thread(() -> {
+                @Override
+                public void onComplete(CSVMotioner.PyAnalysisResult res) {
+
+
+
+
+                    //20251002 : 現在要從遠端回傳改回佣PYHON本地值
+                    Log.d(TAG, "✅ 測試傳數值到Vercel_");
+                    //變數宣告
+                    final String payload = dataRecorder.exportLinesAsJson();
+                    final String csv = dataRecorder.getFileName();
+                    final String label0 = trainingLabel;
+                    final int target = 0;
+                    final int duration0 = MAINTAIN_TIME_TOTAL / 1000;
+
+                    Log.d("API_SEND", "✅ 上傳CSV內容::"+payload);
+                    Log.d("SEND_TO_PYTHON，看payload變數就知道內文", "✅ 上傳CSV內容::"+payload);
+                    Log.d("PYTHON RETURN REESULT", "✅ 回傳內容::"+payload);
+
                     // 改呼叫Python去讀CSV檔案
-                    String flabel = label0;
-                    String fResMotionType = "";
-                    String fcurveJson = "";
-                    String fTAB1 = "viewProblem";
+                    String label = label0;
+                    String ResMotionType = "";
+                    String curveJson = "";
+                    String TAB1 = "viewProblem";
 
-                    int factual   = 0;
-                    int fduration = duration0;
+                    int actual   = 0;
+                    int duration = duration0;
 
-                    factual   = res.actionCount;
-                    fduration = (int) res.totalActionTime;
-
-                    //存檔與跳頁
-                    //Todo 互動
-                    // runOnUiThread(() ->
-                    runOnUiThread(() ->
-                            Toast.makeText(FaceCircleCheckerActivity.this, "資料上傳中...", Toast.LENGTH_LONG).show()
-                    );
-                    AppLogger.log("Toast", "資料上傳中...");
-                    
-                    insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
+                    actual   = res.actionCount;
+                    duration = (int) res.totalActionTime;
 
 
-                    //TODO..改道上傳完再跑?
-                    runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
-                }).start();
-            }
+                    new Thread(() -> {
+                        try {
+                            // 改呼叫Python去讀CSV檔案
+                            String flabel = label0;
+                            String fResMotionType = "";
+                            String fcurveJson = "";
+                            String fTAB1 = "viewProblem";
+
+                            int factual   = 0;
+                            int fduration = duration0;
+
+                            factual   = res.actionCount;
+                            fduration = (int) res.totalActionTime;
+
+                            //存檔與跳頁
+                            //Todo 互動
+                            // runOnUiThread(() ->
+                            runOnUiThread(() ->
+                                    Toast.makeText(FaceCircleCheckerActivity.this, "資料上傳中...", Toast.LENGTH_LONG).show()
+                            );
+                            AppLogger.log("Toast", "資料上傳中...");
+
+                            insertTrainingRecord(trainingLabel_String, factual, 3, fduration, csv,null);
 
 
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "❌ 儲存或分析失敗: " + error);
-                Toast.makeText(FaceCircleCheckerActivity.this, "處理失敗: " + error, Toast.LENGTH_LONG).show();
-                new Handler(Looper.getMainLooper()).postDelayed(() -> finish(), 3000);
-            }
-        });
+                            //TODO..改道上傳完再跑?
+                            runOnUiThread(() -> go(trainingLabel_String, 0, target, 0, csv, "test"));
+                        } catch (Exception e) {
+                            Log.e(TAG, "onComplete Thread 錯誤", e);
+                            Bundle b = new Bundle();
+                            b.putString("error", e.getMessage());
+                            AppLogger.logEvent("onComplete_crash", b);
+                            FirebaseCrashlytics.getInstance().recordException(e);
+                        }
+                    }).start();
+                }
+
+
+                @Override
+                public void onError(String error) {
+                    Log.e(TAG, "❌ 儲存或分析失敗: " + error);
+                    FirebaseCrashlytics.getInstance().recordException(new RuntimeException("analysis_failed: " + error));
+
+                    Bundle b = new Bundle();
+                    b.putString("training_label", trainingLabel);
+                    b.putString("error", error);
+                    AppLogger.logEvent("analysis_failed", b);
+                    final String csv = dataRecorder.getFileName();
+
+                    new Thread(() -> {
+                        try {
+                            User loggedInUser = AppDatabase.getInstance(FaceCircleCheckerActivity.this).userDao().findLoggedInOne();
+                            String username = (loggedInUser != null) ? loggedInUser.userId : "guest";
+
+                            Date date = new Date(maintainStartTime > 0 ? maintainStartTime : System.currentTimeMillis());
+                            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                            String readableTime = sdf.format(date);
+                            String trainingID = username + "_" + trainingLabel_String + "_" + readableTime;
+
+                            TrainingHistory history = new TrainingHistory(
+                                    trainingID, trainingLabel_String,
+                                    maintainStartTime, System.currentTimeMillis(),
+                                    3, 0, 0, null, csv,
+                                    videoFilePath != null ? new File(videoFilePath).getName() : ""
+                            );
+
+                            AppDatabase.getInstance(FaceCircleCheckerActivity.this)
+                                    .trainingHistoryDao().insert(history);
+                            AppLogger.log("onError", "DB insert 成功: " + trainingID);
+
+                            SupabaseUploader.scheduleCsvUpload(FaceCircleCheckerActivity.this, trainingID, csv);
+                        } catch (Exception e) {
+                            Log.e(TAG, "onError 存檔也失敗: " + e.getMessage());
+                            AppLogger.logError("onError", "存檔也失敗: " + e.getMessage());
+                        }
+
+                        runOnUiThread(() -> {
+                            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                            android.net.NetworkInfo info = cm.getActiveNetworkInfo();
+                            boolean hasNetwork = info != null && info.isConnected();
+
+                            if (!hasNetwork) {
+                                Toast.makeText(FaceCircleCheckerActivity.this,
+                                        "✅ 訓練完成！目前無網路，資料已儲存，連網後將自動上傳",
+                                        Toast.LENGTH_LONG).show();
+                            } else {
+                                Toast.makeText(FaceCircleCheckerActivity.this,
+                                        "✅ 訓練完成！",
+                                        Toast.LENGTH_LONG).show();
+                            }
+                            go(trainingLabel_String, 0, 3, 0, csv, "error");
+                        });
+                    }).start();
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "completedTraining 嚴重錯誤", e);
+            Bundle b = new Bundle();
+            b.putString("error", e.getMessage());
+            AppLogger.logEvent("completedTraining_crash", b);
+            FirebaseCrashlytics.getInstance().recordException(e);
+        }
+
+
     }
 
     //區域_提醒放鬆與動作導引
@@ -1845,23 +2039,28 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         final int segMs = Math.max(1, CUE_SEGMENT_SEC) * 1000;//只是CUE_SEGMENT_SEC轉ms，一樣意思
 
         cueRunnable = () -> {
-            // ★ 加入這個檢查：訓練完成就不要再更新
-            if (!cueRunning || cueText == null || isTrainingCompleted) return;
+            try {
+                // ★ 加入這個檢查：訓練完成就不要再更新
+                if (!cueRunning || cueText == null || isTrainingCompleted) return;
 
-            String zh = motionLabelZh(trainingLabel);
-            cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
+                String zh = motionLabelZh(trainingLabel);
+                cueText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 32);
 
-            if (cueStep % 2 == 0) {
-                cueText.setText("保持 " + zh);
-            } else {
-                cueText.setText("放鬆");
-            }
+                if (cueStep % 2 == 0) {
+                    cueText.setText("保持 " + zh);
+                } else {
+                    cueText.setText("放鬆");
+                }
 
-            cueStep++;
+                cueStep++;
 
-            // ★ 也在這裡檢查一次
-            if (!isTrainingCompleted) {
-                mainHandler.postDelayed(() -> postNextCue(0), segMs);
+                // ★ 也在這裡檢查一次
+                if (!isTrainingCompleted) {
+                    mainHandler.postDelayed(() -> postNextCue(0), segMs);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "postNextCue 錯誤", e);
+                FirebaseCrashlytics.getInstance().recordException(e);
             }
         };
         mainHandler.postDelayed(cueRunnable, delayMs);
@@ -2007,40 +2206,41 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
     // 新增訓練結果到DB
     private void insertTrainingRecord(String label, int achieved, int target, int duration, String csv,String curveJson) {
-        long currentTime = System.currentTimeMillis();
+        try {
+            long currentTime = System.currentTimeMillis();
 
-        User loggedInUser = AppDatabase.getInstance(this).userDao().findLoggedInOne();
-        String username = (loggedInUser != null)?loggedInUser.userId : "guest";
-        long createAt = maintainStartTime;
-        long finishAt = maintainStartTime + maintainTotalTime;
+            User loggedInUser = AppDatabase.getInstance(this).userDao().findLoggedInOne();
+            String username = (loggedInUser != null)?loggedInUser.userId : "guest";
+            long createAt = maintainStartTime;
+            long finishAt = maintainStartTime + maintainTotalTime;
 
-        long targetTimes = MAINTAIN_TIME_TOTAL/1000/CUE_SEGMENT_SEC/2;
-        targetTimes = 3;
+            long targetTimes = MAINTAIN_TIME_TOTAL/1000/CUE_SEGMENT_SEC/2;
+            targetTimes = 3;
 
-        int achievedTimes = achieved;
-        long durationTime = duration;
-        String analysisType = label;
+            int achievedTimes = achieved;
+            long durationTime = duration;
+            String analysisType = label;
 
-        //先由毫秒轉成"yyyy-MM-dd HH:mm:ss"
-        Date date = new Date(createAt);
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String readableTime = sdf.format(date);
+            //先由毫秒轉成"yyyy-MM-dd HH:mm:ss"
+            Date date = new Date(createAt);
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            String readableTime = sdf.format(date);
 
-        String trainingID = username+"_"+label+"_"+readableTime;
-        Log.e("寫入運動紀錄中看參數", "==========================================");
-        Log.e("寫入運動紀錄中看參數", "username: " + username);
-        Log.e("寫入運動紀錄中看參數", "createAt: " + createAt + " (" + sdf.format(new Date(createAt)) + ")");
-        Log.e("寫入運動紀錄中看參數", "finishAt: " + finishAt + " (" + sdf.format(new Date(finishAt)) + ")");
-        Log.e("寫入運動紀錄中看參數", "targetTimes: " + targetTimes);
-        Log.e("寫入運動紀錄中看參數", "achievedTimes: " + achievedTimes);
-        Log.e("寫入運動紀錄中看參數", "durationTime: " + durationTime);
-        Log.e("寫入運動紀錄中看參數", "analysisType: " + analysisType);
-        Log.e("寫入運動紀錄中看參數", "trainingID: " + trainingID);
-        Log.e("寫入運動紀錄中看參數", "readableTime: " + readableTime);
-        Log.e("寫入運動紀錄中看參數", "curveJson: " + curveJson);
-        Log.e("寫入運動紀錄中看參數", "==========================================");
+            String trainingID = username+"_"+label+"_"+readableTime;
+            Log.e("寫入運動紀錄中看參數", "==========================================");
+            Log.e("寫入運動紀錄中看參數", "username: " + username);
+            Log.e("寫入運動紀錄中看參數", "createAt: " + createAt + " (" + sdf.format(new Date(createAt)) + ")");
+            Log.e("寫入運動紀錄中看參數", "finishAt: " + finishAt + " (" + sdf.format(new Date(finishAt)) + ")");
+            Log.e("寫入運動紀錄中看參數", "targetTimes: " + targetTimes);
+            Log.e("寫入運動紀錄中看參數", "achievedTimes: " + achievedTimes);
+            Log.e("寫入運動紀錄中看參數", "durationTime: " + durationTime);
+            Log.e("寫入運動紀錄中看參數", "analysisType: " + analysisType);
+            Log.e("寫入運動紀錄中看參數", "trainingID: " + trainingID);
+            Log.e("寫入運動紀錄中看參數", "readableTime: " + readableTime);
+            Log.e("寫入運動紀錄中看參數", "curveJson: " + curveJson);
+            Log.e("寫入運動紀錄中看參數", "==========================================");
 
-        //保持舊版參數兼容
+            //保持舊版參數兼容
 //        TrainingHistory history = new TrainingHistory(
 //                trainingID,
 //                label,
@@ -2054,99 +2254,106 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 //        );
 
 //to do 增加建構子
-        TrainingHistory history = new TrainingHistory(
-                trainingID,
-                label,
-                maintainStartTime,
-                currentTime,
-                target,
-                achieved,
-                duration,
-                curveJson,
-                csv,           // csvFileName（第9個）
-                videoFilePath != null ? new File(videoFilePath).getName() : ""  // videoFileName
-        );
+            TrainingHistory history = new TrainingHistory(
+                    trainingID,
+                    label,
+                    maintainStartTime,
+                    currentTime,
+                    target,
+                    achieved,
+                    duration,
+                    curveJson,
+                    csv,           // csvFileName（第9個）
+                    videoFilePath != null ? new File(videoFilePath).getName() : ""  // videoFileName
+            );
 
-        new Thread(() -> {
-
-
-
-            // 加 try-catch
-            try {
-                AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
-                Log.d(TAG, "✅ 訓練記錄已寫入資料庫");
-            } catch (Exception e) {
-                Log.e(TAG, "❌ 訓練記錄寫入失敗: " + e.getMessage());
-                e.printStackTrace();
-                return;  // 寫入失敗就不上傳
-            }
-
-
-            String TAG_TEST_3 = "NoDatTest";
+            new Thread(() -> {
 
 
 
-            // 改用新方法 更換Toast樣式
-//            SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
-//                @Override
-//                public void onSuccess(String publicUrl, String trainingID) {
-//                    Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
-//                    Log.d(TAG_TEST_3, "✅ CSV 上傳成功: " + publicUrl);
-//
-//                }
-//
-//                @Override
-//                public void onFailure(String error, String trainingID) {
-//                    Log.e(TAG, "❌ CSV 上傳失敗: " + error);
-//                    Log.e(TAG_TEST_3, "❌ CSV 上傳失敗: " + error);
-//                }
-//            });
-//
-//
-//            com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
-//                //ToDO.. 改為上傳到FIREBASE LOG，證實有到過本地資料庫，查找未更新紀錄，這邊會接到onComplete的回傳。
-//                //FaceCircleCheckActivity : uploadTodayUnsynced.onComplete(ReciveCallBack) 成功 " + success + " 筆，失敗 " + fail + " 筆
-//                Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
-//                Log.d(TAG_TEST_3, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
-//            });
-
-
-            final boolean[] fbDone = {false};
-            final boolean[] csvDone = {false};
-            final boolean[] fbOk = {false};
-            final boolean[] csvOk = {false};
-
-            SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
-                @Override
-                public void onSuccess(String publicUrl, String trainingID) {
-                    Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
-                    AppLogger.log("FaceCheck畫面，uploadCsvWithMark onSuccess，Toast顯示 : CSV 上傳成功", publicUrl);
-                    csvDone[0] = true;
-                    csvOk[0] = true;
-                    showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
+                // 加 try-catch
+                try {
+                    AppDatabase.getInstance(this).trainingHistoryDao().insert(history);
+                    Log.d(TAG, "✅ 訓練記錄已寫入資料庫");
+                } catch (Exception e) {
+                    Log.e(TAG, "❌ 訓練記錄寫入失敗: " + e.getMessage());
+                    e.printStackTrace();
+                    return;  // 寫入失敗就不上傳
                 }
 
-                @Override
-                public void onFailure(String error, String trainingID) {
-                    Log.e(TAG, "❌ CSV 上傳失敗: " + error);
-                    AppLogger.log("FaceCheck畫面，uploadCsvWithMark onFailure，Toast顯示 : CSV 上傳失敗", error);
-                    AppLogger.logError("FaceCheck畫面，uploadCsvWithMark onFailure，Toast顯示 : CSV 上傳失敗", error);
-                    csvDone[0] = true;
-                    csvOk[0] = false;
+
+                String TAG_TEST_3 = "NoDatTest";
+
+
+
+                // 改用新方法 更換Toast樣式
+    //            SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
+    //                @Override
+    //                public void onSuccess(String publicUrl, String trainingID) {
+    //                    Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
+    //                    Log.d(TAG_TEST_3, "✅ CSV 上傳成功: " + publicUrl);
+    //
+    //                }
+    //
+    //                @Override
+    //                public void onFailure(String error, String trainingID) {
+    //                    Log.e(TAG, "❌ CSV 上傳失敗: " + error);
+    //                    Log.e(TAG_TEST_3, "❌ CSV 上傳失敗: " + error);
+    //                }
+    //            });
+    //
+    //
+    //            com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
+    //                //ToDO.. 改為上傳到FIREBASE LOG，證實有到過本地資料庫，查找未更新紀錄，這邊會接到onComplete的回傳。
+    //                //FaceCircleCheckActivity : uploadTodayUnsynced.onComplete(ReciveCallBack) 成功 " + success + " 筆，失敗 " + fail + " 筆
+    //                Log.d(TAG, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+    //                Log.d(TAG_TEST_3, "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+    //            });
+
+
+                final boolean[] fbDone = {false};
+                final boolean[] csvDone = {false};
+                final boolean[] fbOk = {false};
+                final boolean[] csvOk = {false};
+
+                SupabaseUploader.uploadCsvWithMark(this, csv, trainingID, new SupabaseUploader.UploadCallbackWithId() {
+                    @Override
+                    public void onSuccess(String publicUrl, String trainingID) {
+                        Log.d(TAG, "✅ CSV 上傳成功: " + publicUrl);
+                        AppLogger.log("FaceCheck畫面，uploadCsvWithMark onSuccess，Toast顯示 : CSV 上傳成功", publicUrl);
+                        csvDone[0] = true;
+                        csvOk[0] = true;
+                        showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
+                    }
+
+                    @Override
+                    public void onFailure(String error, String trainingID) {
+                        Log.e(TAG, "❌ CSV 上傳失敗: " + error);
+                        AppLogger.log("FaceCheck畫面，uploadCsvWithMark onFailure，Toast顯示 : CSV 上傳失敗", error);
+                        AppLogger.logError("FaceCheck畫面，uploadCsvWithMark onFailure，Toast顯示 : CSV 上傳失敗", error);
+                        csvDone[0] = true;
+                        csvOk[0] = false;
+                        showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
+                    }
+                });
+
+                com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
+                    Log.d(TAG, "FirebaseUploader.uploadTodayUnsynced自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
+                    fbDone[0] = true;
+                    fbOk[0] = (fail == 0);
+                    AppLogger.log("FaceCheck畫面，FirebaseUploader 上傳結果", "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
                     showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
-                }
-            });
-
-            com.example.rehabilitationapp.data.FirebaseUploader.uploadTodayUnsynced(this, (success, fail) -> {
-                Log.d(TAG, "FirebaseUploader.uploadTodayUnsynced自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
-                fbDone[0] = true;
-                fbOk[0] = (fail == 0);
-                AppLogger.log("FaceCheck畫面，FirebaseUploader 上傳結果", "自動上傳結果：成功 " + success + " 筆，失敗 " + fail + " 筆");
-                showUploadToast(fbDone[0], csvDone[0], fbOk[0], csvOk[0]);
-            });
+                });
 
 
-        }).start();
+            }).start();
+        } catch (Exception e) {
+            Log.e(TAG, "insertTrainingRecord 嚴重錯誤", e);
+            Bundle b = new Bundle();
+            b.putString("error", e.getMessage());
+            AppLogger.logEvent("insertRecord_crash", b);
+            FirebaseCrashlytics.getInstance().recordException(e);
+        }
     }
 
 
@@ -2218,7 +2425,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 // 從 SharedPreferences 拿 userId
             SharedPreferences prefs =
                     getSharedPreferences("user_prefs", MODE_PRIVATE);
-            String userId = prefs.getString("current_user_id", "guest");
+            String userId = prefs.getString("current_user_id", "no_login");
+
 
 // 在檔名前面加 userId
             String fileName = userId + "_Training_" + trainingLabel + "_" + timestamp + ".mp4";
@@ -2231,27 +2439,32 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             currentRecording = videoCapture.getOutput()
                     .prepareRecording(this, outputOptions)
                     .start(ContextCompat.getMainExecutor(this), videoRecordEvent -> {
-                        if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
-                            VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) videoRecordEvent;
-                            if (!finalizeEvent.hasError()) {
-                                Log.d(TAG_3, "✅ 影片已保存: " + videoFilePath);
-                                // ★ 備份到隱藏公共目錄
-                                try {
-                                    File publicDir = new File(android.os.Environment.getExternalStoragePublicDirectory(
-                                            android.os.Environment.DIRECTORY_DOWNLOADS), "rhabdata");
-                                    if (!publicDir.exists()) publicDir.mkdirs();
-                                    File src = new File(videoFilePath);
-                                    File dst = new File(publicDir, src.getName());
-                                    java.nio.file.Files.copy(src.toPath(), dst.toPath(),
-                                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                                    Log.d(TAG_3, "✅ 影片備份成功: " + dst.getAbsolutePath());
-                                } catch (Exception e) {
-                                    Log.e(TAG_3, "⚠️ 影片備份失敗: " + e.getMessage());
-                                }
+                        try {
+                            if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
+                                VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) videoRecordEvent;
+                                if (!finalizeEvent.hasError()) {
+                                    Log.d(TAG_3, "✅ 影片已保存: " + videoFilePath);
+                                    // ★ 備份到隱藏公共目錄
+                                    try {
+                                        File publicDir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                                                android.os.Environment.DIRECTORY_DOWNLOADS), "rhabdata");
+                                        if (!publicDir.exists()) publicDir.mkdirs();
+                                        File src = new File(videoFilePath);
+                                        File dst = new File(publicDir, src.getName());
+                                        java.nio.file.Files.copy(src.toPath(), dst.toPath(),
+                                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                        Log.d(TAG_3, "✅ 影片備份成功: " + dst.getAbsolutePath());
+                                    } catch (Exception e) {
+                                        Log.e(TAG_3, "⚠️ 影片備份失敗: " + e.getMessage());
+                                    }
 
-                            } else {
-                                Log.e(TAG_3, "❌ 影片錄製失敗: " + finalizeEvent.getError());
+                                } else {
+                                    Log.e(TAG_3, "❌ 影片錄製失敗: " + finalizeEvent.getError());
+                                }
                             }
+                        } catch (Exception e) {
+                            Log.e(TAG_3, "影片 callback 錯誤", e);
+                            FirebaseCrashlytics.getInstance().recordException(e);
                         }
                     });
 
@@ -2323,7 +2536,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 .setCancelable(false)  // 不能按返回關閉
                 .setPositiveButton("知道了", (d, which) -> {
                     videoView.stopPlayback();
+                    //1.關閉對話
                     // 按下「知道了」後開始倒數
+                    Bundle b = new Bundle();
+                    b.putString("training_label",trainingLabel);
+                    AppLogger.logEvent("tutorial_dismissed",b);
                     showCountdown();
                 })
                 .create();
@@ -2375,24 +2592,32 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
             @Override
             public void onFinish() {
-                // 恢復 timerText 原本的樣式
-                if (timerText != null) {
-                    timerText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
-                }
+                try {
+                    // 恢復 timerText 原本的樣式
+                    if (timerText != null) {
+                        timerText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
+                    }
 
-                // 清空 cueText（之後校正流程會自己設定）
-                if (cueText != null) {
-                    cueText.setText("");
-                }
+                    // 清空 cueText（之後校正流程會自己設定）
+                    if (cueText != null) {
+                        cueText.setText("");
+                    }
 
-                // 🆕 重設 CSV 的開始時間
-                if (dataRecorder != null) {
-                    dataRecorder.resetStartTime();
-                }
+                    // 🆕 重設 CSV 的開始時間
+                    if (dataRecorder != null) {
+                        dataRecorder.resetStartTime();
+                    }
 
-                // 🆕 倒數結束，正式開始校正流程
-                countdownFinished = true;
-                Log.d(TAG, "✅ 倒數結束，開始校正流程");
+                    // 🆕 倒數結束，正式開始校正流程
+                    countdownFinished = true;
+                    Bundle b2 = new Bundle();
+                    b2.putString("training_label", trainingLabel);
+                    AppLogger.logEvent("b2_countdown_finished", b2);
+                    Log.d(TAG, "✅ 倒數結束，開始校正流程");
+                } catch (Exception e) {
+                    Log.e(TAG, "countdown onFinish 錯誤", e);
+                    FirebaseCrashlytics.getInstance().recordException(e);
+                }
             }
         }.start();
     }
@@ -2606,7 +2831,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         avg /= headMotionHistory.size();
         lastHeadStable = avg < HEAD_MOTION_THRESHOLD;
         if (!lastHeadStable) {
-            headStableCooldown = 30;
+            headStableCooldown = 15;
         }
         return lastHeadStable;
     }

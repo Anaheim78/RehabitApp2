@@ -10,6 +10,7 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -209,6 +210,16 @@ public class AppLogger {
         } catch (Exception e) {
             Log.e(TAG, "Firestore Log 異常: " + e.getMessage());
         }
+
+        try {
+            File logFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS), "rhabdata/local_log.txt");
+            if (!logFile.getParentFile().exists()) logFile.getParentFile().mkdirs();
+            java.io.FileWriter fw = new java.io.FileWriter(logFile, true);
+            fw.write(System.currentTimeMillis() + "," + eventName + "," +
+                    currentUserId + "," + android.os.Build.MODEL + "\n");
+            fw.close();
+        } catch (Exception ignored) {}
     }
 
     public static void log(String event, String message) {

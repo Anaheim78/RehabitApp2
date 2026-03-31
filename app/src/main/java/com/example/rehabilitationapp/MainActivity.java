@@ -1,5 +1,6 @@
 package com.example.rehabilitationapp;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -18,6 +19,8 @@ import com.example.rehabilitationapp.ui.plan.PlanFragment;
 import com.example.rehabilitationapp.ui.setting.SettingFragment;
 import com.example.rehabilitationapp.data.SupabaseUploader;
 import android.util.Log;
+import android.widget.Toast;
+
 import com.example.rehabilitationapp.data.AppLogger;
 public class MainActivity extends AppCompatActivity {
 
@@ -79,6 +82,13 @@ public class MainActivity extends AppCompatActivity {
             switchFragment(new SettingFragment());
             selectTab(R.id.tab_setting);
         });
+
+        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        android.net.NetworkInfo info = cm.getActiveNetworkInfo();
+        if (info == null || !info.isConnected()) {
+            Toast.makeText(this, "⚠️ 目前無網路連線，請開啟 WiFi 或行動數據", Toast.LENGTH_LONG).show();
+        }
+
 
         // App 啟動時補傳 Csv訓練Landmark
         SupabaseUploader.retryUnsyncedCsv(this, (success, fail) -> {
