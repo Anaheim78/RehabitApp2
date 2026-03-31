@@ -334,6 +334,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private boolean cueRunning = false;
     private int cueStep = 0; // 循環計數器，根據除2餘數，顯示偶數=動作，奇數=放鬆
     public int CUE_SEGMENT_SEC = 4; // 可調：文字提示顯示幾秒（預設 4 秒）
+    private int attemptCount = 0; // 失敗後，重試次數
     // ===============================================
 
     //================以下為方法=====================
@@ -1048,12 +1049,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         if (!headStable && countdownFinished && currentState == AppState.CALIBRATING && noseInside) {
                             if (System.currentTimeMillis() - lastResetTime < 1000) return;
                             lastResetTime = System.currentTimeMillis();
+
+
+
                             if (cueText != null) {
                                 cueText.setVisibility(View.VISIBLE);
                                 cueText.setText("⚠️ 請保持頭部不動");
                             }
                             overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
-                            resetCalibration();
+                            resetCalibration("頭部晃動");
                             return;
                         }
 
@@ -1575,7 +1579,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
                 case OUT_OF_BOUNDS:
                     if (faceInside) {
-                        resetToCalibration();
+                        Bundle bBack = new Bundle();
+                        bBack.putString("動作", trainingLabel);
+                        bBack.putInt("累計中斷", resetCount);
+                        AppLogger.logEvent("回到圓框", bBack);
+                        currentState = AppState.CALIBRATING;
                     } else {
                         overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
                     }
@@ -1624,9 +1632,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         calibrationTimer = () -> {
 
-            Bundle b3  = new Bundle();
-            b3.putString("training_label", trainingLabel);
-            AppLogger.logEvent("b3_calibration_done", b3);
+            attemptCount++;
+            Bundle b3 = new Bundle();
+            b3.putString("動作", trainingLabel);
+            b3.putInt("第幾次嘗試", attemptCount);
+            AppLogger.logEvent("校正完成", b3);
             Log.d(TAG, "🟡 校正完成，切換到維持狀態");
             currentState = AppState.MAINTAINING;
             maintainStartTime = System.currentTimeMillis();
@@ -1663,13 +1673,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             if (currentTime - lastHeartbeatTime >= 3000) {
                 lastHeartbeatTime = currentTime;
                 final long hbMaintainTime = currentMaintainTime;
-                Bundle b6 =  new Bundle();
-                b6.putString("b6_state", currentState.name());
-                b6.putBoolean("b6_nose_inside", lastNoseInside);
-                b6.putBoolean("b6_head_stable", lastHeadStable);
-                b6.putLong("b6_maintain_time", hbMaintainTime);
-                b6.putInt("b6_reset_count", resetCount);
-                AppLogger.logEvent("b6_training_heartbeat", b6);
+                Bundle b6 = new Bundle();
+                b6.putInt("第幾次嘗試", attemptCount);
+                b6.putString("狀態", currentState.name());
+                b6.putLong("已訓練秒數", hbMaintainTime / 1000);
+                b6.putInt("累計重置", resetCount);
+                AppLogger.logEvent("訓練中", b6);
             }
 
             if (currentMaintainTime >= MAINTAIN_TIME_TOTAL) {
@@ -1725,15 +1734,22 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         progressBar.setProgress(progress);
     }
 
-    //resetCalibration : 校正階段出框時呼叫的，只重置校正相關的東西。
-    private void resetCalibration() {
-        resetCount++;
 
-        Bundle b4_1 = new Bundle();
-        b4_1.putString("b4-1_Reset at Calibration stage", "CALIBRATING");
-        b4_1.putInt("b4-1_reset_count", resetCount);
-        b4_1.putString("b4-1_training_label", trainingLabel);
-        AppLogger.logEvent("b4-1_training_reset", b4_1);
+    private void resetCalibration() {
+        resetCalibration("出框");
+    }
+
+
+    //resetCalibration : 校正階段出框時呼叫的，只重置校正相關的東西。
+    private void resetCalibration(String reason) {
+        resetCount++;
+        lastResetTime = System.currentTimeMillis();
+
+        Bundle b = new Bundle();
+        b.putString("原因", reason);
+        b.putInt("累計重置", resetCount);
+        b.putString("動作", trainingLabel);
+        AppLogger.logEvent("訓練中斷", b);
 
         if (!isTrainingCompleted) {
             calibrationStartTime = 0;
@@ -1772,13 +1788,20 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
     //resetToCalibration : 是訓練階段（MAINTAINING)出框時呼叫
     private void resetToCalibration() {
+        // ★ 先算出實際已訓練時間
+        long actualTrainTime = maintainTotalTime;
+        if (maintainStartTime > 0) {
+            actualTrainTime += (System.currentTimeMillis() - maintainStartTime);
+        }
+
         resetCount++;
-        Bundle b4_2 = new Bundle();
-        b4_2.putString("b4-2_from_state", currentState.name());
-        b4_2.putInt("b4-2_reset_count", resetCount);
-        b4_2.putLong("b4-2_maintain_time_so_far", maintainTotalTime);
-        b4_2.putString("b4-2_training_label", trainingLabel);
-        AppLogger.logEvent("training_reset", b4_2);
+        lastResetTime = System.currentTimeMillis();
+        Bundle b = new Bundle();
+        b.putString("原因", "訓練中出框");
+        b.putInt("累計重置", resetCount);
+        b.putLong("已訓練秒數", actualTrainTime / 1000);
+        b.putString("動作", trainingLabel);
+        AppLogger.logEvent("訓練中斷", b);
 
         if (!isTrainingCompleted) {
             calibrationStartTime = 0;
