@@ -312,6 +312,16 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private boolean lastHeadStable = true;
     private int headStableCooldown = 0;
 
+    //頭動偵測(圓框10%)
+    //上一幀鼻尖的螢幕像素座標
+    private float prevNoseScreenX = -1;
+    private float prevNoseScreenY = -1;
+    private long prevNoseCheckTime = 0;
+
+    private long headUnstableUntil = 0;
+
+    private int lastDistanceHint = 0;  // 0=正常, 1=太遠, 2=太近
+    private String currentHintText = "";
 
 
     //===========【UX顯示區塊相關】===============>
@@ -1041,11 +1051,41 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         //
 
                         // === 頭動偵測（校正中 + 倒數完成 + 人在圓框內 才擋）===
-                        boolean headStable = isHeadStable(landmarks01);
-                        if (headStableCooldown > 0) {
-                            headStableCooldown--;
+
+//                        boolean headStable = isHeadStable(landmarks01);
+//
+//                        if (headStableCooldown > 0) {
+//                            headStableCooldown--;
+//                            headStable = false;
+//                        }
+
+                        //20260331_改為半徑10%
+                        // ★ 鼻尖移動超過圓框寬 10% 就算頭動
+                        boolean headStable = true;
+                        float circleWidth = radius * 2;
+                        long now = System.currentTimeMillis();
+
+                        if (prevNoseScreenX >= 0 && now - prevNoseCheckTime >= 300) {
+                            float noseDist = (float) Math.hypot(noseScreenX - prevNoseScreenX, noseScreenY - prevNoseScreenY);
+                            if (noseDist > circleWidth * 0.20f) {
+                                headStable = false;
+                                headUnstableUntil = now + 1500;  // ★ 紅色維持 1.5 秒
+                            }
+                            prevNoseScreenX = noseScreenX;
+                            prevNoseScreenY = noseScreenY;
+                            prevNoseCheckTime = now;
+                        } else if (prevNoseScreenX < 0) {
+                            prevNoseScreenX = noseScreenX;
+                            prevNoseScreenY = noseScreenY;
+                            prevNoseCheckTime = now;
+                        }
+
+                        if (now < headUnstableUntil) {
                             headStable = false;
                         }
+
+
+
                         if (!headStable && countdownFinished && currentState == AppState.CALIBRATING && noseInside) {
                             if (System.currentTimeMillis() - lastResetTime < 1000) return;
                             lastResetTime = System.currentTimeMillis();
@@ -1061,7 +1101,41 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             return;
                         }
 
+
+
                         handleFacePosition(noseInside);
+
+                        // ★ 提醒優先級：出框(handleFacePosition已處理) > 遠近 > 頭動
+                        if (countdownFinished && noseInside && currentState == AppState.CALIBRATING) {
+                            float eyeDist = calculateEyeDistance(allPoints);
+                            float faceRatio = eyeDist / circleWidth;
+                            Log.d(TAG, "faceRatio=" + faceRatio);
+
+                            // 遲滯防閃爍
+                            if (lastDistanceHint == 1) {
+                                if (faceRatio >= 0.32f) lastDistanceHint = 0;   // 太遠→恢復
+                            } else if (lastDistanceHint == 2) {
+                                if (faceRatio <= 0.43f) lastDistanceHint = 0;   // 太近→恢復
+                            } else {
+                                if (faceRatio < 0.30f) lastDistanceHint = 1;    // 觸發太遠
+                                else if (faceRatio > 0.45f) lastDistanceHint = 2; // 觸發太近
+                            }
+
+                            if (lastDistanceHint == 1) {
+                                if (cueText != null) cueText.setText("⚠️ 請靠近一點");
+                                if (calibrationStartTime > 0) {
+                                    resetCalibration("距離太遠");
+                                }
+                            } else if (lastDistanceHint == 2) {
+                                if (cueText != null) cueText.setText("⚠️ 請離遠一點");
+                                if (calibrationStartTime > 0) {
+                                    resetCalibration("距離太近");
+                                }
+                            } else if (now < headUnstableUntil) {
+                                if (cueText != null) cueText.setText("⚠️ 請保持頭部不動");
+                            }
+                        }
+
 
                     }
                 });
@@ -2864,6 +2938,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         headMotionHistory.clear();
         lastHeadStable = true;
         headStableCooldown = 0;
+
+        //頭動，圓框10趴版本
+        prevNoseScreenX = -1;
+        prevNoseScreenY = -1;
+        prevNoseCheckTime = 0;
+//        headUnstableUntil = 0;
+
     }
 
     private void showUploadToast(boolean fbDone, boolean csvDone, boolean fbOk, boolean csvOk) {
@@ -2878,6 +2959,17 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         );
     }
 
+
+    private void showHint(String text) {
+        if (cueText == null) return;
+        if (text.equals(currentHintText)) return;
+        currentHintText = text;
+        cueText.animate().alpha(0f).setDuration(150).withEndAction(() -> {
+            cueText.setText(text);
+            cueText.setVisibility(View.VISIBLE);
+            cueText.animate().alpha(1f).setDuration(150).start();
+        }).start();
+    }
 
 
 }

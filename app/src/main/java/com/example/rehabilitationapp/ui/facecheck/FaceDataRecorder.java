@@ -809,6 +809,8 @@ public class FaceDataRecorder {
 
     // 🔥 新增：帶 callback 的峰值分析方法
     private void performPeakAnalysisWithCallback(DataSaveCallback callback) {
+
+
         Log.d(TAG, "🎯 開始進行峰值分析...");
 
         // 在背景線程執行峰值分析
