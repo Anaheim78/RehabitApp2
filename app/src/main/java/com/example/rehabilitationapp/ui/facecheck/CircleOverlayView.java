@@ -56,6 +56,14 @@ public class CircleOverlayView extends View {
     // 參考線相關變數
     private float eyeLx, eyeLy, eyeRx, eyeRy, noseX, noseY, browX, browY;
     private boolean showReferenceLines = false;
+
+
+    private float arrowFromX = -1, arrowFromY = -1;
+    private float arrowToX = -1, arrowToY = -1;
+    private boolean showArrow = false;
+    private Paint arrowPaint;
+
+
     private Paint referenceLinePaint;
 
     // 特殊关键点的索引（用不同颜色标出）
@@ -137,6 +145,13 @@ public class CircleOverlayView extends View {
         referenceLinePaint.setStrokeWidth(3);
         referenceLinePaint.setAlpha(150);
         referenceLinePaint.setAntiAlias(true);
+
+        //紅色箭頭
+        arrowPaint = new Paint();
+        arrowPaint.setColor(Color.RED);
+        arrowPaint.setAlpha(160);
+        arrowPaint.setStyle(Paint.Style.FILL);
+        arrowPaint.setAntiAlias(true);
     }
 
     public void setStatus(Status status) {
@@ -303,7 +318,58 @@ public class CircleOverlayView extends View {
                 drawYoloDetectionResults(canvas); // 新的 YOLO 顯示
                 break;
         }
+
+        if (showArrow && arrowFromX >= 0) {
+            drawTaperedArrow(canvas, arrowFromX, arrowFromY, arrowToX, arrowToY);
+        }
     }
+
+
+    private void drawTaperedArrow(Canvas canvas, float fromX, float fromY, float toX, float toY) {
+        float dx = toX - fromX;
+        float dy = toY - fromY;
+        float len = (float) Math.hypot(dx, dy);
+        if (len < 30) return;
+
+        // 單位向量
+        float ux = dx / len;
+        float uy = dy / len;
+        // 垂直向量
+        float px = -uy;
+        float py = ux;
+
+        // 箭頭尺寸
+        float headLen = Math.min(len * 0.3f, 80);
+        float headWidth = headLen * 0.7f;
+        float tailWidth = headLen * 0.08f;
+
+        // 箭頭頂點
+        float tipX = toX;
+        float tipY = toY;
+        // 箭頭底邊（頭跟身體交界）
+        float baseX = toX - ux * headLen;
+        float baseY = toY - uy * headLen;
+
+        Path path = new Path();
+        // 從尾巴尖端開始（細的那端）
+        path.moveTo(fromX + px * tailWidth, fromY + py * tailWidth);
+        // 沿身體到箭頭底邊
+        path.lineTo(baseX + px * tailWidth, baseY + py * tailWidth);
+        // 箭頭右翼
+        path.lineTo(baseX + px * headWidth, baseY + py * headWidth);
+        // 箭頭頂點
+        path.lineTo(tipX, tipY);
+        // 箭頭左翼
+        path.lineTo(baseX - px * headWidth, baseY - py * headWidth);
+        // 回到身體左邊
+        path.lineTo(baseX - px * tailWidth, baseY - py * tailWidth);
+        // 回到尾巴
+        path.lineTo(fromX - px * tailWidth, fromY + py * tailWidth);
+        path.close();
+
+        canvas.drawPath(path, arrowPaint);
+    }
+
 
     /**
      * 📍 繪製 MediaPipe 關鍵點（移動後的原有邏輯）
@@ -421,6 +487,22 @@ public class CircleOverlayView extends View {
                 canvas.drawLine(nbStartX, nbStartY, nbEndX, nbEndY, referenceLinePaint);
             }
         }
+
+    }
+
+
+    public void setArrowGuide(float fromX, float fromY, float toX, float toY) {
+        this.arrowFromX = fromX;
+        this.arrowFromY = fromY;
+        this.arrowToX = toX;
+        this.arrowToY = toY;
+        this.showArrow = true;
+        invalidate();
+    }
+
+    public void clearArrowGuide() {
+        this.showArrow = false;
+        invalidate();
     }
 
     // ==================== 兼容性方法（保持原有接口）====================

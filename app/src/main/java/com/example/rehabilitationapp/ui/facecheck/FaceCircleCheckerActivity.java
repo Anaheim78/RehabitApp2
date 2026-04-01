@@ -362,6 +362,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         // 🆕 讀取錄影開關設定
         SharedPreferences appSettings = getSharedPreferences("app_settings", MODE_PRIVATE);
         ENABLE_VIDEO_RECORDING = appSettings.getBoolean("video_recording_enabled", true);
+        // 僅在正常人同意情況下打開，不收集病人錄影
+        ENABLE_VIDEO_RECORDING = false;
+
 
         Log.d(TAG, "錄影功能: " + (ENABLE_VIDEO_RECORDING ? "開啟" : "關閉"));
 
@@ -1069,7 +1072,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                             float noseDist = (float) Math.hypot(noseScreenX - prevNoseScreenX, noseScreenY - prevNoseScreenY);
                             if (noseDist > circleWidth * 0.20f) {
                                 headStable = false;
-                                headUnstableUntil = now + 1500;  // ★ 紅色維持 1.5 秒
+                                headUnstableUntil = now + 1200;  // ★ 紅色維持 1.5 秒
                             }
                             prevNoseScreenX = noseScreenX;
                             prevNoseScreenY = noseScreenY;
@@ -1104,6 +1107,14 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
 
                         handleFacePosition(noseInside);
+                        // ★ 出框箭頭指引
+                        if (!noseInside && countdownFinished) {
+                            overlayView.setArrowGuide(noseScreenX, noseScreenY, centerX, centerY);
+                        } else {
+                            overlayView.clearArrowGuide();
+                        }
+
+
 
                         // ★ 提醒優先級：出框(handleFacePosition已處理) > 遠近 > 頭動
                         if (countdownFinished && noseInside && currentState == AppState.CALIBRATING) {
@@ -1658,6 +1669,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         bBack.putInt("累計中斷", resetCount);
                         AppLogger.logEvent("回到圓框", bBack);
                         currentState = AppState.CALIBRATING;
+                        overlayView.clearArrowGuide();
                     } else {
                         overlayView.setStatus(CircleOverlayView.Status.OUT_OF_BOUND);
                     }
