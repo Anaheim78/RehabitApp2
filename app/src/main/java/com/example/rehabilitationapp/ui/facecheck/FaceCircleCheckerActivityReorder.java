@@ -2149,19 +2149,17 @@ public class FaceCircleCheckerActivityReorder extends AppCompatActivity {
         switch (trainingLabel) {
             // 臉頰
             case "PUFF_CHEEK":
-                return R.raw.puffcheek_class;
+
             case "REDUCE_CHEEK":
-                return R.raw.reduce_cheek_class;
 
             // 嘴唇（支援多種寫法）
             case "POUT_LIPS":
             case "LOUT_LIP":
             case "poutLip":
-                return R.raw.loutlip_class;
+
             case "SIP_LIPS":
             case "SIP_LIP":
             case "closeLip":
-                return R.raw.siplip_class;
 
             // 舌頭（目前沒有影片，之後再加）
             case "TONGUE_LEFT":

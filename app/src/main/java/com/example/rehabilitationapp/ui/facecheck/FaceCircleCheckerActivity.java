@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -2617,43 +2618,47 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     private void showTutorialDialog() {
         if (tutorialShown) return;
         tutorialShown = true;
-
-        // 暫停校正流程（不讓 calibration 開始計時）
         countdownFinished = false;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_tutorial, null);
         builder.setView(dialogView);
 
-        // 取得元件
         VideoView videoView = dialogView.findViewById(R.id.tutorial_video);
+        ImageView imageView = dialogView.findViewById(R.id.tutorial_image);
         TextView descriptionText = dialogView.findViewById(R.id.tutorial_description);
 
-        // 設定文字說明
         descriptionText.setText(getTutorialDescription());
 
-        // 設定影片
         int videoResId = getTutorialVideoResId();
+        int imageResId = getTutorialImageResId();
+
         if (videoResId != 0) {
+            videoView.setVisibility(View.VISIBLE);
+            imageView.setVisibility(View.GONE);
             String videoPath = "android.resource://" + getPackageName() + "/" + videoResId;
             videoView.setVideoURI(android.net.Uri.parse(videoPath));
             videoView.setOnPreparedListener(mp -> {
                 mp.setLooping(true);
                 videoView.start();
             });
+        } else if (imageResId != 0) {
+            videoView.setVisibility(View.GONE);
+            imageView.setVisibility(View.VISIBLE);
+            imageView.setImageResource(imageResId);
+        } else {
+            videoView.setVisibility(View.GONE);
+            imageView.setVisibility(View.GONE);
         }
 
-        // 建立對話框
         AlertDialog dialog = builder
                 .setTitle(trainingLabel != null ? trainingLabel : "訓練說明")
-                .setCancelable(false)  // 不能按返回關閉
+                .setCancelable(false)
                 .setPositiveButton("知道了", (d, which) -> {
                     videoView.stopPlayback();
-                    //1.關閉對話
-                    // 按下「知道了」後開始倒數
                     Bundle b = new Bundle();
-                    b.putString("training_label",trainingLabel);
-                    AppLogger.logEvent("tutorial_dismissed",b);
+                    b.putString("training_label", trainingLabel);
+                    AppLogger.logEvent("tutorial_dismissed", b);
                     showCountdown();
                 })
                 .create();
@@ -2744,33 +2749,33 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
      */
     private int getTutorialVideoResId() {
         if (trainingLabel == null) return 0;
-
         switch (trainingLabel) {
-            case "PUFF_CHEEK":
-                return R.raw.puffcheek_class;
-            case "REDUCE_CHEEK":
-                return R.raw.reduce_cheek_class;
-            case "POUT_LIPS":
-            case "LOUT_LIP":
-            case "poutLip":
-                return R.raw.loutlip_class;
-            case "SIP_LIPS":
-            case "SIP_LIP":
-            case "closeLip":
-                return R.raw.siplip_class;
-            case "TONGUE_LEFT":
-                return R.raw.tongue_left_class;
-            case "TONGUE_RIGHT":
-                return R.raw.tongue_right_class;
-            case "TONGUE_FOWARD":
-            case "TONGUE_FORWARD":
-                return R.raw.tongue_foward_class;
-            case "TONGUE_UP":
-                return R.raw.tongue_up_class;
-            case "TONGUE_DOWN":
-                return R.raw.tongue_down_class;
-            default:
-                return 0;
+            case "PUFF_CHEEK":                                  return R.raw.puffcheek_class;
+            case "REDUCE_CHEEK":                                return R.raw.reduce_cheek_class;
+            case "POUT_LIPS": case "LOUT_LIP": case "poutLip": return R.raw.loutlip_class;
+            case "SIP_LIPS": case "SIP_LIP": case "closeLip":  return R.raw.siplip_class;
+            case "TONGUE_LEFT":                                 return R.raw.tongue_left_class;
+            case "TONGUE_RIGHT":                                return R.raw.tongue_right_class;
+            case "TONGUE_FOWARD": case "TONGUE_FORWARD":        return R.raw.tongue_foward_class;
+            case "TONGUE_UP":                                   return R.raw.tongue_up_class;
+            case "TONGUE_DOWN":                                 return R.raw.tongue_down_class;
+            default:                                            return 0;
+        }
+    }
+
+    private int getTutorialImageResId() {
+        if (trainingLabel == null) return 0;
+        switch (trainingLabel) {
+            case "PUFF_CHEEK":                                  return R.drawable.puffcheek_class;
+            case "REDUCE_CHEEK":                                return R.drawable.reduce_cheek_class;
+            case "POUT_LIPS": case "LOUT_LIP": case "poutLip": return R.drawable.loutlip_class;
+            case "SIP_LIPS": case "SIP_LIP": case "closeLip":  return R.drawable.siplip_class;
+            case "TONGUE_LEFT":                                 return R.drawable.tongue_left_class;
+            case "TONGUE_RIGHT":                                return R.drawable.tongue_right_class;
+            case "TONGUE_FOWARD": case "TONGUE_FORWARD":        return R.drawable.tongue_foward_class;
+            case "TONGUE_UP":                                   return R.drawable.tongue_up_class;
+            case "TONGUE_DOWN":                                 return R.drawable.tongue_down_class;
+            default:                                            return 0;
         }
     }
 

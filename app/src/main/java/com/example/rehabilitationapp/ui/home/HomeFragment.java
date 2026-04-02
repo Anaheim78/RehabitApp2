@@ -244,31 +244,33 @@ public class HomeFragment extends Fragment {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_tutorial, null);
         builder.setView(dialogView);
 
-        // 取得元件
         VideoView videoView = dialogView.findViewById(R.id.tutorial_video);
+        ImageView imageView = dialogView.findViewById(R.id.tutorial_image);
         TextView descriptionText = dialogView.findViewById(R.id.tutorial_description);
 
-        // 設定文字說明
         descriptionText.setText(getTrainingDescription(index, item));
 
-        // 設定影片
         int videoResId = getVideoResourceId(index);
+        int imageResId = getImageResourceId(index);
+
         if (videoResId != 0) {
+            videoView.setVisibility(View.VISIBLE);
+            imageView.setVisibility(View.GONE);
             String videoPath = "android.resource://" + requireContext().getPackageName() + "/" + videoResId;
             videoView.setVideoURI(android.net.Uri.parse(videoPath));
             videoView.setOnPreparedListener(mp -> {
-                Log.d("VIDEO_DEBUG", "影片準備好了");
                 mp.setLooping(true);
                 videoView.start();
             });
-
-            videoView.setOnErrorListener((mp, what, extra) -> {
-                Log.e("VIDEO_DEBUG", "影片錯誤: " + what);
-                return true;
-            });
+        } else if (imageResId != 0) {
+            videoView.setVisibility(View.GONE);
+            imageView.setVisibility(View.VISIBLE);
+            imageView.setImageResource(imageResId);
+        } else {
+            videoView.setVisibility(View.GONE);
+            imageView.setVisibility(View.GONE);
         }
 
-        // 只有「知道了」按鈕
         AlertDialog dialog = builder
                 .setTitle(item.title)
                 .setPositiveButton("知道了", (d, which) -> {
@@ -278,23 +280,34 @@ public class HomeFragment extends Fragment {
 
         dialog.setOnDismissListener(d -> videoView.stopPlayback());
         dialog.show();
+    }
 
-        // 🆕 加這兩行
-        videoView.requestFocus();
-        videoView.start();
+    private int getImageResourceId(int index) {
+        switch (index) {
+            case 0: return R.drawable.puffcheek_class;
+            case 1: return R.drawable.reduce_cheek_class;
+            case 2: return R.drawable.loutlip_class;
+            case 3: return R.drawable.siplip_class;
+            case 4: return R.drawable.tongue_left_class;
+            case 5: return R.drawable.tongue_right_class;
+            case 6: return R.drawable.tongue_foward_class;
+            case 7: return R.drawable.tongue_up_class;
+            case 8: return R.drawable.tongue_down_class;
+            default: return 0;
+        }
     }
 
     private int getVideoResourceId(int index) {
         switch (index) {
-            case 0: return R.raw.puffcheek_class;      // 鼓腮
-            case 1: return R.raw.reduce_cheek_class;   // 縮腮
-            case 2: return R.raw.loutlip_class;        // 嘟嘴
-            case 3: return R.raw.siplip_class;         // 縮嘴
-            case 4: return R.raw.tongue_left_class;    // 舌頭左
-            case 5: return R.raw.tongue_right_class;   // 舌頭右
-            case 6: return R.raw.tongue_foward_class;  // 舌頭前
-            case 7: return R.raw.tongue_up_class;      // 舌頭上
-            case 8: return R.raw.tongue_down_class;    // 舌頭下
+            case 0: return R.raw.puffcheek_class;
+            case 1: return R.raw.reduce_cheek_class;
+            case 2: return R.raw.loutlip_class;
+            case 3: return R.raw.siplip_class;
+            case 4: return R.raw.tongue_left_class;
+            case 5: return R.raw.tongue_right_class;
+            case 6: return R.raw.tongue_foward_class;
+            case 7: return R.raw.tongue_up_class;
+            case 8: return R.raw.tongue_down_class;
             default: return 0;
         }
     }
