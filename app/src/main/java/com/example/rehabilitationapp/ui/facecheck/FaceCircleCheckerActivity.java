@@ -901,7 +901,11 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     int overlayHeight = overlayView.getHeight();
                     //  前置鏡頭顯示影像不是真的，是處理過的，MEDIAPPIPE處理的陣列是未處理得"相機陣列"，所以這邊進行模仿處理再顯示
                     if (overlayWidth > 0 && overlayHeight > 0) {
-                        float inputAspect = 480f / 640f; // Bitmap 寬高比(?bitmap從哪來，前置鏡頭原始像?)
+//                        float inputAspect = 480f / 640f; // Bitmap 寬高比(?bitmap從哪來，前置鏡頭原始像?)
+                        float inputAspect = (float) bitmapWidth / bitmapHeight;
+                        Log.d("check screen size", "bitmapWidth="+bitmapWidth+",bitmapHeight=>"+bitmapHeight);
+
+
                         float viewAspect = overlayWidth / (float) overlayHeight; // Overlay 寬高比(給人看得處理後畫面?)
                         float scaleX = inputAspect / viewAspect;
 
