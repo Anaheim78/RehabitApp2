@@ -1823,6 +1823,15 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         }
 
         progressBar.setProgress(progress);
+
+        //  變色
+        if (currentState == AppState.MAINTAINING && overlayView != null) {
+            int r = (int)(0 + progress * 2.55);
+            int g = (int)(200 - progress * 0.5);
+            int b = 0;
+            overlayView.setCircleColor(android.graphics.Color.rgb(
+                    Math.min(255, r), Math.max(0, g), b));
+        }
     }
 
 
@@ -2154,7 +2163,6 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         cueRunnable = () -> {
             try {
-                // ★ 加入這個檢查：訓練完成就不要再更新
                 if (!cueRunning || cueText == null || isTrainingCompleted) return;
 
                 String zh = motionLabelZh(trainingLabel);
@@ -2163,12 +2171,10 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 if (cueStep % 2 == 0) {
                     cueText.setText("保持 " + zh);
                 } else {
-                    cueText.setText("放鬆");
+                    cueText.setText("好，休息一下");
                 }
 
                 cueStep++;
-
-                // ★ 也在這裡檢查一次
                 if (!isTrainingCompleted) {
                     mainHandler.postDelayed(() -> postNextCue(0), segMs);
                 }
@@ -2255,7 +2261,20 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     totalMaintainTime += (currentTime - maintainStartTime);
                 }
                 long remaining = Math.max(0, MAINTAIN_TIME_TOTAL - totalMaintainTime);
-                timeText = String.format("⏱ %d秒", remaining / 1000);
+                int pct = (int)(totalMaintainTime * 100 / MAINTAIN_TIME_TOTAL);
+                int barLen = 10;
+                int filled = pct * barLen / 100;
+                StringBuilder bar = new StringBuilder();
+                for (int i = 0; i < barLen; i++) {
+                    bar.append(i < filled ? "▓" : "░");
+                }
+                bar.append(" 🏁");
+
+                String encourage = "";
+                if (pct >= 75)      encourage = " 快完成了！";
+                else if (pct >= 50) encourage = " 過半了！";
+
+                timeText = bar.toString() + encourage + "\n⏱ " + (remaining / 1000) + "秒";
                 break;
 
             case OUT_OF_BOUNDS:

@@ -31,6 +31,7 @@ public class CircleOverlayView extends View {
     }
 
     private Status status = Status.CALIBRATING;
+    private int customCircleColor = 0;
     private DisplayMode currentDisplayMode = DisplayMode.LANDMARKS; // 🔥 新增
 
     private Paint circlePaint;
@@ -307,6 +308,10 @@ public class CircleOverlayView extends View {
         }
 
         // 4. 🆕 繪製橢圓形邊框
+// 4. 繪製橢圓形邊框（訓練中用漸變色，其他用狀態色）
+        if (customCircleColor != 0 && status == Status.OK) {
+            circlePaint.setColor(customCircleColor);
+        }
         canvas.drawOval(ovalRect, circlePaint);
 
         // 🔥 5. 根據顯示模式決定顯示內容
@@ -324,6 +329,10 @@ public class CircleOverlayView extends View {
         }
     }
 
+    public void setCircleColor(int color) {
+        this.customCircleColor = color;
+        invalidate();
+    }
 
     private void drawTaperedArrow(Canvas canvas, float fromX, float fromY, float toX, float toY) {
         float dx = toX - fromX;
