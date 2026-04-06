@@ -2262,19 +2262,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                 }
                 long remaining = Math.max(0, MAINTAIN_TIME_TOTAL - totalMaintainTime);
                 int pct = (int)(totalMaintainTime * 100 / MAINTAIN_TIME_TOTAL);
-                int barLen = 10;
-                int filled = pct * barLen / 100;
-                StringBuilder bar = new StringBuilder();
-                for (int i = 0; i < barLen; i++) {
-                    bar.append(i < filled ? "▓" : "░");
-                }
-                bar.append(" 🏁");
 
-                String encourage = "";
-                if (pct >= 75)      encourage = " 快完成了！";
-                else if (pct >= 50) encourage = " 過半了！";
+                String msg = "";
+                if (pct >= 75)      msg = "\n🏁 快完成了！";
+                else if (pct >= 50) msg = "\n過半了！";
 
-                timeText = bar.toString() + encourage + "\n⏱ " + (remaining / 1000) + "秒";
+                timeText = "⏱ " + (remaining / 1000) + "秒" + msg;
                 break;
 
             case OUT_OF_BOUNDS:

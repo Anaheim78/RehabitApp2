@@ -27,7 +27,6 @@
         android:gravity="center"
         android:visibility="gone">
 
-        <!-- 倒數數字 -->
         <TextView
             android:id="@+id/countdown_number"
             android:layout_width="wrap_content"
@@ -41,7 +40,6 @@
             android:shadowDy="4"
             android:shadowRadius="8" />
 
-        <!-- 提示文字 -->
         <TextView
             android:id="@+id/countdown_hint"
             android:layout_width="wrap_content"
@@ -63,7 +61,7 @@
         android:layout_height="wrap_content"
         android:visibility="gone" />
 
-    <!-- 導引提示（往上移，變大） -->
+    <!-- 導引提示（上方） -->
     <TextView
         android:id="@+id/cue_text"
         android:layout_width="match_parent"
@@ -77,29 +75,39 @@
         android:textSize="28sp"
         android:gravity="center" />
 
-    <!-- 进度条 -->
-    <ProgressBar
-        android:id="@+id/progress_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="200dp"
-        android:layout_height="8dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="120dp"
-        android:progressTint="@android:color/holo_blue_bright"
-        android:progressBackgroundTint="#40FFFFFF" />
-
-    <!-- 计时器文本 -->
-    <TextView
-        android:id="@+id/timer_text"
-        android:layout_width="wrap_content"
+    <!-- ★ 底部區塊：進度條 + 秒數鼓勵 -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="135dp"
-        android:text="⏱ 5秒"
-        android:textColor="@android:color/white"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:background="#80000000"
-        android:padding="8dp" />
+        android:layout_gravity="top"
+        android:layout_marginTop="100dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="4dp">
+        <!-- 进度条 -->
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:minHeight="6dp"
+            android:maxHeight="6dp"
+            android:progressTint="@android:color/holo_blue_bright"
+            android:progressBackgroundTint="#40FFFFFF" />
+
+        <!-- 计时器 + 鼓勵文字 -->
+        <TextView
+            android:id="@+id/timer_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="⏱ 5秒"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:lineSpacingExtra="4dp"
+            android:background="#80000000"
+            android:padding="4dp" />
+
+    </LinearLayout>
 
 </FrameLayout>
