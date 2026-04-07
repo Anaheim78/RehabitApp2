@@ -337,7 +337,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     // =======【動作導引文字提示】==【7. 導引提示】========================
     private TextView cueText;
     // 新增：導引專用 TextView，statusText
-
+    private TextView encourageText;
+    private boolean shownEncourage50 = false;
+    private boolean shownEncourage75 = false;
 
     // 導引疊字與循環控制（不影響你原本 Handler/Timer）
     private android.os.Handler cueHandler;
@@ -357,7 +359,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         //此處_training_start
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);
-
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
 
         // 🆕 讀取錄影開關設定
@@ -421,7 +423,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         timerText   = findViewById(R.id.timer_text);
         progressBar = findViewById(R.id.progress_bar);
         cueText     = findViewById(R.id.cue_text);
-
+        encourageText = findViewById(R.id.encourage_text);
 
         // 初始化追蹤示意模式 : 舌頭顯示BBox，其他顯示Landmark
         if ("舌頭".equals(trainingLabel) ||
@@ -1824,13 +1826,39 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
 
         progressBar.setProgress(progress);
 
-        //  變色
+
         if (currentState == AppState.MAINTAINING && overlayView != null) {
             int r = (int)(0 + progress * 2.55);
-            int g = (int)(200 - progress * 0.5);
-            int b = 0;
+            int g = (int)(200 + progress * 0.55);
+            int b = (int)(0 + progress * 0.3);
             overlayView.setCircleColor(android.graphics.Color.rgb(
-                    Math.min(255, r), Math.max(0, g), b));
+                    Math.min(255, r), Math.min(255, g), Math.min(255, b)));
+
+            if (encourageText != null) {
+//                if (progress >= 75 && !shownEncourage75) {
+//                    shownEncourage75 = true;
+//                    encourageText.setText("快完成了");
+//                    encourageText.setAlpha(1f);
+//                    encourageText.setVisibility(View.VISIBLE);
+//                    encourageText.postDelayed(() -> {
+//                        encourageText.animate().alpha(0f).setDuration(800).withEndAction(() -> {
+//                            encourageText.setVisibility(View.GONE);
+//                        }).start();
+//                    }, 3000);
+//                } else
+
+                    if (progress >= 50 && !shownEncourage50) {
+                    shownEncourage50 = true;
+                    encourageText.setText("加油，過半了！");
+                    encourageText.setAlpha(1f);
+                    encourageText.setVisibility(View.VISIBLE);
+                    encourageText.postDelayed(() -> {
+                        encourageText.animate().alpha(0f).setDuration(800).withEndAction(() -> {
+                            encourageText.setVisibility(View.GONE);
+                        }).start();
+                    }, 3000);
+                }
+            }
         }
     }
 
@@ -1926,6 +1954,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
         demoStartMs = 0;
 
         cueStep = 0;
+        shownEncourage50 = false;
+        shownEncourage75 = false;
         stopSimpleCue();
 
         if (currentRecording != null) {
@@ -2261,13 +2291,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                     totalMaintainTime += (currentTime - maintainStartTime);
                 }
                 long remaining = Math.max(0, MAINTAIN_TIME_TOTAL - totalMaintainTime);
-                int pct = (int)(totalMaintainTime * 100 / MAINTAIN_TIME_TOTAL);
-
-                String msg = "";
-                if (pct >= 75)      msg = "\n🏁 快完成了！";
-                else if (pct >= 50) msg = "\n過半了！";
-
-                timeText = "⏱ " + (remaining / 1000) + "秒" + msg;
+                timeText = "⏱ " + (remaining / 1000) + "秒";
                 break;
 
             case OUT_OF_BOUNDS:
