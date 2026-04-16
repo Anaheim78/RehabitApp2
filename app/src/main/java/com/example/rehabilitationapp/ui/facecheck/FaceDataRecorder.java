@@ -1072,7 +1072,7 @@ public class FaceDataRecorder {
     public void appendBrightnessToLastLine(float[][] landmarks01, Bitmap bitmap) {
         if (bitmap == null || landmarks01 == null || dataLines.size() <= 1) return;
         try {
-            debugDrawRoi(bitmap, landmarks01);
+//            debugDrawRoi(bitmap, landmarks01);
 
             float lipBright = computeRoiBrightness(bitmap, landmarks01, LIP_OUTER_IDXS, 0.3f);
 
