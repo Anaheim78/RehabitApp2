@@ -1,7 +1,9 @@
 package com.example.rehabilitationapp;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.content.Intent;
@@ -51,34 +53,45 @@ public class MainActivity extends AppCompatActivity {
 
         userDao = AppDatabase.getInstance(this).userDao();
 
-        new Thread(() -> {
-            boolean loggedIn = userDao.countLoggedIn() > 0;
-            runOnUiThread(() -> {
-                if (!loggedIn) {
-                    switchFragment(new LoginFragment());
-                }
-                else {
-                    handleStartTabIntent(getIntent());
-                }
-            });
-        }).start();
+//        new Thread(() -> {
+//            boolean loggedIn = userDao.countLoggedIn() > 0;
+//            runOnUiThread(() -> {
+//                if (!loggedIn) {
+//                    switchFragment(new LoginFragment());
+//                }
+//                else {
+//                    handleStartTabIntent(getIntent());
+//                }
+//            });
+//        }).start();
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        String userId = prefs.getString("current_user_id", null);
+        if (userId == null || userId.isEmpty()) {
+            switchFragment(new LoginFragment());
+        } else {
+            handleStartTabIntent(getIntent());
+        }
 
         tabHome.setOnClickListener(v -> {
+            if (!isLoggedIn()) return;
             switchFragment(new HomeFragment());
             selectTab(R.id.tab_home);
         });
 
         tabPlan.setOnClickListener(v -> {
+            if (!isLoggedIn()) return;
             switchFragment(new PlanFragment());
             selectTab(R.id.tab_plan);
         });
 
         tabRecord.setOnClickListener(v -> {
+            if (!isLoggedIn()) return;
             switchFragment(new NotificationsFragment());
             selectTab(R.id.tab_record);
         });
 
         tabSetting.setOnClickListener(v -> {
+            if (!isLoggedIn()) return;
             switchFragment(new SettingFragment());
             selectTab(R.id.tab_setting);
         });
@@ -155,5 +168,36 @@ public class MainActivity extends AppCompatActivity {
             switchFragment(new HomeFragment());
             selectTab(R.id.tab_home);
         }
+    }
+
+    //用來擋在登入前就切到別頁，若未登入tab按鍵會無視
+    private boolean isLoggedIn() {
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        String userId = prefs.getString("current_user_id", null);
+        return userId != null && !userId.isEmpty();
+    }
+
+
+    public void performLogout() {
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        new Thread(() -> {
+            AppDatabase.getInstance(this).userDao().logoutAll();
+            runOnUiThread(() -> {
+                prefs.edit().remove("current_user_id").commit();
+                switchFragment(new LoginFragment());
+                selectTab(R.id.tab_home);
+            });
+        }).start();
+    }
+
+
+    public void hideBottomNav() {
+        findViewById(R.id.custom_nav).setVisibility(View.GONE);
+        findViewById(R.id.bottom_oval_bg).setVisibility(View.GONE);
+    }
+
+    public void showBottomNav() {
+        findViewById(R.id.custom_nav).setVisibility(View.VISIBLE);
+        findViewById(R.id.bottom_oval_bg).setVisibility(View.VISIBLE);
     }
 }

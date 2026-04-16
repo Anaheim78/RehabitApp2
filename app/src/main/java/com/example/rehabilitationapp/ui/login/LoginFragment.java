@@ -73,6 +73,8 @@ public class LoginFragment extends Fragment {
         FirebaseFirestore db = FirebaseFirestore.getInstance();
 
 
+
+
 // ##### 2026_0315_CAI 雙軌登入修改 - 登入模式切換 #####
         if ("quick".equals(LOGIN_MODE)) {
             if (getActivity() instanceof MainActivity) {
@@ -192,5 +194,21 @@ public class LoginFragment extends Fragment {
                         }
                     });
         });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).hideBottomNav();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).showBottomNav();
+        }
     }
 }

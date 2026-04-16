@@ -51,5 +51,8 @@ public interface UserDao {
 
     @Query("UPDATE users SET password = :newPassword, need_sync = 1 AND user_id  = :userId")
     int updatePasswordWithSyncFlag(String userId , String  newPassword);
+
+    @Query("UPDATE users SET login_status = 0")
+    void logoutAll();
 }
 

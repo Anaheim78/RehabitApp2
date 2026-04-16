@@ -356,6 +356,13 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        if (prefs.getString("current_user_id", null) == null) {
+            Toast.makeText(this, "請先登入", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+
         //此處_training_start
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_face_circle_checker);

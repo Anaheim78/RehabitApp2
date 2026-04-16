@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -21,6 +22,9 @@ public class AppLogger {
     private static String currentUserId = "unknown";
     private static String currentUserName = "unknown";
 
+    private static String androidId = "unknown";
+
+
     // ===== 初始化 =====
     public static void init(Context context) {
         analytics = FirebaseAnalytics.getInstance(context);
@@ -37,6 +41,12 @@ public class AppLogger {
         currentUserId = prefs.getString("current_user_id", "unknown");
 
         Log.d(TAG, "✅ AppLogger 初始化完成，userId: " + currentUserId);
+
+        try {
+            androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+        } catch (Exception e) {
+            androidId = "unknown";
+        }
     }
 
     // ===== 設定用戶（登入時呼叫）=====
@@ -189,6 +199,7 @@ public class AppLogger {
             logData.put("user_id", currentUserId);
             logData.put("device_model", Build.MODEL);
             logData.put("device_brand", Build.BRAND);
+            logData.put("android_id", androidId);   // 加這行
             logData.put("timestamp", System.currentTimeMillis());
 
             // 把 Bundle 的資料也加進去

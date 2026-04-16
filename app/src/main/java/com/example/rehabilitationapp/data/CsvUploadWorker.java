@@ -68,15 +68,14 @@ public class CsvUploadWorker extends Worker {
         // 執行上傳
         try {
             Context context = getApplicationContext();
-            SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-            // TODO .. : 想想取道error怎麼解決。
-            String userId = prefs.getString("current_user_id", "no_login");
 
-            if ("no_login".equals(userId)) {
-                Log.e(TAG, "❌ 找不到 userId");
-                AppLogger.log("CsvUploadWorker找不到 userId，會再嘗試重傳處理", trainingID);
-                AppLogger.logError("CsvUploadWorker找不到 userId，會再嘗試重傳處理", trainingID);
-                return Result.retry();
+            String userId = getInputData().getString("userId");
+
+            if (userId == null || "no_login".equals(userId)) {
+                Log.e(TAG, "❌ 找不到 userId，放棄重試");
+                AppLogger.log("CsvUploadWorker", "找不到 userId，放棄重試: " + trainingID);
+                AppLogger.logError("CsvUploadWorker", "找不到 userId，放棄重試: " + trainingID);
+                return Result.failure();   // 改成 failure，不 retry
             }
 
             File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);

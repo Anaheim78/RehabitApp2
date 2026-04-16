@@ -133,9 +133,13 @@ public class SupabaseUploader {
                     .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
                     .build();
 
+            SharedPreferences prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String userId = prefs.getString("current_user_id", "no_login");
+
             androidx.work.Data inputData = new androidx.work.Data.Builder()
                     .putString("trainingID", trainingID)
                     .putString("csvFileName", csvFileName)
+                    .putString("userId", userId)   // 加這行
                     .build();
 
             androidx.work.OneTimeWorkRequest request = new androidx.work.OneTimeWorkRequest.Builder(CsvUploadWorker.class)

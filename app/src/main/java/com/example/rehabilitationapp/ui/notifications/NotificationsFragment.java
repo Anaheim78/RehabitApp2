@@ -61,24 +61,12 @@ public class NotificationsFragment extends Fragment {
         }
 // ##### 2026_0315_CAI 雙軌登入修改 END #####
         homeText.setOnClickListener(v -> {
-
-            new AlertDialog.Builder(requireContext())
+            new android.app.AlertDialog.Builder(requireContext())
                     .setTitle("確認登出")
                     .setMessage("你確定要登出並回到登入頁面嗎？")
                     .setPositiveButton("登出", (dialog, which) -> {
-
-                        // 1. 清除現在登入的 userId
-                        SharedPreferences prefs =
-                                requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
-                        prefs.edit().remove("current_user_id").apply();
-
-                        // 2. 關閉目前的資料庫
-                        com.example.rehabilitationapp.data.DatabaseProvider.close();
-
-                        // 3. 回到登入頁面
                         if (getActivity() instanceof MainActivity) {
-                            ((MainActivity) getActivity()).switchFragment(new LoginFragment());
-                            ((MainActivity) getActivity()).selectTab(R.id.tab_home);
+                            ((MainActivity) getActivity()).performLogout();
                         }
                     })
                     .setNegativeButton("取消", null)
