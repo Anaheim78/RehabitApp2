@@ -17,6 +17,13 @@ import com.example.rehabilitationapp.data.AppDatabase;
 import com.example.rehabilitationapp.data.dao.UserDao;
 import com.example.rehabilitationapp.data.model.User;
 
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
+import com.example.rehabilitationapp.data.AppLogger;
+import java.util.HashMap;
+import java.util.Map;
+import android.os.Bundle;
+
 public class EditProfileActivity extends AppCompatActivity {
 
     private EditText etEmail, etName, etBirthday;
@@ -93,6 +100,30 @@ public class EditProfileActivity extends AppCompatActivity {
                 if (uid != null) {
                     // 一次更新六個欄位（你 DAO 已有）
                     userDao.updateProfile(uid, email, birthday, name, genderDb, styleDb);
+                    // === 1. 同步到 Firestore Users/{uid} ===
+                    Map<String, Object> update = new HashMap<>();
+                    update.put("user_id", uid);
+                    update.put("name", name);
+                    update.put("email", email);
+                    update.put("birthday", birthday);
+                    update.put("gender", genderDb);
+                    update.put("ui_style", styleDb);
+                    update.put("updated_at", System.currentTimeMillis());
+
+                    FirebaseFirestore.getInstance()
+                            .collection("Users")
+                            .document(uid)
+                            .set(update, SetOptions.merge());
+
+// === 2. 存 app_logs 留歷史 ===
+                    Bundle b = new Bundle();
+                    b.putString("user_id", uid);
+                    b.putString("name", name);
+                    b.putString("email", email);
+                    b.putString("birthday", birthday);
+                    b.putString("gender", genderDb);
+                    b.putString("ui_style", styleDb);
+                    AppLogger.logEvent("profile_updated", b);
 
                     runOnUiThread(() -> {
                         Toast.makeText(this, "已更新個人資料", Toast.LENGTH_SHORT).show();
