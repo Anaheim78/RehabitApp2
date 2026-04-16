@@ -67,6 +67,7 @@ public class SettingFragment extends Fragment {
         switchVideoRecording = view.findViewById(R.id.switchVideoRecording);
         switchVideoRecording.setVisibility(View.GONE);  // ★ 隱藏錄影開關
 
+
         SharedPreferences appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         boolean videoEnabled = appPrefs.getBoolean("video_recording_enabled", true);
         switchVideoRecording.setChecked(videoEnabled);

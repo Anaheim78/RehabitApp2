@@ -2,6 +2,7 @@ package com.example.rehabilitationapp.ui.facecheck;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.os.Environment;
 import android.util.Log;
 import android.widget.Toast;
@@ -19,6 +20,14 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.os.Environment;
+import java.io.File;
+import java.io.FileOutputStream;
 
 //根據特定動作類型
 public class FaceDataRecorder {
@@ -52,6 +61,8 @@ public class FaceDataRecorder {
 //    private static final String CHEEKS_HEADER = "time_seconds,state,LI_X,LI_Y,RI_X,RI_Y";
     // 臉頰 FULL (27+27) 個點的 header，直接展開成 CSV 欄位名稱
     // ORIG 18+18 + FULL 額外 9+9 = 共 27+27
+
+    private static final String EYE_HEADER = ",point133_x,point133_y,point133_z,point362_x,point362_y,point362_z";
     private static final String CHEEKS_HEADER =
             "time_seconds,state" +
                     // ===== 左臉頰 ORIG 18 點 =====
@@ -113,7 +124,27 @@ public class FaceDataRecorder {
                     ",point427_x,point427_y,point427_z" +
                     ",point280_x,point280_y,point280_z" +
                     ",point411_x,point411_y,point411_z" +
-                    ",img_w,img_h,nosePeakDirection";
+                    ",img_w,img_h,nosePeakDirection" +
+                    ",point454_x,point454_y,point454_z" +
+                    ",point323_x,point323_y,point323_z" +
+                    ",point361_x,point361_y,point361_z" +
+                    ",point288_x,point288_y,point288_z" +
+                    ",point397_x,point397_y,point397_z" +
+                    ",point365_x,point365_y,point365_z" +
+                    ",point234_x,point234_y,point234_z" +
+                    ",point93_x,point93_y,point93_z" +
+                    ",point132_x,point132_y,point132_z" +
+                    ",point58_x,point58_y,point58_z" +
+                    ",point172_x,point172_y,point172_z" +
+                    ",point136_x,point136_y,point136_z" +
+                    ",point129_x,point129_y,point129_z" +
+                    ",point98_x,point98_y,point98_z" +
+                    ",point358_x,point358_y,point358_z" +
+                    ",point327_x,point327_y,point327_z" +
+                    ",point61_x,point61_y,point61_z" +
+                    ",point291_x,point291_y,point291_z" +
+                    ",point133_x,point133_y,point133_z" +
+                    ",point362_x,point362_y,point362_z";
 
 
     //嘟嘴指標 : 高除以寬 版本1
@@ -137,12 +168,15 @@ public class FaceDataRecorder {
     }
 
     // 嘟嘴
-    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction" + LIP_LANDMARKS_HEADER;
+//    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction" + LIP_LANDMARKS_HEADER;
+//
+//    // 抿嘴
+//    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction" + LIP_LANDMARKS_HEADER;
 
-    // 抿嘴
-    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction" + LIP_LANDMARKS_HEADER;
+    //加上亮度
+    private static final String Lip_Prot_HEADER2 = "time_seconds,state,outer_mouth_z_avg,nosepeak_direction" + LIP_LANDMARKS_HEADER + EYE_HEADER + ",lip_brightness,forehead_brightness_wide,forehead_brightness_narrow";
 
-
+    private static final String Lip_Closure_HEADER = "time_seconds,state,upper_lip_area,lower_lip_area,total_lip_area,nosepeak_direction" + LIP_LANDMARKS_HEADER + EYE_HEADER + ",lip_brightness,forehead_brightness_wide,forehead_brightness_narrow";
     private static final String TONGUE_HEADER =
             "time_seconds,state," +
                     "tongue_detected," +
@@ -275,6 +309,15 @@ public class FaceDataRecorder {
                             landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
                 }
 
+
+                // 兩內眼角
+                int[] EYE_IDXS = {133, 362};
+                for (int idx : EYE_IDXS) {
+                    sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f",
+                            landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
+                }
+
+
                 dataLine = sb.toString();
                 //DEBUG列印輸出
 //                Log.d(TAG, String.format("抿嘴數據 [%.3fs] - 上唇面積: %.3f, 下唇面積: %.3f, 比值: %.3f",
@@ -314,7 +357,12 @@ public class FaceDataRecorder {
                             landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
                 }
 
-
+                // 兩內眼角
+                int[] EYE_IDXS = {133, 362};
+                for (int idx : EYE_IDXS) {
+                    sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f",
+                            landmarks[idx][0], landmarks[idx][1], landmarks[idx][2]));
+                }
 
                 dataLine = sb.toString();
                 Log.d(TAG,"嘟嘴CSV內文 = "+dataLine);
@@ -391,6 +439,16 @@ public class FaceDataRecorder {
 
 
             sb.append(String.format(Locale.getDefault(), ",%d,%d,%s", img_w, img_h,nosePeakDirection));
+
+
+            // 額外邊界點（用於眼距、臉寬等外框特徵）
+            int[] EXTRA_IDXS = {454,323,361,288,397,365, 234,93,132,58,172,136, 129,98,358,327, 61,291, 133,362};
+            for (int idx : EXTRA_IDXS) {
+                float x = landmarks[idx][0] * img_w;
+                float y = landmarks[idx][1] * img_h;
+                float z = landmarks[idx][2];
+                sb.append(String.format(Locale.getDefault(), ",%.6f,%.6f,%.6f", x, y, z));
+            }
 
             String line = sb.toString();
 
@@ -1007,6 +1065,126 @@ public class FaceDataRecorder {
     public void resetStartTime() {
         this.startTime = System.currentTimeMillis();
         Log.d(TAG, "🔄 開始時間已重設: " + startTime);
+    }
+
+    private boolean debugSaved = false;
+
+    public void appendBrightnessToLastLine(float[][] landmarks01, Bitmap bitmap) {
+        if (bitmap == null || landmarks01 == null || dataLines.size() <= 1) return;
+        try {
+            debugDrawRoi(bitmap, landmarks01);
+
+            float lipBright = computeRoiBrightness(bitmap, landmarks01, LIP_OUTER_IDXS, 0.3f);
+
+            // 大範圍額頭（可能含頭髮）
+            float fhBrightWide = computeRoiBrightness(bitmap, landmarks01,
+                    new int[]{10, 151, 9, 67, 297, 69, 299, 104, 333, 108, 337}, 0.0f);
+
+            // 窄帶額頭（避開頭髮和眉毛）
+            float fhBrightNarrow = computeRoiBrightness(bitmap, landmarks01,
+                    new int[]{151, 9, 108, 337}, 0.1f);
+
+            int lastIdx = dataLines.size() - 1;
+            String lastLine = dataLines.get(lastIdx);
+            dataLines.set(lastIdx, lastLine + String.format(Locale.getDefault(),
+                    ",%.1f,%.1f,%.1f", lipBright, fhBrightWide, fhBrightNarrow));
+        } catch (Exception e) {
+            Log.e(TAG, "appendBrightness error", e);
+        }
+    }
+
+    private float computeRoiBrightness(Bitmap bmp, float[][] landmarks, int[] indices, float expandRatio) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        float minX = w, maxX = 0, minY = h, maxY = 0;
+        for (int idx : indices) {
+            if (idx >= landmarks.length) continue;
+            float px = landmarks[idx][0] * w;
+            float py = landmarks[idx][1] * h;
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+        }
+        float cx = (minX + maxX) / 2f, cy = (minY + maxY) / 2f;
+        float hw = (maxX - minX) / 2f * (1 + expandRatio);
+        float hh = (maxY - minY) / 2f * (1 + expandRatio);
+        int left = Math.max(0, (int)(cx - hw));
+        int top = Math.max(0, (int)(cy - hh));
+        int right = Math.min(w - 1, (int)(cx + hw));
+        int bottom = Math.min(h - 1, (int)(cy + hh));
+        int roiW = right - left + 1, roiH = bottom - top + 1;
+        if (roiW <= 0 || roiH <= 0) return 0f;
+        int[] pixels = new int[roiW * roiH];
+        bmp.getPixels(pixels, 0, roiW, left, top, roiW, roiH);
+        long sum = 0;
+        for (int p : pixels) {
+            sum += (Color.red(p) * 299 + Color.green(p) * 587 + Color.blue(p) * 114) / 1000;
+        }
+        return (float) sum / pixels.length;
+    }
+
+    public void debugDrawRoi(Bitmap bmp, float[][] landmarks01) {
+        if (debugSaved || bmp == null || landmarks01 == null) return;
+        try {
+            Bitmap copy = bmp.copy(Bitmap.Config.ARGB_8888, true);
+            Canvas canvas = new Canvas(copy);
+            Paint paint = new Paint();
+            int w = bmp.getWidth(), h = bmp.getHeight();
+
+            paint.setColor(Color.GREEN);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(3);
+            float[] lipBox = getRoiBox(landmarks01, LIP_OUTER_IDXS, w, h, 0.3f);
+            canvas.drawRect(lipBox[0], lipBox[1], lipBox[2], lipBox[3], paint);
+
+            // 大範圍額頭（藍框）
+            paint.setColor(Color.BLUE);
+            int[] fhIdxWide = {10, 151, 9, 67, 297, 69, 299, 104, 333, 108, 337};
+            float[] fhBoxWide = getRoiBox(landmarks01, fhIdxWide, w, h, 0.0f);
+            canvas.drawRect(fhBoxWide[0], fhBoxWide[1], fhBoxWide[2], fhBoxWide[3], paint);
+
+            // 窄帶額頭（黃框）
+            paint.setColor(Color.YELLOW);
+            int[] fhIdxNarrow = {151, 9, 108, 337};
+            float[] fhBoxNarrow = getRoiBox(landmarks01, fhIdxNarrow, w, h, 0.1f);
+            canvas.drawRect(fhBoxNarrow[0], fhBoxNarrow[1], fhBoxNarrow[2], fhBoxNarrow[3], paint);
+            paint.setColor(Color.RED);
+            paint.setStyle(Paint.Style.FILL);
+            for (int idx : LIP_OUTER_IDXS) {
+                if (idx >= landmarks01.length) continue;
+                canvas.drawCircle(landmarks01[idx][0] * w, landmarks01[idx][1] * h, 4, paint);
+            }
+
+            File dir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS), "ROI_debug");
+            dir.mkdirs();
+            File file = new File(dir, "roi_check.png");
+            FileOutputStream fos = new FileOutputStream(file);
+            copy.compress(Bitmap.CompressFormat.PNG, 100, fos);
+            fos.close();
+            copy.recycle();
+            debugSaved = true;
+            Log.d(TAG, "✅ ROI debug 圖存到: " + file.getAbsolutePath());
+        } catch (Exception e) {
+            Log.e(TAG, "debugDrawRoi error", e);
+        }
+    }
+
+    private float[] getRoiBox(float[][] landmarks, int[] indices, int w, int h, float expand) {
+        float minX = w, maxX = 0, minY = h, maxY = 0;
+        for (int idx : indices) {
+            if (idx >= landmarks.length) continue;
+            float px = landmarks[idx][0] * w;
+            float py = landmarks[idx][1] * h;
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+        }
+        float cx = (minX + maxX) / 2f, cy = (minY + maxY) / 2f;
+        float hw = (maxX - minX) / 2f * (1 + expand);
+        float hh = (maxY - minY) / 2f * (1 + expand);
+        return new float[]{cx - hw, cy - hh, cx + hw, cy + hh};
     }
 
 }

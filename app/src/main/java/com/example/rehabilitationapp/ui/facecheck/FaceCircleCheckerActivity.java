@@ -1012,7 +1012,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         } else {
                             //Log.d(TAG_2, "動作分流_嘴唇");
                             // 嘴唇模式
-                            handleLipMode(allPoints);
+                            handleLipMode(allPoints, landmarks01, mirroredBitmap);
                         }
                         // *************************前端邏輯
                         // 鼻尖 for 圓框狀態（顯示層用）
@@ -1509,17 +1509,12 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     }
 
     // 嘴唇模式：MediaPipe 關鍵點
-    private void handleLipMode(float[][] allPoints) {
+    private void handleLipMode(float[][] allPoints, float[][] landmarks01, Bitmap bitmap) {
         if (!shouldAcceptNewFrames()) return;
-        //畫面顯示臉部點
-//        overlayView.setAllFaceLandmarks(allPoints);
-        //校正中跟動作中狀態=>紀錄
         if (!isTrainingCompleted && (currentState == AppState.CALIBRATING || currentState == AppState.MAINTAINING)) {
             String stateString = csvState();
             dataRecorder.recordLandmarkData(stateString, allPoints, null);
-            //Log.d(TAG, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
-
-            //Log.d(TAG_2, "記錄嘴唇資料: " + stateString + ", 關鍵點數量: " + allPoints.length);
+            dataRecorder.appendBrightnessToLastLine(landmarks01, bitmap);
         }
     }
 

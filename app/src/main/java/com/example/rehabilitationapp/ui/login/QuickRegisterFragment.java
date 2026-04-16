@@ -97,6 +97,8 @@ public class QuickRegisterFragment extends Fragment {
             }
         });
 
+        btnBack.setVisibility(View.GONE);
+
         // ===== 確認註冊 =====
         btnRegister.setOnClickListener(v -> {
             // 1. 驗證暱稱
