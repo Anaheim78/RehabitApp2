@@ -40,7 +40,7 @@ public class LoginFragment extends Fragment {
 // "both"  = 顯示雙軌選擇（A+B 都有）
 // "quick" = 只能匿名登入（B軌版 APK）
 // "formal" = 只能正式帳號登入（A軌版 APK）
-    private static final String LOGIN_MODE = "quick";
+    private static final String LOGIN_MODE = "formal";
 // ##### 2026_0315_CAI 雙軌登入修改 END #####
 
     public LoginFragment() {
