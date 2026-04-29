@@ -356,6 +356,8 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
+        Log.d("TRI_CHECK", "三角形數量: " + FaceTriangles.FACE_TRIANGLES.length);
+
         SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
         if (prefs.getString("current_user_id", null) == null) {
             Toast.makeText(this, "請先登入", Toast.LENGTH_SHORT).show();
@@ -1515,6 +1517,9 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
             String stateString = csvState();
             dataRecorder.recordLandmarkData(stateString, allPoints, null);
             dataRecorder.appendBrightnessToLastLine(landmarks01, bitmap);
+            // ⬅️ 新增來存像素
+            dataRecorder.appendAllLandmarksToLastLine(landmarks01);
+            dataRecorder.appendTrianglesToLastLine(landmarks01, bitmap); // ⬅️ 新增
         }
     }
 
@@ -1556,7 +1561,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         // 改用曲率
                         Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
                         dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
-
+                        dataRecorder.appendAllLandmarksToLastLine(landmarks01);   // ⬅️ 新增（468點）
 
                     }
                 } catch (Exception e) {

@@ -240,12 +240,17 @@ public class FaceDataRecorder {
 
     private void initializeCSV() {
         String header = "";
+        boolean addLandmarks = false;
+        boolean addTriangles = false;
+
         if ("SIP_LIPS".equals(trainingLabel)) {
-            header = Lip_Closure_HEADER; // 改成總面積
+            header = Lip_Closure_HEADER;
+            addLandmarks = true;
+            addTriangles = true;
         } else if ("POUT_LIPS".equals(trainingLabel)) {
-            header = Lip_Prot_HEADER;
-            //header = "time_seconds,state,mouth_height,mouth_width,height_width_ratio";
             header = Lip_Prot_HEADER2;
+            addLandmarks = true;
+            addTriangles = true;
         } else if ("舌頭".equals(trainingLabel) ||
                 "TONGUE_LEFT".equals(trainingLabel) ||
                 "TONGUE_RIGHT".equals(trainingLabel) ||
@@ -254,15 +259,41 @@ public class FaceDataRecorder {
                 "TONGUE_UP".equals(trainingLabel) ||
                 "TONGUE_DOWN".equals(trainingLabel)) {
             header = TONGUE_HEADER;
-        } else if ("PUFF_CHEEK".equals(trainingLabel)||"REDUCE_CHEEK".equals(trainingLabel)) {
+            // 舌頭：不加
+        } else if ("PUFF_CHEEK".equals(trainingLabel) || "REDUCE_CHEEK".equals(trainingLabel)) {
             header = CHEEKS_HEADER;
+            addLandmarks = true;
+            // 臉頰：只加 landmark、不加 triangles
+        } else if ("JAW_LEFT".equals(trainingLabel) || "JAW_RIGHT".equals(trainingLabel) || "下顎".equals(trainingLabel)) {
+            header = "time_seconds,state,jaw_shift,jaw_abs";
+            addLandmarks = true;
+            // 下顎：只加 landmark
         } else {
-            header = "time_seconds,state,metric_value"; // 預設格式
+            header = "time_seconds,state,metric_value";
         }
-        dataLines.add(header);
-        Log.d(TAG, "CSV 標題: " + header);
-    }
 
+        if (addLandmarks) {
+            StringBuilder lmHeader = new StringBuilder();
+            for (int i = 0; i < 478; i++) {
+                lmHeader.append(",lm").append(i).append("_x")
+                        .append(",lm").append(i).append("_y")
+                        .append(",lm").append(i).append("_z");
+            }
+            header = header + lmHeader.toString();
+        }
+
+        if (addTriangles) {
+            StringBuilder triHeader = new StringBuilder();
+            for (int i = 0; i < FaceTriangles.FACE_TRIANGLES.length; i++) {
+                triHeader.append(",tri_").append(i);
+            }
+            header = header + triHeader.toString();
+        }
+
+        dataLines.add(header);
+        Log.d(TAG, String.format("CSV header 長度: %d, addLandmarks=%b, addTriangles=%b",
+                header.length(), addLandmarks, addTriangles));
+    }
 
     //recordLandmarkData方法是一個多載Overload方法，用參數數量決定呼叫方法，區別各動作。
     //calculateXxx，每種動作內處理會叫的方法，計算的CSV各cell指標的內容數值。
@@ -1092,6 +1123,87 @@ public class FaceDataRecorder {
             Log.e(TAG, "appendBrightness error", e);
         }
     }
+
+    //加三角形熱圖_BEGIN
+    // ============== 478 全 landmark ==============
+    public void appendAllLandmarksToLastLine(float[][] landmarks01) {
+        if (landmarks01 == null || dataLines.size() <= 1) return;
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < landmarks01.length; i++) {
+                sb.append(',')
+                        .append(String.format(Locale.US, "%.6f", landmarks01[i][0])).append(',')
+                        .append(String.format(Locale.US, "%.6f", landmarks01[i][1])).append(',')
+                        .append(String.format(Locale.US, "%.6f", landmarks01[i][2]));
+            }
+            int lastIdx = dataLines.size() - 1;
+            dataLines.set(lastIdx, dataLines.get(lastIdx) + sb.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "appendAllLandmarks error", e);
+        }
+    }
+
+    // ============== 三角形熱圖 ==============
+    public void appendTrianglesToLastLine(float[][] landmarks01, Bitmap bitmap) {
+        if (bitmap == null || landmarks01 == null || dataLines.size() <= 1) return;
+        try {
+            float[] triGray = computeTriangleGrayscale(landmarks01, bitmap);
+            StringBuilder sb = new StringBuilder();
+            for (float v : triGray) {
+                sb.append(',').append(String.format(Locale.US, "%.1f", v));
+            }
+            int lastIdx = dataLines.size() - 1;
+            dataLines.set(lastIdx, dataLines.get(lastIdx) + sb.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "appendTriangles error", e);
+        }
+    }
+
+    private float[] computeTriangleGrayscale(float[][] lms, Bitmap bmp) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int[] pixels = new int[w * h];
+        bmp.getPixels(pixels, 0, w, 0, 0, w, h);
+
+        int[][] tris = FaceTriangles.FACE_TRIANGLES;
+        float[] result = new float[tris.length];
+
+        for (int i = 0; i < tris.length; i++) {
+            int[] tri = tris[i];
+            if (tri[0] >= lms.length || tri[1] >= lms.length || tri[2] >= lms.length) continue;
+
+            float x1 = lms[tri[0]][0] * w, y1 = lms[tri[0]][1] * h;
+            float x2 = lms[tri[1]][0] * w, y2 = lms[tri[1]][1] * h;
+            float x3 = lms[tri[2]][0] * w, y3 = lms[tri[2]][1] * h;
+
+            int minX = Math.max(0, (int)Math.min(Math.min(x1,x2),x3));
+            int maxX = Math.min(w-1, (int)Math.max(Math.max(x1,x2),x3));
+            int minY = Math.max(0, (int)Math.min(Math.min(y1,y2),y3));
+            int maxY = Math.min(h-1, (int)Math.max(Math.max(y1,y2),y3));
+
+            long sum = 0;
+            int count = 0;
+            for (int y = minY; y <= maxY; y++) {
+                for (int x = minX; x <= maxX; x++) {
+                    float d1 = (x-x2)*(y1-y2) - (x1-x2)*(y-y2);
+                    float d2 = (x-x3)*(y2-y3) - (x2-x3)*(y-y3);
+                    float d3 = (x-x1)*(y3-y1) - (x3-x1)*(y-y1);
+                    boolean hasNeg = (d1<0) || (d2<0) || (d3<0);
+                    boolean hasPos = (d1>0) || (d2>0) || (d3>0);
+                    if (!(hasNeg && hasPos)) {
+                        int p = pixels[y*w + x];
+                        int gray = ((p>>16 & 0xff)*299 + (p>>8 & 0xff)*587 + (p & 0xff)*114) / 1000;
+                        sum += gray;
+                        count++;
+                    }
+                }
+            }
+            result[i] = count > 0 ? (float)sum / count : 0f;
+        }
+        return result;
+    }
+
+    //加三角型熱圖END
+
 
     private float computeRoiBrightness(Bitmap bmp, float[][] landmarks, int[] indices, float expandRatio) {
         int w = bmp.getWidth(), h = bmp.getHeight();
