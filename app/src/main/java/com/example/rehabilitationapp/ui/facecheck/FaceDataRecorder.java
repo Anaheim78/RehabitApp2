@@ -263,6 +263,7 @@ public class FaceDataRecorder {
         } else if ("PUFF_CHEEK".equals(trainingLabel) || "REDUCE_CHEEK".equals(trainingLabel)) {
             header = CHEEKS_HEADER;
             addLandmarks = true;
+            addTriangles = true;
             // 臉頰：只加 landmark、不加 triangles
         } else if ("JAW_LEFT".equals(trainingLabel) || "JAW_RIGHT".equals(trainingLabel) || "下顎".equals(trainingLabel)) {
             header = "time_seconds,state,jaw_shift,jaw_abs";

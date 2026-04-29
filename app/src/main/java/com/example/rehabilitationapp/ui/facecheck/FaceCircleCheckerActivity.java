@@ -1562,7 +1562,7 @@ public class FaceCircleCheckerActivity extends AppCompatActivity {
                         Log.e("FCA_Cheek_Curve", "imgW&H=="+img_w +","+img_h);
                         dataRecorder.recordLandmarkData(stateString, landmarks01,  img_w,  img_h);
                         dataRecorder.appendAllLandmarksToLastLine(landmarks01);   // ⬅️ 新增（468點）
-
+                        dataRecorder.appendTrianglesToLastLine(landmarks01, mirroredBitmap);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "handleCheeksMode execute 錯誤", e);
